@@ -98,6 +98,8 @@ export default function SubteDashboard({
   // Navigation and Line selection
   const [activeLine, setActiveLine] = useState<string>('All'); // 'All' or lineId (e.g. 'LineaA')
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
+  const [selectedTrainId, setSelectedTrainId] = useState<string | null>(null);
+  const [pinnedTrainId, setPinnedTrainId] = useState<string | null>(null);
 
   // Live Telemetry data
   const [telemetry, setTelemetry] = useState(initialTelemetry);
@@ -242,13 +244,31 @@ export default function SubteDashboard({
     maxLon = Math.max(...activeStations.map(s => s.longitude));
   }
 
-  const latPad = (maxLat - minLat) * 0.15 || 0.005;
-  const lonPad = (maxLon - minLon) * 0.15 || 0.005;
+  let finalMinLat: number;
+  let finalMaxLat: number;
+  let finalMinLon: number;
+  let finalMaxLon: number;
 
-  const finalMinLat = minLat - latPad;
-  const finalMaxLat = maxLat + latPad;
-  const finalMinLon = minLon - lonPad;
-  const finalMaxLon = maxLon + lonPad;
+  const pinnedTrain = pinnedTrainId ? telemetry.trains.find(t => t.id === pinnedTrainId) : null;
+
+  if (pinnedTrain) {
+    // Zoomed-in bounds centered on the pinned train
+    const latZoom = 0.012; // height of the viewport in degrees (approx 1.3km)
+    const lonZoom = latZoom * (svgWidth / svgHeight); // maintain aspect ratio
+
+    finalMinLat = pinnedTrain.latitude - latZoom / 2;
+    finalMaxLat = pinnedTrain.latitude + latZoom / 2;
+    finalMinLon = pinnedTrain.longitude - lonZoom / 2;
+    finalMaxLon = pinnedTrain.longitude + lonZoom / 2;
+  } else {
+    const latPad = (maxLat - minLat) * 0.15 || 0.005;
+    const lonPad = (maxLon - minLon) * 0.15 || 0.005;
+
+    finalMinLat = minLat - latPad;
+    finalMaxLat = maxLat + latPad;
+    finalMinLon = minLon - lonPad;
+    finalMaxLon = maxLon + lonPad;
+  }
 
   const projectX = (lon: number) => {
     return ((lon - finalMinLon) / (finalMaxLon - finalMinLon)) * svgWidth;
@@ -256,6 +276,39 @@ export default function SubteDashboard({
 
   const projectY = (lat: number) => {
     return (1 - (lat - finalMinLat) / (finalMaxLat - finalMinLat)) * svgHeight;
+  };
+
+  // Helper function to calculate heading angle of a train based on its route direction
+  const getTrainHeading = (train: TrainTelemetry) => {
+    const nextStation = initialStations.find(s => s.stopId === train.nextStopId);
+    const prevStation = train.prevStopId ? initialStations.find(s => s.stopId === train.prevStopId) : null;
+
+    let x1: number | null = null;
+    let y1: number | null = null;
+    let x2: number | null = null;
+    let y2: number | null = null;
+
+    if (prevStation && nextStation) {
+      x1 = projectX(prevStation.longitude);
+      y1 = projectY(prevStation.latitude);
+      x2 = projectX(nextStation.longitude);
+      y2 = projectY(nextStation.latitude);
+    } else if (nextStation) {
+      x1 = projectX(train.longitude);
+      y1 = projectY(train.latitude);
+      x2 = projectX(nextStation.longitude);
+      y2 = projectY(nextStation.latitude);
+    }
+
+    if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
+        return Math.atan2(dy, dx) * (180 / Math.PI);
+      }
+    }
+
+    return train.directionId === 0 ? 0 : 180;
   };
 
   const stationsByName = new Map<string, Station[]>();
@@ -410,7 +463,10 @@ export default function SubteDashboard({
                 <g
                   key={`station-group-${s.stopId}`}
                   className="cursor-pointer group"
-                  onClick={() => setSelectedStationId(s.stopId)}
+                  onClick={() => {
+                    setSelectedStationId(s.stopId);
+                    setSelectedTrainId(null);
+                  }}
                   onMouseEnter={() => {
                     const lines = activeGroupStations.map(gs => {
                       const sq = initialSequences.find(q => q.stopId === gs.stopId);
@@ -477,11 +533,18 @@ export default function SubteDashboard({
               const x = projectX(train.longitude);
               const y = projectY(train.latitude);
               const color = LINE_DETAILS[train.routeId]?.color || '#fff';
+              const isSelected = selectedTrainId === train.id;
+              const isPinned = pinnedTrainId === train.id;
+              const heading = getTrainHeading(train);
 
               return (
                 <g
                   key={`train-${train.id}`}
                   className="cursor-pointer group"
+                  onClick={() => {
+                    setSelectedTrainId(train.id);
+                    setSelectedStationId(null);
+                  }}
                   onMouseEnter={() => {
                     setHoveredEntity({
                       type: 'train',
@@ -493,74 +556,144 @@ export default function SubteDashboard({
                   }}
                   onMouseLeave={() => setHoveredEntity(null)}
                 >
-                  <circle
-                    cx={x}
-                    cy={y}
-                    r={13}
-                    fill="none"
-                    stroke={color}
-                    strokeWidth={1.5}
-                    opacity={train.status === 'IN_TRANSIT' ? 0.75 : 0.4}
-                    className="animate-ping"
-                  />
+                  <g transform={`translate(${x}, ${y})`}>
+                    {/* Active Tracking Ring (rotating dashed circle) */}
+                    {isPinned && (
+                      <circle
+                        cx={0}
+                        cy={0}
+                        r={15}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth={2}
+                        strokeDasharray="4 2"
+                        className="animate-spin"
+                        style={{ animationDuration: '6s' }}
+                      />
+                    )}
 
-                  <circle
-                    cx={x}
-                    cy={y}
-                    r={9.5}
-                    fill="#090d16"
-                    stroke={color}
-                    strokeWidth={3}
-                    filter="url(#train-glow)"
-                    className="group-hover:scale-110 transition-transform duration-200"
-                  />
+                    {/* Selection Ring (steady highlight) */}
+                    {isSelected && !isPinned && (
+                      <circle
+                        cx={0}
+                        cy={0}
+                        r={14}
+                        fill="none"
+                        stroke="#fff"
+                        strokeWidth={1.5}
+                      />
+                    )}
 
-                  <polygon
-                    points={train.directionId === 0 ? "0,-2.5 2.5,2.5 -2.5,2.5" : "0,2.5 2.5,-2.5 -2.5,-2.5"}
-                    transform={`translate(${x}, ${y}) scale(1)`}
-                    fill={color}
-                  />
+                    {/* Rotated subgroup for direction indicator nose, circle and inner chevron */}
+                    <g transform={`rotate(${heading})`}>
+                      {/* Directional nose pointing forward */}
+                      <polygon
+                        points="8.5,-4 13.5,0 8.5,4"
+                        fill={color}
+                      />
 
-                  <text
-                    x={x}
-                    y={y - 15}
-                    fill={color}
-                    fontSize="11"
-                    fontWeight="bold"
-                    textAnchor="middle"
-                    className="pointer-events-none drop-shadow-lg font-mono font-extrabold"
-                  >
-                    {train.id}
-                  </text>
+                      {/* Main Train Dot */}
+                      <circle
+                        cx={0}
+                        cy={0}
+                        r={9.5}
+                        fill="#090d16"
+                        stroke={color}
+                        strokeWidth={3}
+                        filter="url(#train-glow)"
+                        className="group-hover:scale-110 transition-transform duration-200"
+                      />
+
+                      {/* Inner Direction Chevron */}
+                      <path
+                        d="M-3,-4.5 L2.5,0 L-3,4.5 L-1.2,0 Z"
+                        fill={color}
+                      />
+                    </g>
+
+                    {/* Upright Train ID text */}
+                    <text
+                      x={0}
+                      y={-17}
+                      fill={isPinned ? '#fff' : color}
+                      fontSize="10"
+                      fontWeight="black"
+                      textAnchor="middle"
+                      className="pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] font-mono tracking-tight"
+                    >
+                      {train.id}
+                    </text>
+                  </g>
                 </g>
               );
             })}
-          </svg>
 
-          {/* Hover Tooltip Overlay */}
-          {hoveredEntity && (
-            <div
-              className="absolute bg-slate-900/95 border border-slate-800 text-white p-3 rounded-xl shadow-2xl backdrop-blur-md pointer-events-none text-left z-30 w-52 transition-all"
-              style={{
-                left: Math.max(20, Math.min(window.innerWidth - 240, projectX(activeStations.find(s => s.stopName === hoveredEntity.name || `Tren ${s.stopId}` === hoveredEntity.name)?.longitude || -58.4) - 100)),
-                top: Math.max(20, projectY(activeStations.find(s => s.stopName === hoveredEntity.name || `Tren ${s.stopId}` === hoveredEntity.name)?.latitude || -34.6) - 90)
-              }}
-            >
-              <h4 className="text-xs font-extrabold flex items-center gap-1.5 uppercase tracking-wide">
-                <span className={`h-2.5 w-2.5 rounded-full ${hoveredEntity.type === 'train' ? 'bg-indigo-400' : 'bg-cyan-400'}`}></span>
-                {hoveredEntity.name}
-              </h4>
-              <p className="text-[10px] text-slate-400 mt-1.5 font-semibold leading-relaxed">
-                {hoveredEntity.detail}
-              </p>
-            </div>
-          )}
+            {/* SVG Tooltip Overlay */}
+            {hoveredEntity && (
+              <g
+                transform={`translate(${hoveredEntity.x}, ${hoveredEntity.y - 12})`}
+                className="pointer-events-none transition-all duration-150"
+              >
+                {/* Tooltip Background */}
+                <rect
+                  x="-100"
+                  y="-50"
+                  width="200"
+                  height="45"
+                  rx="10"
+                  fill="#0b0f19"
+                  stroke="#334155"
+                  strokeWidth="1.5"
+                  opacity="0.95"
+                  filter="url(#neon-glow)"
+                />
+                
+                {/* Icon indicator dot */}
+                <circle
+                  cx="-86"
+                  cy="-34"
+                  r="3.5"
+                  fill={hoveredEntity.type === 'train' ? '#6366f1' : '#06b6d4'}
+                />
+
+                {/* Title */}
+                <text
+                  x="-76"
+                  y="-31"
+                  fill="#f8fafc"
+                  fontSize="9"
+                  fontWeight="900"
+                  fontFamily="sans-serif"
+                  letterSpacing="0.5"
+                >
+                  {hoveredEntity.name.toUpperCase()}
+                </text>
+
+                {/* Detail */}
+                <text
+                  x="-86"
+                  y="-15"
+                  fill="#94a3b8"
+                  fontSize="8"
+                  fontWeight="600"
+                  fontFamily="sans-serif"
+                >
+                  {hoveredEntity.detail}
+                </text>
+              </g>
+            )}
+          </svg>
         </div>
 
         {/* FLOATING LINE SELECTOR - Top Center */}
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex gap-1.5 p-1.5 rounded-2xl bg-slate-900/65 backdrop-blur-xl border border-slate-800/80 shadow-2xl">
           <button
-            onClick={() => { setActiveLine('All'); setSelectedStationId(null); }}
+            onClick={() => {
+              setActiveLine('All');
+              setSelectedStationId(null);
+              setSelectedTrainId(null);
+              setPinnedTrainId(null);
+            }}
             className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition uppercase ${
               activeLine === 'All'
                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
@@ -572,7 +705,12 @@ export default function SubteDashboard({
           {Object.entries(LINE_DETAILS).map(([id, details]) => (
             <button
               key={id}
-              onClick={() => { setActiveLine(id); setSelectedStationId(null); }}
+              onClick={() => {
+                setActiveLine(id);
+                setSelectedStationId(null);
+                setSelectedTrainId(null);
+                setPinnedTrainId(null);
+              }}
               className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
                 activeLine === id
                   ? 'bg-slate-800 text-white shadow-md border border-slate-700'
@@ -749,6 +887,129 @@ export default function SubteDashboard({
                 </form>
               )}
             </div>
+          </div>
+        )}
+
+        {/* FLOATING TRAIN DETAILS PANEL - Bottom Right */}
+        {selectedTrainId && (() => {
+          const train = telemetry.trains.find(t => t.id === selectedTrainId);
+          if (!train) return null;
+          const details = LINE_DETAILS[train.routeId];
+          const isPinned = pinnedTrainId === train.id;
+
+          return (
+            <div className="absolute bottom-4 right-4 z-10 w-80 bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-2xl p-4 shadow-2xl flex flex-col gap-3.5 text-left transition-all animate-in fade-in slide-in-from-bottom-5 duration-200">
+              <div className="flex justify-between items-start">
+                <div>
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Formación</span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <h3 className="text-base font-extrabold text-white leading-tight font-mono">{train.id}</h3>
+                    {details && (
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${details.textColor} ${details.bgClass} border ${details.borderClass}`}>
+                        {details.name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setSelectedTrainId(null); }}
+                  className="text-[10px] font-bold text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-950 border border-slate-900 hover:bg-slate-900 transition"
+                >
+                  Cerrar
+                </button>
+              </div>
+
+              <hr className="border-slate-800/80" />
+
+              {/* Status & Tracking Button */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Estado</span>
+                  <span className={`text-xs font-extrabold mt-0.5 flex items-center gap-1.5 ${train.status === 'STOPPED' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${train.status === 'STOPPED' ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'}`}></span>
+                    {train.status === 'STOPPED' ? 'Detenido en Andén' : 'En Tránsito'}
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (isPinned) {
+                      setPinnedTrainId(null);
+                    } else {
+                      setPinnedTrainId(train.id);
+                      setActiveLine(train.routeId); // Focus on the train's line
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-md ${
+                    isPinned
+                      ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/10'
+                      : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/15'
+                  }`}
+                >
+                  <svg className={`w-3.5 h-3.5 ${isPinned ? 'animate-pulse' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    {isPinned ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M19 12a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    )}
+                  </svg>
+                  {isPinned ? 'Dejar de Seguir' : 'Seguir Formación'}
+                </button>
+              </div>
+
+              {/* Destination & ETA */}
+              <div className="grid grid-cols-2 gap-3.5 bg-slate-950/40 p-2.5 rounded-xl border border-slate-950">
+                <div>
+                  <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block">Próxima Parada</span>
+                  <span className="text-xs font-extrabold text-slate-200 block truncate mt-0.5">{train.nextStopName}</span>
+                </div>
+                <div>
+                  <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block">Llegada Estimada</span>
+                  <span className="text-xs font-black text-cyan-400 block mt-0.5">
+                    {train.etaSeconds === 0 ? 'En andén' : `${Math.floor(train.etaSeconds / 60)}m ${train.etaSeconds % 60}s`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Additional Stats */}
+              <div className="flex flex-col gap-1.5 text-xs text-slate-400">
+                {train.prevStopName && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 font-medium">Estación anterior:</span>
+                    <span className="font-semibold">{train.prevStopName}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-medium">Demora actual:</span>
+                  <span className={`font-semibold ${train.delaySeconds > 60 ? 'text-rose-400' : 'text-slate-300'}`}>
+                    {train.delaySeconds > 0 ? `${Math.floor(train.delaySeconds / 60)}m ${train.delaySeconds % 60}s` : 'Sin demora'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-medium">Progreso en tramo:</span>
+                  <span className="font-mono font-semibold">{Math.round(train.progress * 100)}%</span>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ACTIVE TRACKING BADGE */}
+        {pinnedTrain && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 px-4 py-2 rounded-full bg-indigo-950/80 border border-indigo-500/30 backdrop-blur-md shadow-lg shadow-indigo-950/30">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+            </span>
+            <span className="text-xs font-bold text-indigo-200">
+              Siguiendo formación <span className="font-mono font-black">{pinnedTrain.id}</span> ({LINE_DETAILS[pinnedTrain.routeId]?.name})
+            </span>
+            <button
+              onClick={() => setPinnedTrainId(null)}
+              className="text-[10px] font-black text-indigo-300 hover:text-white px-2 py-0.5 rounded bg-indigo-900/50 border border-indigo-700/30 transition uppercase"
+            >
+              Liberar
+            </button>
           </div>
         )}
 
