@@ -1,0 +1,48 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Station {
+  stopId         String          @id
+  stopName       String
+  latitude       Float
+  longitude      Float
+  routeSequences RouteSequence[]
+}
+
+model RouteSequence {
+  id           String  @id @default(uuid())
+  routeId      String  // Ej: "LineaA"
+  directionId  Int     // 0 o 1
+  stopSequence Int     // Orden físico en la vía (1 a N)
+  stopId       String
+  station      Station @relation(fields: [stopId], references: [stopId], onDelete: Cascade)
+
+  @@unique([routeId, directionId, stopSequence])
+  @@unique([routeId, directionId, stopId])
+}
+
+model HistoricalFlow {
+  id              String @id @default(uuid())
+  line            String
+  station         String
+  hour            Int
+  congestionLevel String // Verde, Amarillo, Rojo
+  passengerFlow   Int
+
+  @@unique([line, station, hour], name: "line_station_hour")
+}
+
+model Report {
+  id        String   @id @default(uuid())
+  line      String
+  station   String
+  category  String
+  comment   String
+  createdAt DateTime @default(now())
+}
