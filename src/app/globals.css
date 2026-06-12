@@ -41,8 +41,10 @@
   background: #020617 !important;
 }
 
+.leaflet-tile-pane,
+.leaflet-tile,
 .leaflet-tile-container {
-  filter: invert(100%) hue-rotate(180deg) brightness(0.95) contrast(1.25);
+  filter: invert(100%) hue-rotate(180deg) brightness(0.95) contrast(1.25) !important;
 }
 
 :root {
