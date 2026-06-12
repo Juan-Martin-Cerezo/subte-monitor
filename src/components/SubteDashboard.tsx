@@ -130,6 +130,7 @@ export default function SubteDashboard({
   const [telemetry, setTelemetry] = useState(initialTelemetry);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   // User reports trigger
   const [reportTrigger, setReportTrigger] = useState(0);
@@ -179,7 +180,7 @@ export default function SubteDashboard({
     return initialStations.find(s => s.stopId === selectedStationId) || null;
   }, [selectedStationId, initialStations]);
 
-  // Fetch telemetry updates every 2 seconds
+  // Fetch telemetry updates every 5 seconds
   const fetchTelemetry = useCallback(async () => {
     setIsRefreshing(true);
     try {
@@ -196,10 +197,12 @@ export default function SubteDashboard({
       setConnectionError(true);
     } finally {
       setIsRefreshing(false);
+      setIsInitialLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    fetchTelemetry();
     const interval = setInterval(fetchTelemetry, 5000);
     return () => clearInterval(interval);
   }, [fetchTelemetry]);
@@ -783,6 +786,40 @@ export default function SubteDashboard({
   return (
     <div className="flex flex-col h-screen w-screen bg-background text-on-surface font-body-md overflow-hidden relative">
       
+      {/* Dynamic Skeleton Loading Overlay */}
+      {isInitialLoading && (
+        <div className="absolute inset-0 bg-background/95 backdrop-blur-md z-[9999] flex items-center justify-center">
+          <div className="flex flex-col items-center gap-6 max-w-sm w-full px-6">
+            {/* Pulsating Logo Icon */}
+            <div className="relative flex items-center justify-center w-20 h-20 rounded-full bg-secondary/10 border border-secondary/20 shadow-[0_0_30px_rgba(0,238,252,0.15)] animate-pulse">
+              <span className="material-symbols-outlined text-[40px] text-secondary">subway</span>
+              <div className="absolute inset-0 rounded-full border border-secondary/40 animate-ping opacity-20"></div>
+            </div>
+
+            {/* Title & Status */}
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl font-black tracking-wider text-white">BA SUBTE</h2>
+              <p className="text-xs text-secondary font-mono tracking-widest uppercase animate-pulse">Conectando telemetría...</p>
+            </div>
+
+            {/* Sidebar line list skeleton */}
+            <div className="w-full bg-surface-container-lowest/40 border border-outline-variant/10 p-4 rounded-2xl flex flex-col gap-3">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-slate-800 animate-pulse"></div>
+                    <div className="w-24 h-3 bg-slate-800 rounded animate-pulse"></div>
+                  </div>
+                  <div className="w-6 h-3 bg-slate-800 rounded animate-pulse"></div>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-[9px] text-slate-500 font-mono text-center">Resolviendo ranuras de vía fijas en tiempo real...</p>
+          </div>
+        </div>
+      )}
+      
       {/* TopAppBar - Responsive Flex layout to prevent overlaps */}
       <header className="h-16 shrink-0 w-full z-50 flex justify-between items-center px-gutter bg-surface-container/70 dark:bg-surface-container-lowest/80 backdrop-blur-xl border-b border-outline-variant/30">
         <div className="flex items-center gap-md">
@@ -958,7 +995,7 @@ export default function SubteDashboard({
         </aside>
 
         {/* Content Area */}
-        <div className="flex-1 h-full min-h-0 overflow-hidden relative bg-surface flex flex-col">
+        <div className="flex-1 h-full min-h-0 overflow-hidden relative bg-surface flex flex-col pb-16 md:pb-0">
           
           {/* Subtle grid background */}
           {currentTab !== 'map' && (
@@ -983,7 +1020,7 @@ export default function SubteDashboard({
             {mapUserMoved && (
               <button
                 onClick={handleResetMapPosition}
-                className="absolute z-[1000] bottom-4 left-4 px-4 py-2.5 bg-secondary text-background hover:bg-secondary-container rounded-xl font-bold text-xs shadow-2xl transition-all flex items-center gap-1.5 active:scale-95 border border-outline-variant/30"
+                className="absolute z-[1000] bottom-20 md:bottom-4 left-4 px-4 py-2.5 bg-secondary text-background hover:bg-secondary-container rounded-xl font-bold text-xs shadow-2xl transition-all flex items-center gap-1.5 active:scale-95 border border-outline-variant/30"
               >
                 <span className="material-symbols-outlined text-sm">my_location</span>
                 Recalibrar Vista
@@ -1018,7 +1055,7 @@ export default function SubteDashboard({
 
             {/* Selected Station / Train Floating Detail (Map View) */}
             {(selectedStationId || selectedTrainId) && (
-              <div className="absolute bottom-4 right-4 z-10 w-80 bg-slate-900/90 border border-slate-800/80 backdrop-blur-md rounded-2xl p-4 shadow-2xl text-left flex flex-col gap-3">
+              <div className="absolute bottom-20 md:bottom-4 left-4 right-4 md:left-auto z-10 md:w-80 bg-slate-900/90 border border-slate-800/80 backdrop-blur-md rounded-2xl p-4 shadow-2xl text-left flex flex-col gap-3">
                 <div className="flex justify-between items-start">
                   <div>
                     {selectedStationId ? (
@@ -1854,6 +1891,49 @@ export default function SubteDashboard({
 
         </div>
       </div>
+
+      {/* Mobile Bottom Navigation Bar (Mobile Only) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-container/95 backdrop-blur-xl border-t border-outline-variant/20 z-50 flex justify-around items-center px-2">
+        <button
+          onClick={() => setCurrentTab('map')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
+            currentTab === 'map' ? 'text-secondary' : 'text-outline hover:text-on-surface'
+          }`}
+        >
+          <span className="material-symbols-outlined text-xl">map</span>
+          <span className="text-[10px] font-bold mt-1">Mapa</span>
+        </button>
+        <button
+          onClick={() => setCurrentTab('planner')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
+            currentTab === 'planner' ? 'text-secondary' : 'text-outline hover:text-on-surface'
+          }`}
+        >
+          <span className="material-symbols-outlined text-xl">route</span>
+          <span className="text-[10px] font-bold mt-1">Planificador</span>
+        </button>
+        <button
+          onClick={() => {
+            setCurrentTab('stations');
+            setShowMobileList(true);
+          }}
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
+            currentTab === 'stations' ? 'text-secondary' : 'text-outline hover:text-on-surface'
+          }`}
+        >
+          <span className="material-symbols-outlined text-xl">subway</span>
+          <span className="text-[10px] font-bold mt-1">Estaciones</span>
+        </button>
+        <button
+          onClick={() => setCurrentTab('status')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
+            currentTab === 'status' ? 'text-secondary' : 'text-outline hover:text-on-surface'
+          }`}
+        >
+          <span className="material-symbols-outlined text-xl">warning</span>
+          <span className="text-[10px] font-bold mt-1">Alertas</span>
+        </button>
+      </nav>
 
       {/* Footer - Positioned relative to layout columns to avoid overlaps */}
       <footer className="h-10 shrink-0 w-full flex justify-between items-center px-gutter bg-surface-container-lowest border-t border-outline-variant/10 z-30">
