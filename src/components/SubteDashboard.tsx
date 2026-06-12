@@ -105,6 +105,7 @@ export default function SubteDashboard({
   const [telemetry, setTelemetry] = useState(initialTelemetry);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>('');
+  const [connectionError, setConnectionError] = useState(false);
 
   // User Reports state
   const [reports, setReports] = useState<ReportData[]>([]);
@@ -145,9 +146,13 @@ export default function SubteDashboard({
       if (res.ok) {
         const data = await res.json();
         setTelemetry(data);
+        setConnectionError(false);
+      } else {
+        setConnectionError(true);
       }
     } catch (error) {
       console.error('Error updating live telemetry:', error);
+      setConnectionError(true);
     } finally {
       setIsRefreshing(false);
     }
@@ -351,10 +356,21 @@ export default function SubteDashboard({
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800">
-            <span className={`h-2 w-2 rounded-full ${telemetry.isMocked ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500 animate-ping'}`}></span>
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              {telemetry.isMocked ? 'Simulación Activa' : 'API GCBA Conectada'}
-            </span>
+            {connectionError ? (
+              <>
+                <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>
+                <span className="text-xs font-semibold text-rose-400 uppercase tracking-wider">
+                  Reconectando...
+                </span>
+              </>
+            ) : (
+              <>
+                <span className={`h-2 w-2 rounded-full ${telemetry.isMocked ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500 animate-ping'}`}></span>
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  {telemetry.isMocked ? 'Simulación Activa' : 'API GCBA Conectada'}
+                </span>
+              </>
+            )}
           </div>
 
           <div className="text-sm font-mono text-slate-400 bg-slate-900 px-3 py-1 rounded-lg border border-slate-800">

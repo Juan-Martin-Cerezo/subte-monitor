@@ -494,6 +494,88 @@ export async function getTelemetryData() {
     });
   }
 
+  // Dead reckoning: Keep returning active trains that are temporarily missing from the feed
+  for (const [tripId, entry] of trackerDB.entries()) {
+    if (!usedIds.has(tripId) && nowUnix - entry.lastSeen <= 40) {
+      // Find the route sequence for this train
+      const key = `${entry.routeId}_${entry.directionId}`;
+      const seqList = routeSequences[key];
+      if (!seqList || seqList.length === 0) continue;
+
+      // Calculate projected arrival times for each station based on t_inicio
+      const projectedStops = seqList.map(seq => {
+        const arrivalTime = entry.t_inicio + (seq.stopSequence * 88.5);
+        return {
+          stopId: seq.stopId,
+          stopSequence: seq.stopSequence,
+          arrivalTime,
+          delay: 0
+        };
+      });
+
+      // Filter out stops that are more than 60 seconds in the past
+      const validStops = projectedStops.filter(s => s.arrivalTime >= nowUnix - 60);
+      if (validStops.length === 0) continue;
+
+      // Find the active stop
+      const activeStop = validStops.find(s => s.arrivalTime - nowUnix >= -40) || validStops[validStops.length - 1];
+
+      const nextStation = stationMap.get(activeStop.stopId);
+      const nextStopName = nextStation?.stopName || 'Estación';
+      const nextStopId = activeStop.stopId;
+      const etaSeconds = Math.max(0, activeStop.arrivalTime - nowUnix);
+
+      let status: 'STOPPED' | 'IN_TRANSIT' = 'STOPPED';
+      let progress = 0;
+      let prevStopId: string | null = null;
+      let prevStopName: string | null = null;
+
+      const nextSeqIndex = seqList.findIndex(s => s.stopId === activeStop.stopId);
+
+      if (nowUnix >= activeStop.arrivalTime) {
+        status = 'STOPPED';
+        progress = 0.0;
+        prevStopId = activeStop.stopId;
+        prevStopName = nextStopName;
+      } else {
+        status = 'IN_TRANSIT';
+        progress = Math.max(0.0, Math.min(0.95, 1 - ((activeStop.arrivalTime - nowUnix) / 90)));
+
+        if (nextSeqIndex > 0) {
+          prevStopId = seqList[nextSeqIndex - 1].stopId;
+          prevStopName = stationMap.get(prevStopId)?.stopName || 'Estación';
+        }
+      }
+
+      // Interpolate coordinates
+      const prevStation = prevStopId ? stationMap.get(prevStopId) : null;
+      let lat = nextStation?.latitude || 0;
+      let lon = nextStation?.longitude || 0;
+
+      if (status === 'IN_TRANSIT' && prevStation && nextStation) {
+        lat = prevStation.latitude + progress * (nextStation.latitude - prevStation.latitude);
+        lon = prevStation.longitude + progress * (nextStation.longitude - prevStation.longitude);
+      }
+
+      trains.push({
+        id: entry.tripId,
+        routeId: entry.routeId,
+        directionId: entry.directionId,
+        status,
+        progress,
+        latitude: lat,
+        longitude: lon,
+        nextStopId,
+        nextStopName,
+        prevStopId,
+        prevStopName,
+        etaSeconds,
+        delaySeconds: 0,
+        updatedAt: nowUnix
+      });
+    }
+  }
+
   // Memory cleanup: remove trains last seen more than 120s ago
   for (const [tripId, entry] of trackerDB.entries()) {
     if (nowUnix - entry.lastSeen > 120) {
