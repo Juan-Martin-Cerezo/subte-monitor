@@ -37,6 +37,14 @@
   border-top-color: #334155 !important;
 }
 
+.leaflet-container {
+  background: #020617 !important;
+}
+
+.leaflet-tile-container {
+  filter: brightness(0.55) contrast(1.5) saturate(0.8);
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

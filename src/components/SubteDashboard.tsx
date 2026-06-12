@@ -169,7 +169,9 @@ export default function SubteDashboard({
       Object.entries(LINE_DETAILS).map(([lineId, details]) => {
         if (!activeLines.includes(lineId)) return;
 
-        const lineSeqs = initialSequences.filter(s => s.routeId === lineId && s.directionId === 0);
+        const lineSeqs = initialSequences
+          .filter(s => s.routeId === lineId && s.directionId === 0)
+          .sort((a, b) => a.stopSequence - b.stopSequence);
         if (lineSeqs.length === 0) return;
 
         const points = lineSeqs
@@ -204,7 +206,7 @@ export default function SubteDashboard({
         const lineColor = seq ? LINE_DETAILS[seq.routeId]?.color : '#475569';
 
         const stationHtml = `
-          <div style="position: relative; width: 20px; height: 20px; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center;">
+          <div style="position: relative; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;">
             ${isSelected ? `
               <div style="position: absolute; inset: -4px; border: 2px solid #fff; border-radius: 50%; animation: pulse 1.5s infinite;"></div>
             ` : ''}
@@ -240,7 +242,7 @@ export default function SubteDashboard({
         const heading = getTrainHeading(train);
 
         const htmlContent = `
-          <div style="position: relative; width: 30px; height: 30px; transform: translate(-50%, -50%); cursor: pointer;">
+          <div style="position: relative; width: 30px; height: 30px; cursor: pointer;">
             ${isPinned ? `
               <div style="position: absolute; inset: -5px; border: 2px dashed ${color}; border-radius: 50%; animation: spin 6s linear infinite;"></div>
             ` : ''}
@@ -291,6 +293,31 @@ export default function SubteDashboard({
       mapInstanceRef.current.setView([pinnedTrain.latitude, pinnedTrain.longitude], 15, { animate: true });
     }
   }, [telemetry.trains, pinnedTrainId]);
+
+  // Zoom to fit bounds when a specific line is selected, or fit the entire network on Red Completa
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+
+    import('leaflet').then((L) => {
+      const map = mapInstanceRef.current;
+      if (activeLine !== 'All') {
+        const lineSeqs = initialSequences.filter(s => s.routeId === activeLine && s.directionId === 0);
+        const lineStations = initialStations.filter(s => lineSeqs.some(seq => seq.stopId === s.stopId));
+        if (lineStations.length > 0) {
+          const latlngs = lineStations.map(s => [s.latitude, s.longitude] as L.LatLngTuple);
+          const bounds = L.latLngBounds(latlngs);
+          map.fitBounds(bounds, { padding: [50, 50], animate: true });
+        }
+      } else if (!pinnedTrainId) {
+        // Fit the whole network if Red Completa is active and no train is pinned
+        const latlngs = initialStations.map(s => [s.latitude, s.longitude] as L.LatLngTuple);
+        if (latlngs.length > 0) {
+          const bounds = L.latLngBounds(latlngs);
+          map.fitBounds(bounds, { padding: [40, 40], animate: true });
+        }
+      }
+    });
+  }, [activeLine, initialStations, initialSequences, pinnedTrainId]);
 
   // User Reports state
   const [reports, setReports] = useState<ReportData[]>([]);
