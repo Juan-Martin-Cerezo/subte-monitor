@@ -107,15 +107,61 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c;
 }
 
-// Stable hashing for train IDs using terminal departure time projection
-function getStableTrainId(routeId: string, directionId: number, tStartSeconds: number): string {
-  // Group into 150-second (2.5 min) windows to prevent jitter while maintaining distinct trains
-  const bucket = Math.round(tStartSeconds / 150) * 150;
-  const hash = createHash('sha256')
-    .update(`${routeId}_${directionId}_${bucket}`)
-    .digest('hex');
-  const lineChar = routeId.replace('Linea', '');
-  return `${lineChar}-${hash.substring(0, 5).toUpperCase()}`;
+// Persistent memory tracker to survive hot reload in Next.js development
+const globalForTracker = globalThis as unknown as { 
+  subteTracker: Map<string, { routeId: string; directionId: number; tripId: string; t_inicio: number; lastSeen: number }> 
+};
+if (!globalForTracker.subteTracker) {
+  globalForTracker.subteTracker = new Map();
+}
+const trackerDB = globalForTracker.subteTracker;
+
+// Persistent memory cache for the feed
+const globalForCache = globalThis as unknown as { 
+  subteCache: { 
+    rawForecast: GCBAForecastResponse; 
+    alerts: AlertData[];
+    fetchedAt: number; 
+    isMocked: boolean;
+  } | null 
+};
+if (!globalForCache.subteCache) {
+  globalForCache.subteCache = null;
+}
+
+// Persistent memory to keep track of a stable clock sync offset with the GCBA API
+const globalForSync = globalThis as unknown as {
+  subteSync: {
+    lastFeedTimestamp: number;
+    stableTimeDiff: number;
+  }
+};
+if (!globalForSync.subteSync) {
+  globalForSync.subteSync = {
+    lastFeedTimestamp: 0,
+    stableTimeDiff: 0
+  };
+}
+const syncDB = globalForSync.subteSync;
+
+// Permissive route matching helper to handle GCBA variants (like "LineC", "linec", "LineaC", etc.)
+function matchDbRoute(rawRouteId: string | undefined): string | null {
+  if (!rawRouteId) return null;
+  const cleaned = rawRouteId.trim().toLowerCase().replace(/\s+/g, '').replace(/_/g, '');
+  
+  const dbRoutes = ['LineaA', 'LineaB', 'LineaC', 'LineaD', 'LineaE', 'LineaH'];
+  for (const dbRoute of dbRoutes) {
+    const line = dbRoute.replace('Linea', '').toLowerCase();
+    if (
+      cleaned === `linea${line}` ||
+      cleaned === line ||
+      cleaned === `line${line}` ||
+      cleaned === `subte${line}`
+    ) {
+      return dbRoute;
+    }
+  }
+  return null;
 }
 
 export async function getTelemetryData() {
@@ -127,82 +173,103 @@ export async function getTelemetryData() {
 
   const nowUnix = Math.floor(Date.now() / 1000);
 
-  let rawForecast: GCBAForecastResponse | null = null;
-  let rawAlerts: GCBAAlertsResponse | null = null;
-  let isMocked = false;
-
-  try {
-    const [forecastRes, alertsRes] = await Promise.all([
-      fetch(forecastUrl, { next: { revalidate: 10 } }).then(res => res.ok ? res.json() : null),
-      fetch(alertsUrl, { next: { revalidate: 30 } }).then(res => res.ok ? res.json() : null)
-    ]);
-    rawForecast = forecastRes as GCBAForecastResponse | null;
-    rawAlerts = alertsRes as GCBAAlertsResponse | null;
-  } catch (error) {
-    console.error('Error fetching live Subte telemetry:', error);
-  }
-
-  // If API failed or returned empty during off-hours, fall back to mock simulation
-  if (!rawForecast || !rawForecast.Entity || rawForecast.Entity.length === 0) {
-    console.log('Using simulated live telemetry (empty/failed API response)');
-    isMocked = true;
-    rawForecast = generateMockForecast(nowUnix);
-  }
-
-  const alerts: AlertData[] = [];
-  if (rawAlerts && rawAlerts.entity) {
-    rawAlerts.entity.forEach((ent: GCBAAlertEntity) => {
-      if (ent.alert) {
-        const routeId = ent.alert.informed_entity?.[0]?.route_id || 'Global';
-        const header = ent.alert.header_text?.translation?.[0]?.text || 'Alerta de servicio';
-        const desc = ent.alert.description_text?.translation?.[0]?.text || '';
-        const causeCode = ent.alert.cause || 1;
-        const effectCode = ent.alert.effect || 1;
-
-        const causeMap: Record<number, string> = {
-          1: 'Accidente', 2: 'Operativo Policial', 3: 'Manifestación', 4: 'Problemas Técnicos',
-          5: 'Mantenimiento', 6: 'Clima', 7: 'Huelga', 8: 'Falta de Personal'
-        };
-        const effectMap: Record<number, string> = {
-          1: 'Servicio Demorado', 2: 'Servicio Limitado', 3: 'Sin Servicio',
-          4: 'Desvíos', 5: 'Estación Cerrada', 6: 'Frecuencia Reducida'
-        };
-
-        alerts.push({
-          id: ent.id,
-          routeId,
-          headerText: header,
-          descriptionText: desc,
-          cause: causeMap[causeCode] || 'Otro',
-          effect: effectMap[effectCode] || 'Modificación de Servicio'
-        });
-      }
-    });
-  } else if (isMocked) {
-    // Generate some mock alerts if we are simulating
-    alerts.push({
-      id: 'mock-alert-1',
-      routeId: 'LineaA',
-      headerText: 'Línea A: Demoras por problemas técnicos en estación Congreso',
-      descriptionText: 'Se registran demoras de hasta 10 minutos debido a una falla de señales.',
-      cause: 'Problemas Técnicos',
-      effect: 'Servicio Demorado'
-    });
-    alerts.push({
-      id: 'mock-alert-2',
-      routeId: 'LineaC',
-      headerText: 'Línea C: Estación Retiro con andenes alternados',
-      descriptionText: 'Obras de mantenimiento preventivo en aparatos de vía.',
-      cause: 'Mantenimiento',
-      effect: 'Frecuencia Reducida'
-    });
-  }
-
-  // Fetch all stations and sequences from DB
+  // Fetch all stations and sequences from DB first
   const stations = await db.station.findMany();
   const sequences = await db.routeSequence.findMany({
     orderBy: { stopSequence: 'asc' }
   });
+
+  let rawForecast: GCBAForecastResponse | null = null;
+  let alerts: AlertData[] = [];
+  let isMocked = false;
+  let fetchedAt = nowUnix;
+
+  const cacheLimitSeconds = 4; // cache for 4 seconds
+  const cached = globalForCache.subteCache;
+
+  if (cached && nowUnix - cached.fetchedAt < cacheLimitSeconds) {
+    rawForecast = cached.rawForecast;
+    alerts = cached.alerts;
+    isMocked = cached.isMocked;
+    fetchedAt = cached.fetchedAt;
+  } else {
+    // Fetch fresh
+    let rawAlerts: GCBAAlertsResponse | null = null;
+    try {
+      const [forecastRes, alertsRes] = await Promise.all([
+        fetch(forecastUrl, { cache: 'no-store' }).then(res => res.ok ? res.json() : null),
+        fetch(alertsUrl, { cache: 'no-store' }).then(res => res.ok ? res.json() : null)
+      ]);
+      rawForecast = forecastRes as GCBAForecastResponse | null;
+      rawAlerts = alertsRes as GCBAAlertsResponse | null;
+    } catch (error) {
+      console.error('Error fetching live Subte telemetry:', error);
+    }
+
+    if (!rawForecast || !rawForecast.Entity || rawForecast.Entity.length === 0) {
+      console.log('Using simulated live telemetry (empty/failed API response)');
+      isMocked = true;
+      rawForecast = generateMockForecast(nowUnix, sequences);
+    }
+
+    // Process alerts
+    if (rawAlerts && rawAlerts.entity) {
+      rawAlerts.entity.forEach((ent: GCBAAlertEntity) => {
+        if (ent.alert) {
+          const routeId = ent.alert.informed_entity?.[0]?.route_id || 'Global';
+          const header = ent.alert.header_text?.translation?.[0]?.text || 'Alerta de servicio';
+          const desc = ent.alert.description_text?.translation?.[0]?.text || '';
+          const causeCode = ent.alert.cause || 1;
+          const effectCode = ent.alert.effect || 1;
+
+          const causeMap: Record<number, string> = {
+            1: 'Accidente', 2: 'Operativo Policial', 3: 'Manifestación', 4: 'Problemas Técnicos',
+            5: 'Mantenimiento', 6: 'Clima', 7: 'Huelga', 8: 'Falta de Personal'
+          };
+          const effectMap: Record<number, string> = {
+            1: 'Servicio Demorado', 2: 'Servicio Limitado', 3: 'Sin Servicio',
+            4: 'Desvíos', 5: 'Estación Cerrada', 6: 'Frecuencia Reducida'
+          };
+
+          alerts.push({
+            id: ent.id,
+            routeId,
+            headerText: header,
+            descriptionText: desc,
+            cause: causeMap[causeCode] || 'Otro',
+            effect: effectMap[effectCode] || 'Modificación de Servicio'
+          });
+        }
+      });
+    } else if (isMocked) {
+      // Generate some mock alerts if we are simulating
+      alerts.push({
+        id: 'mock-alert-1',
+        routeId: 'LineaA',
+        headerText: 'Línea A: Demoras por problemas técnicos en estación Congreso',
+        descriptionText: 'Se registran demoras de hasta 10 minutos debido a una falla de señales.',
+        cause: 'Problemas Técnicos',
+        effect: 'Servicio Demorado'
+      });
+      alerts.push({
+        id: 'mock-alert-2',
+        routeId: 'LineaC',
+        headerText: 'Línea C: Estación Retiro con andenes alternados',
+        descriptionText: 'Obras de mantenimiento preventivo en aparatos de vía.',
+        cause: 'Mantenimiento',
+        effect: 'Frecuencia Reducida'
+      });
+    }
+
+    // Save to global cache
+    globalForCache.subteCache = {
+      rawForecast,
+      alerts,
+      fetchedAt: nowUnix,
+      isMocked
+    };
+    fetchedAt = nowUnix;
+  }
 
   // Map stations for easy lookup
   const stationMap = new Map(stations.map(s => [s.stopId, s]));
@@ -223,17 +290,22 @@ export async function getTelemetryData() {
   const rawArrivals: RawArrival[] = [];
   rawForecast.Entity.forEach((entity: GCBAEntity) => {
     if (!entity.Linea) return;
-    const routeId = entity.Linea.Route_Id;
-    const directionId = entity.Linea.Direction_ID;
-    if (!routeId || directionId === undefined) return;
+    const rawRouteId = entity.Linea.Route_Id;
+    if (!rawRouteId) return;
+
+    const routeId = matchDbRoute(rawRouteId);
+    if (!routeId) return;
 
     entity.Linea.Estaciones?.forEach((est: GCBAStation) => {
       const arrTime = est.arrival?.time || est.departure?.time;
       if (!arrTime) return;
 
+      const stopDirectionId = getDirectionFromStopId(est.stop_id);
+      if (stopDirectionId === null) return;
+
       rawArrivals.push({
         routeId,
-        directionId,
+        directionId: stopDirectionId,
         stopId: est.stop_id,
         arrivalTime: arrTime,
         departureTime: est.departure?.time || arrTime + STOP_DURATION_S,
@@ -243,154 +315,164 @@ export async function getTelemetryData() {
   });
 
   const trains: TrainTelemetry[] = [];
+  const usedIds = new Set<string>();
 
-  // Run Fixed Track-Slot algorithm for each route and direction
+  // Calculate stable time offset of the feed to synchronize with local server time
+  const feedTimestamp = rawForecast.Header.timestamp;
+  let timeDiff = syncDB.stableTimeDiff;
+
+  if (feedTimestamp !== syncDB.lastFeedTimestamp || !timeDiff) {
+    // If feed timestamp updated (or is dynamic/mocked), we recalculate the stable time difference
+    timeDiff = nowUnix - feedTimestamp;
+    syncDB.lastFeedTimestamp = feedTimestamp;
+    syncDB.stableTimeDiff = timeDiff;
+  }
+
+  // Run Stateful Tracking with 1D Clustering algorithm for each route and direction
   for (const [key, seqList] of Object.entries(routeSequences)) {
     const [routeId, dirStr] = key.split('_');
     const directionId = parseInt(dirStr);
 
-    // Compute cumulative nominal travel times
-    const cumNominalTime: Record<string, number> = {};
-    let runningTime = 0;
-    cumNominalTime[seqList[0].stopId] = 0;
-
-    for (let i = 1; i < seqList.length; i++) {
-      const prevStation = stationMap.get(seqList[i - 1].stopId);
-      const nextStation = stationMap.get(seqList[i].stopId);
-
-      if (prevStation && nextStation) {
-        const dist = getDistanceMeters(
-          prevStation.latitude,
-          prevStation.longitude,
-          nextStation.latitude,
-          nextStation.longitude
-        );
-        const transitTime = dist / SPEED_M_S;
-        runningTime += transitTime + STOP_DURATION_S;
-      } else {
-        runningTime += 100; // default backup hop time (100 seconds)
+    // Collect all valid arrivals for this route and direction
+    const validStops: { stopId: string; stopSequence: number; arrivalTime: number; delay: number }[] = [];
+    
+    rawArrivals.forEach(arr => {
+      if (arr.routeId === routeId && arr.directionId === directionId) {
+        const seq = seqList.find(s => s.stopId === arr.stopId);
+        if (seq) {
+          const arrivalTimeAdjusted = arr.arrivalTime + timeDiff;
+          // Filter out stale predictions that are more than 60 seconds in the past
+          if (arrivalTimeAdjusted >= nowUnix - 60) {
+            validStops.push({
+              stopId: arr.stopId,
+              stopSequence: seq.stopSequence,
+              arrivalTime: arrivalTimeAdjusted,
+              delay: arr.delay
+            });
+          }
+        }
       }
-      cumNominalTime[seqList[i].stopId] = runningTime;
-    }
+    });
 
-    // Map each stop to its sequence order
-    const stopSeqMap = new Map(seqList.map(s => [s.stopId, s.stopSequence]));
+    if (validStops.length === 0) continue;
 
-    // Filter arrivals for this route + direction that are in the future or very recent
-    const lineArrivals = rawArrivals.filter(
-      arr => arr.routeId === routeId && arr.directionId === directionId && arr.arrivalTime > nowUnix - 90
-    );
+    // Calculate t_inicio for each stop to project departure from terminal
+    const validStopsWithTInicio = validStops.map(stop => {
+      const t_inicio = stop.arrivalTime - (stop.stopSequence * 88.5);
+      return { ...stop, t_inicio };
+    });
 
-    if (lineArrivals.length === 0) continue;
+    // Sort strictly by t_inicio
+    validStopsWithTInicio.sort((a, b) => a.t_inicio - b.t_inicio);
 
-    // Project arrivals back to terminal S_1
-    const arrivalsWithProj = lineArrivals.map(arr => {
-      const seq = stopSeqMap.get(arr.stopId) || 1;
-      const cumTime = cumNominalTime[arr.stopId] || 0;
-      const tProj = arr.arrivalTime - cumTime;
-      return { ...arr, seq, tProj };
-    }).sort((a, b) => a.tProj - b.tProj);
-
-    // Cluster T_proj values using single-linkage clustering
-    const CLUSTER_THRESHOLD_S = 160; // 160 seconds
-    const clusters: { tProjValues: number[]; arrivals: typeof arrivalsWithProj }[] = [];
-
-    arrivalsWithProj.forEach(item => {
-      const matchedCluster = clusters.find(c => {
-        const avg = c.tProjValues.reduce((sum, val) => sum + val, 0) / c.tProjValues.length;
-        return Math.abs(avg - item.tProj) <= CLUSTER_THRESHOLD_S;
-      });
-
-      if (matchedCluster) {
-        matchedCluster.tProjValues.push(item.tProj);
-        matchedCluster.arrivals.push(item);
-      } else {
+    // 1D Clustering (DBSCAN 1D)
+    const clusters: { t_inicio_values: number[]; stops: typeof validStopsWithTInicio }[] = [];
+    
+    validStopsWithTInicio.forEach(stop => {
+      let added = false;
+      if (clusters.length > 0) {
+        const lastCluster = clusters[clusters.length - 1];
+        const avg = lastCluster.t_inicio_values.reduce((sum, v) => sum + v, 0) / lastCluster.t_inicio_values.length;
+        if (Math.abs(stop.t_inicio - avg) < 180) {
+          lastCluster.t_inicio_values.push(stop.t_inicio);
+          lastCluster.stops.push(stop);
+          added = true;
+        }
+      }
+      if (!added) {
         clusters.push({
-          tProjValues: [item.tProj],
-          arrivals: [item]
+          t_inicio_values: [stop.t_inicio],
+          stops: [stop]
         });
       }
     });
 
-    // Form trains from clusters
+    // Process each cluster (each physical train found)
     clusters.forEach(cluster => {
-      // Find average projected departure time
-      const tStart = cluster.tProjValues.reduce((sum, val) => sum + val, 0) / cluster.tProjValues.length;
-      const stableId = getStableTrainId(routeId, directionId, tStart);
+      const avg_t_inicio = cluster.t_inicio_values.reduce((sum, v) => sum + v, 0) / cluster.t_inicio_values.length;
+      
+      let matchedTripId: string | null = null;
+      let minDiff = Infinity;
+      
+      for (const [tripId, entry] of trackerDB.entries()) {
+        if (entry.routeId === routeId && entry.directionId === directionId && !usedIds.has(tripId)) {
+          const diff = Math.abs(entry.t_inicio - avg_t_inicio);
+          if (diff < minDiff && diff <= 240) {
+            minDiff = diff;
+            matchedTripId = tripId;
+          }
+        }
+      }
+      
+      let stableId: string;
+      if (matchedTripId) {
+        stableId = matchedTripId;
+        const entry = trackerDB.get(matchedTripId)!;
+        entry.t_inicio = avg_t_inicio;
+        entry.lastSeen = nowUnix;
+      } else {
+        const lineChar = routeId.replace('Linea', '');
+        let randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+        stableId = `${lineChar}-${randomPart}`;
+        while (usedIds.has(stableId) || trackerDB.has(stableId)) {
+          randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
+          stableId = `${lineChar}-${randomPart}`;
+        }
+        
+        trackerDB.set(stableId, {
+          routeId,
+          directionId,
+          tripId: stableId,
+          t_inicio: avg_t_inicio,
+          lastSeen: nowUnix
+        });
+      }
+      usedIds.add(stableId);
 
-      // Sort arrivals inside cluster by sequence ascending
-      cluster.arrivals.sort((a, b) => a.seq - b.seq);
+      // Sort cluster stops strictly by stopSequence
+      const sortedStops = [...cluster.stops].sort((a, b) => a.stopSequence - b.stopSequence);
+      if (sortedStops.length === 0) return;
 
-      // Filter upcoming arrivals
-      const upcomingArrivals = cluster.arrivals.filter(arr => arr.arrivalTime >= nowUnix - 15);
+      // Find activeStop: the stop with the lowest arrivalTime meeting arrivalTime - nowUnix >= -40
+      const activeStop = sortedStops.find(s => s.arrivalTime - nowUnix >= -40) || sortedStops[sortedStops.length - 1];
 
-      let nextStopId = '';
-      let nextStopName = '';
-      let prevStopId: string | null = null;
-      let prevStopName: string | null = null;
-      let etaSeconds = 0;
-      let delaySeconds = 0;
+      const nextStation = stationMap.get(activeStop.stopId);
+      const nextStopName = nextStation?.stopName || 'Estación';
+      const nextStopId = activeStop.stopId;
+      const etaSeconds = Math.max(0, activeStop.arrivalTime - nowUnix);
+
       let status: 'STOPPED' | 'IN_TRANSIT' = 'STOPPED';
       let progress = 0;
-      let lat = 0;
-      let lon = 0;
+      let prevStopId: string | null = null;
+      let prevStopName: string | null = null;
 
-      if (upcomingArrivals.length > 0) {
-        // Next station is the one with the smallest sequence number among upcoming arrivals
-        const nextArr = upcomingArrivals[0];
-        nextStopId = nextArr.stopId;
-        const nextStation = stationMap.get(nextStopId);
-        nextStopName = nextStation?.stopName || 'Estación';
-        etaSeconds = Math.max(0, nextArr.arrivalTime - nowUnix);
-        delaySeconds = nextArr.delay;
+      const nextSeqIndex = seqList.findIndex(s => s.stopId === activeStop.stopId);
 
-        const nextSeqIndex = seqList.findIndex(s => s.stopId === nextStopId);
+      if (nowUnix >= activeStop.arrivalTime) {
+        // STATIONARY
+        status = 'STOPPED';
+        progress = 0.0;
+        prevStopId = activeStop.stopId;
+        prevStopName = nextStopName;
+      } else {
+        // IN_TRANSIT
+        status = 'IN_TRANSIT';
+        progress = Math.max(0.0, Math.min(0.95, 1 - ((activeStop.arrivalTime - nowUnix) / 90)));
 
         if (nextSeqIndex > 0) {
-          const prevArrSeq = seqList[nextSeqIndex - 1];
-          prevStopId = prevArrSeq.stopId;
-          const prevStation = stationMap.get(prevStopId);
-          prevStopName = prevStation?.stopName || 'Estación';
-
-          const prevCumTime = cumNominalTime[prevStopId] || 0;
-          const nextCumTime = cumNominalTime[nextStopId] || 0;
-          const segmentDuration = nextCumTime - prevCumTime;
-
-          if (etaSeconds <= 15) {
-            // Train is stopped at the next station
-            status = 'STOPPED';
-            progress = 1.0;
-            lat = nextStation?.latitude || 0;
-            lon = nextStation?.longitude || 0;
-          } else {
-            // Train is in transit between previous and next
-            status = 'IN_TRANSIT';
-            const elapsed = segmentDuration - etaSeconds;
-            progress = Math.max(0.01, Math.min(0.99, elapsed / segmentDuration));
-
-            if (prevStation && nextStation) {
-              lat = prevStation.latitude + progress * (nextStation.latitude - prevStation.latitude);
-              lon = prevStation.longitude + progress * (nextStation.longitude - prevStation.longitude);
-            }
-          }
-        } else {
-          // Train is at the terminal starting station
-          status = 'STOPPED';
-          progress = 0;
-          lat = nextStation?.latitude || 0;
-          lon = nextStation?.longitude || 0;
+          prevStopId = seqList[nextSeqIndex - 1].stopId;
+          prevStopName = stationMap.get(prevStopId)?.stopName || 'Estación';
         }
-      } else {
-        // No upcoming arrivals in the cluster (train finished all stops or leaving terminal)
-        const lastArr = cluster.arrivals[cluster.arrivals.length - 1];
-        const lastStation = stationMap.get(lastArr.stopId);
-        status = 'STOPPED';
-        progress = 1.0;
-        nextStopId = lastArr.stopId;
-        nextStopName = lastStation?.stopName || 'Estación Terminal';
-        lat = lastStation?.latitude || 0;
-        lon = lastStation?.longitude || 0;
-        delaySeconds = lastArr.delay;
+      }
+
+      // Interpolate coordinates
+      const prevStation = prevStopId ? stationMap.get(prevStopId) : null;
+      let lat = nextStation?.latitude || 0;
+      let lon = nextStation?.longitude || 0;
+
+      if (status === 'IN_TRANSIT' && prevStation && nextStation) {
+        lat = prevStation.latitude + progress * (nextStation.latitude - prevStation.latitude);
+        lon = prevStation.longitude + progress * (nextStation.longitude - prevStation.longitude);
       }
 
       trains.push({
@@ -406,10 +488,17 @@ export async function getTelemetryData() {
         prevStopId,
         prevStopName,
         etaSeconds,
-        delaySeconds,
+        delaySeconds: activeStop.delay,
         updatedAt: nowUnix
       });
     });
+  }
+
+  // Memory cleanup: remove trains last seen more than 120s ago
+  for (const [tripId, entry] of trackerDB.entries()) {
+    if (nowUnix - entry.lastSeen > 120) {
+      trackerDB.delete(tripId);
+    }
   }
 
   return {
@@ -419,14 +508,37 @@ export async function getTelemetryData() {
   };
 }
 
+// Helper to determine route direction based on stop ID suffix
+function getDirectionFromStopId(stopId: string): number | null {
+  const lastChar = stopId[stopId.length - 1];
+  if (lastChar === 'S' || lastChar === 'E') {
+    return 0;
+  }
+  if (lastChar === 'N' || lastChar === 'O') {
+    return 1;
+  }
+  return null;
+}
+
 // Generate realistic mock forecast when live API has no data or is down
-function generateMockForecast(nowUnix: number): GCBAForecastResponse {
+function generateMockForecast(nowUnix: number, sequences: any[]): GCBAForecastResponse {
   const subteRoutes = ['LineaA', 'LineaB', 'LineaC', 'LineaD', 'LineaE', 'LineaH'];
   const entities: GCBAEntity[] = [];
 
-  // Generate deterministic trips based on current time
+  // Group sequences by routeId and directionId
+  const routeSeqMap: Record<string, string[]> = {};
+  sequences.forEach(seq => {
+    const key = `${seq.routeId}_${seq.directionId}`;
+    if (!routeSeqMap[key]) routeSeqMap[key] = [];
+    routeSeqMap[key].push(seq.stopId);
+  });
+
   subteRoutes.forEach(routeId => {
     [0, 1].forEach(directionId => {
+      const key = `${routeId}_${directionId}`;
+      const stopsList = routeSeqMap[key] || [];
+      if (stopsList.length === 0) return;
+
       // 3 simulated trains per line and direction
       for (let trainIndex = 0; trainIndex < 3; trainIndex++) {
         // Stagger departure times: every 8 minutes (480 seconds)
@@ -434,9 +546,6 @@ function generateMockForecast(nowUnix: number): GCBAForecastResponse {
         const baseStart = nowUnix - 600 + offset;
         const tripId = `${routeId.replace('Linea', '')}_T${trainIndex + 1}`;
 
-        // Get hardcoded stops based on line. Since we don't have DB active here,
-        // we map standard stop prefixes. We'll generate 8 generic stop sequences.
-        const stopsList = getMockStopIds(routeId, directionId);
         const estaciones: GCBAStation[] = [];
         let runningTime = baseStart;
 
@@ -479,48 +588,4 @@ function generateMockForecast(nowUnix: number): GCBAForecastResponse {
     Header: { timestamp: nowUnix },
     Entity: entities
   };
-}
-
-// Helper to provide realistic stop IDs for mocks
-function getMockStopIds(routeId: string, directionId: number): string[] {
-  // Line A
-  if (routeId === 'LineaA') {
-    const stops = ['1059', '1060', '1061', '1062', '1063', '1064', '1065', '1066', '1067', '1068', '1069', '1070', '1071', '1072', '1073', '1074', '1075', '1076'];
-    const suffix = directionId === 0 ? 'S' : 'N';
-    const list = stops.map(s => s + suffix);
-    return directionId === 0 ? list : list.reverse();
-  }
-  // Line B
-  if (routeId === 'LineaB') {
-    const stops = ['2051', '2052', '2053', '2054', '2055', '2056', '2057', '2058', '2059', '2060', '2061', '2062', '2063', '2064', '2065', '2066', '2067'];
-    const suffix = directionId === 0 ? 'S' : 'N';
-    const list = stops.map(s => s + suffix);
-    return directionId === 0 ? list : list.reverse();
-  }
-  // Line C
-  if (routeId === 'LineaC') {
-    const stops = ['3051', '3052', '3053', '3054', '3055', '3056', '3057', '3058', '3059'];
-    const suffix = directionId === 0 ? 'S' : 'N';
-    const list = stops.map(s => s + suffix);
-    return directionId === 0 ? list : list.reverse();
-  }
-  // Line D
-  if (routeId === 'LineaD') {
-    const stops = ['4051', '4052', '4053', '4054', '4055', '4056', '4057', '4058', '4059', '4060', '4061', '4062', '4063', '4064', '4065', '4066'];
-    const suffix = directionId === 0 ? 'S' : 'N';
-    const list = stops.map(s => s + suffix);
-    return directionId === 0 ? list : list.reverse();
-  }
-  // Line E
-  if (routeId === 'LineaE') {
-    const stops = ['5051', '5052', '5053', '5054', '5055', '5056', '5057', '5058', '5059', '5060', '5061', '5062', '5063', '5064', '5065', '5066', '5067', '5068'];
-    const suffix = directionId === 0 ? 'S' : 'N';
-    const list = stops.map(s => s + suffix);
-    return directionId === 0 ? list : list.reverse();
-  }
-  // Line H
-  const stops = ['6051', '6052', '6053', '6054', '6055', '6056', '6057', '6058', '6059', '6060', '6061', '6062'];
-  const suffix = directionId === 0 ? 'S' : 'N';
-  const list = stops.map(s => s + suffix);
-  return directionId === 0 ? list : list.reverse();
 }

@@ -137,11 +137,11 @@ export default function SubteDashboard({
     };
   }, []);
 
-  // Poll real-time telemetry every 10 seconds
+  // Poll real-time telemetry every 2 seconds
   const fetchTelemetry = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const res = await fetch('/api/telemetry');
+      const res = await fetch(`/api/telemetry?t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setTelemetry(data);
@@ -154,7 +154,7 @@ export default function SubteDashboard({
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(fetchTelemetry, 10000);
+    const interval = setInterval(fetchTelemetry, 2000);
     return () => clearInterval(interval);
   }, [fetchTelemetry]);
 
