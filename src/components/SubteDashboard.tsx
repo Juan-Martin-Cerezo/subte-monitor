@@ -29,6 +29,16 @@ interface RouteSequence {
   stopId: string;
 }
 
+interface Prediction {
+  routeId: string;
+  directionId: number;
+  stopId: string;
+  stationName: string;
+  destinationName: string;
+  etaSeconds: number;
+  delay: number;
+}
+
 interface SubteDashboardProps {
   initialStations: Station[];
   initialSequences: RouteSequence[];
@@ -36,6 +46,7 @@ interface SubteDashboardProps {
     trains: TrainTelemetry[];
     alerts: AlertData[];
     isMocked: boolean;
+    predictions?: Prediction[];
   };
 }
 
@@ -132,7 +143,7 @@ export default function SubteDashboard({
   initialTelemetry
 }: SubteDashboardProps) {
   // Navigation Screens Tab state
-  const [currentTab, setCurrentTab] = useState<'map' | 'planner' | 'stations' | 'status'>('map');
+  const [currentTab, setCurrentTab] = useState<'map' | 'planner' | 'stations' | 'status' | 'arrivals'>('map');
 
   // Interactive Map State
   const [activeLine, setActiveLine] = useState<string>('All'); // 'All' or lineId
@@ -170,6 +181,7 @@ export default function SubteDashboard({
   // Station Directory Screen state
   const [stationSearch, setStationSearch] = useState<string>('');
   const [stationLineFilter, setStationLineFilter] = useState<string>('LineaD'); // Default Line D
+  const [arrivalsLineFilter, setArrivalsLineFilter] = useState<string>('LineaA'); // Default Line A for raw arrivals
   const [directorySelectedStationId, setDirectorySelectedStationId] = useState<string | null>(null);
   const [stationFlowData, setStationFlowData] = useState<any[]>([]);
   const [isLoadingFlow, setIsLoadingFlow] = useState(false);
@@ -183,6 +195,30 @@ export default function SubteDashboard({
   const [reportComment, setReportComment] = useState('');
   const [reportSuccess, setReportSuccess] = useState(false);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+
+  // Ordered station list for the selected line in raw arrivals
+  const arrivalsStations = useMemo(() => {
+    const seqs = initialSequences.filter(s => s.routeId === arrivalsLineFilter);
+    const stopIds = new Set(seqs.map(s => s.stopId));
+    const lineStations = initialStations.filter(s => stopIds.has(s.stopId));
+    
+    // Group by stopName to show both directions together
+    const grouped: Record<string, { stopName: string; stops: typeof lineStations }> = {};
+    lineStations.forEach(s => {
+      if (!grouped[s.stopName]) {
+        grouped[s.stopName] = { stopName: s.stopName, stops: [] };
+      }
+      grouped[s.stopName].stops.push(s);
+    });
+    
+    // Order them by the average/first stopSequence
+    return Object.values(grouped).map(g => {
+      const firstStopId = g.stops[0].stopId;
+      const seq = seqs.find(s => s.stopId === firstStopId);
+      const minSeq = seq ? seq.stopSequence : 999;
+      return { ...g, minSeq };
+    }).sort((a, b) => a.minSeq - b.minSeq);
+  }, [arrivalsLineFilter, initialSequences, initialStations]);
 
   // Unique list of station names for the planner options
   const uniqueStationNames = useMemo(() => {
@@ -891,6 +927,16 @@ export default function SubteDashboard({
             }`}
           >
             Estado
+          </button>
+          <button
+            onClick={() => setCurrentTab('arrivals')}
+            className={`px-sm py-xs text-headline-md font-headline-md transition-colors duration-205 rounded ${
+              currentTab === 'arrivals'
+                ? 'text-secondary-container dark:text-secondary border-b-2 border-secondary-container dark:border-secondary pb-1'
+                : 'text-on-surface-variant dark:text-outline hover:text-on-surface hover:bg-surface-variant/50'
+            }`}
+          >
+            Arribos en Vivo
           </button>
         </nav>
 
@@ -1860,6 +1906,135 @@ export default function SubteDashboard({
           )}
 
           {/* ======================================================= */}
+          {/* SCREEN 5: RAW ARRIVALS (DIRECT API DATA)                */}
+          {/* ======================================================= */}
+          {currentTab === 'arrivals' && (
+            <div className="flex-1 p-gutter md:p-margin-desktop overflow-x-hidden overflow-y-auto animate-fade-in text-left">
+              <div className="max-w-4xl mx-auto flex flex-col gap-6">
+                
+                {/* Header card */}
+                <div className="glass-panel rounded-2xl p-6 flex flex-col gap-4">
+                  <div className="flex justify-between items-center flex-wrap gap-4">
+                    <div>
+                      <h2 className="text-xl font-black text-white flex items-center gap-2">
+                        <span className="material-symbols-outlined text-secondary">schedule</span>
+                        Arribos en Vivo (GCBA RT API)
+                      </h2>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Tiempos de arribo directos desde el feed oficial, ordenados por estación y sentido de circulación.
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-[10px] font-mono tracking-widest text-slate-400 uppercase">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                      Actualización Directa
+                    </div>
+                  </div>
+
+                  {/* Line Selector Badges */}
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none flex-nowrap border-t border-outline-variant/10 pt-4">
+                    {Object.keys(LINE_DETAILS).map(lineId => {
+                      const isActive = arrivalsLineFilter === lineId;
+                      const details = LINE_DETAILS[lineId];
+                      return (
+                        <button
+                          key={`arrivals-filter-${lineId}`}
+                          onClick={() => setArrivalsLineFilter(lineId)}
+                          className={`px-4 py-2 rounded-xl border border-outline-variant/30 text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
+                            isActive
+                              ? 'text-white border-transparent'
+                              : 'text-outline hover:border-outline bg-surface-container-low/40'
+                          }`}
+                          style={{ backgroundColor: isActive ? details.color : 'transparent' }}
+                        >
+                          <span className="material-symbols-outlined text-[16px]">subway</span>
+                          {details.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Stations list with direct arrivals */}
+                <div className="flex flex-col gap-4">
+                  {arrivalsStations.map(stationGroup => {
+                    const stationPredictions = (telemetry.predictions || [])
+                      .filter(p => p.routeId === arrivalsLineFilter && p.stationName === stationGroup.stopName)
+                      .sort((a, b) => a.etaSeconds - b.etaSeconds);
+
+                    return (
+                      <div
+                        key={`arrivals-station-${stationGroup.stopName}`}
+                        className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-secondary/20 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span
+                            className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-md shrink-0"
+                            style={{ backgroundColor: LINE_DETAILS[arrivalsLineFilter]?.color || '#475569' }}
+                          >
+                            {arrivalsLineFilter.replace('Linea', '').replace('-', '')}
+                          </span>
+                          <div>
+                            <h3 className="text-base font-extrabold text-slate-100">{stationGroup.stopName}</h3>
+                            <p className="text-[10px] text-slate-500 uppercase font-mono tracking-wider">Estación</p>
+                          </div>
+                        </div>
+
+                        <div className="flex-1 w-full md:w-auto flex flex-col gap-2">
+                          {stationPredictions.length === 0 ? (
+                            <div className="text-right text-xs text-slate-500 italic py-1">
+                              Sin arribos programados en este momento
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full justify-items-end">
+                              {stationPredictions.map((pred, pIdx) => {
+                                const min = Math.floor(pred.etaSeconds / 60);
+                                const sec = pred.etaSeconds % 60;
+                                let timeText = '';
+                                if (pred.etaSeconds <= 15) {
+                                  timeText = 'En andén';
+                                } else if (min === 0) {
+                                  timeText = `${sec} seg`;
+                                } else {
+                                  timeText = `${min} min ${sec}s`;
+                                }
+
+                                return (
+                                  <div
+                                    key={`pred-${stationGroup.stopName}-${pIdx}`}
+                                    className="flex items-center justify-between w-full max-w-sm bg-surface-container-low/60 border border-outline-variant/10 rounded-xl px-4 py-2.5"
+                                  >
+                                    <div className="text-left mr-2">
+                                      <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block font-mono">Sentido</span>
+                                      <span className="text-xs font-bold text-slate-200">Hacia {pred.destinationName}</span>
+                                    </div>
+                                    <div className="text-right flex flex-col items-end shrink-0">
+                                      <span className={`text-sm font-black font-mono ${pred.etaSeconds <= 15 ? 'text-emerald-400 animate-pulse' : 'text-secondary'}`}>
+                                        {timeText}
+                                      </span>
+                                      {pred.delay > 0 && (
+                                        <span className="text-[8px] text-amber-500 font-bold bg-amber-500/10 px-1 rounded border border-amber-500/20">
+                                          +{Math.round(pred.delay / 60)}m demora
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+                    );
+                  })}
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================= */}
           {/* SCREEN 4: SERVICE STATUS                                */}
           {/* ======================================================= */}
           {currentTab === 'status' && (
@@ -1944,6 +2119,15 @@ export default function SubteDashboard({
         >
           <span className="material-symbols-outlined text-xl">subway</span>
           <span className="text-[10px] font-bold mt-1">Estaciones</span>
+        </button>
+        <button
+          onClick={() => setCurrentTab('arrivals')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
+            currentTab === 'arrivals' ? 'text-secondary' : 'text-outline hover:text-on-surface'
+          }`}
+        >
+          <span className="material-symbols-outlined text-xl">schedule</span>
+          <span className="text-[10px] font-bold mt-1">Arribos</span>
         </button>
         <button
           onClick={() => setCurrentTab('status')}

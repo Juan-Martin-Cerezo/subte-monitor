@@ -19,7 +19,7 @@ export default async function Home() {
   });
 
   // Provide quick default telemetry to make page load instant, client updates it immediately
-  const initialTelemetry = { trains: [], alerts: [], isMocked: false };
+  const initialTelemetry = { trains: [], alerts: [], isMocked: false, predictions: [] };
 
   return (
     <SubteDashboard

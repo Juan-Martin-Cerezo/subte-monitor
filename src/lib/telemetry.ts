@@ -714,10 +714,38 @@ export async function getTelemetryData() {
     }
   }
 
+  // Map raw predictions for the raw schedule tab
+  const schedulePredictions = rawArrivals.map(arr => {
+    const key = `${arr.routeId}_${arr.directionId}`;
+    const seqList = routeSequences[key] || [];
+    
+    // Find destination (terminal station)
+    const terminalSeq = seqList[seqList.length - 1];
+    const destinationName = terminalSeq 
+      ? (stationMap.get(terminalSeq.stopId)?.stopName || 'Terminal')
+      : 'Terminal';
+      
+    const station = stationMap.get(arr.stopId);
+    const stationName = station ? station.stopName : 'Estación';
+    
+    const etaSeconds = Math.max(0, (arr.arrivalTime + timeDiff) - nowUnix);
+    
+    return {
+      routeId: arr.routeId,
+      directionId: arr.directionId,
+      stopId: arr.stopId,
+      stationName,
+      destinationName,
+      etaSeconds,
+      delay: arr.delay
+    };
+  }).filter(p => p.etaSeconds < 1800); // Filter out prediction times that are more than 30 mins away
+
   return {
     trains: trains.sort((a, b) => a.id.localeCompare(b.id)),
     alerts,
-    isMocked
+    isMocked,
+    predictions: schedulePredictions
   };
 }
 
