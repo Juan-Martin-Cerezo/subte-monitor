@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { getTelemetryData } from '@/lib/telemetry';
-import SubteDashboard from '@/components/SubteDashboard';
+import SubteDashboard from '@/components/ClientDashboard';
 
 // Force dynamic rendering since we are doing live telemetry fetching
 export const dynamic = 'force-dynamic';
@@ -18,17 +18,8 @@ export default async function Home() {
     orderBy: { stopSequence: 'asc' },
   });
 
-  // Fetch initial telemetry
-  let initialTelemetry: {
-    trains: import('@/lib/telemetry').TrainTelemetry[];
-    alerts: import('@/lib/telemetry').AlertData[];
-    isMocked: boolean;
-  } = { trains: [], alerts: [], isMocked: false };
-  try {
-    initialTelemetry = await getTelemetryData();
-  } catch (error) {
-    console.error('Failed to get initial telemetry on server:', error);
-  }
+  // Provide quick default telemetry to make page load instant, client updates it immediately
+  const initialTelemetry = { trains: [], alerts: [], isMocked: false };
 
   return (
     <SubteDashboard

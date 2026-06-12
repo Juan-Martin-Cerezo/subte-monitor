@@ -5,17 +5,35 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const line = searchParams.get('line');
+    const station = searchParams.get('station');
 
-    if (!line) {
+    if (!line && !station) {
       return NextResponse.json(
-        { error: 'El parámetro "line" es obligatorio' },
+        { error: 'Debe especificar el parámetro "line" o "station"' },
         { status: 400 }
       );
     }
 
+    if (station) {
+      // Fetch historical data for the selected station
+      const flowData = await db.historicalFlow.findMany({
+        where: { station },
+        orderBy: { hour: 'asc' }
+      });
+
+      return NextResponse.json({
+        station,
+        hourlyStats: flowData.map(item => ({
+          hour: item.hour,
+          passengerFlow: item.passengerFlow,
+          congestionLevel: item.congestionLevel
+        }))
+      });
+    }
+
     // Fetch historical data for the selected line
     const flowData = await db.historicalFlow.findMany({
-      where: { line },
+      where: { line: line as string },
       orderBy: { hour: 'asc' }
     });
 
