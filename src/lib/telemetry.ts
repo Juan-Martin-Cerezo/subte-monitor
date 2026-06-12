@@ -199,7 +199,7 @@ function interpolateOnShape(
 
 // Persistent memory tracker to survive hot reload in Next.js development
 const globalForTracker = globalThis as unknown as { 
-  subteTracker: Map<string, { routeId: string; directionId: number; tripId: string; t_inicio: number; lastSeen: number; lastConfirmedSeq: number; lastProgress: number }> 
+  subteTracker: Map<string, { routeId: string; directionId: number; tripId: string; t_inicio: number; lastSeen: number }> 
 };
 if (!globalForTracker.subteTracker) {
   globalForTracker.subteTracker = new Map();
@@ -513,9 +513,7 @@ export async function getTelemetryData() {
           directionId,
           tripId: stableId,
           t_inicio: avg_t_inicio,
-          lastSeen: nowUnix,
-          lastConfirmedSeq: 0,
-          lastProgress: 0
+          lastSeen: nowUnix
         });
       }
       usedIds.add(stableId);
@@ -544,45 +542,14 @@ export async function getTelemetryData() {
       // RULE 3: Holding at the Signal - only confirm arrival when API packet says <= 15s
       const apiConfirmaAnden = activeStop.etaEnPaquete <= 15 && activeStop.etaEnPaquete >= -60;
 
-      const trackerEntry = trackerDB.get(stableId);
-      let latOverride: { latitude: number; longitude: number } | null = null;
-
       if (apiConfirmaAnden) {
         status = 'STOPPED';
         progress = 0.0;
         prevStopId = activeStop.stopId;
         prevStopName = nextStopName;
-        // Ratchet: lock confirmed position
-        if (trackerEntry) {
-          if (activeStop.stopSequence > trackerEntry.lastConfirmedSeq) {
-            trackerEntry.lastConfirmedSeq = activeStop.stopSequence;
-          }
-          trackerEntry.lastProgress = 0;
-        }
       } else {
         status = 'IN_TRANSIT';
-        const rawProgress = Math.max(0.0, Math.min(0.95, 1 - (segundosParaArriboLocal / 90)));
-        // Monotonic ratchet: never go behind last known position
-        if (trackerEntry && activeStop.stopSequence === trackerEntry.lastConfirmedSeq) {
-          progress = Math.max(trackerEntry.lastProgress, rawProgress);
-        } else if (trackerEntry && activeStop.stopSequence > trackerEntry.lastConfirmedSeq) {
-          progress = rawProgress;
-        } else {
-          // Stale API packet pointing to an older sequence: hold at the last confirmed station
-          progress = 0.0;
-          status = 'STOPPED';
-          const lastConfirmedStop = sortedStops.find(s => s.stopSequence === trackerEntry?.lastConfirmedSeq);
-          if (lastConfirmedStop) {
-            const lastConfirmedStation = stationMap.get(lastConfirmedStop.stopId);
-            if (lastConfirmedStation) {
-              latOverride = {
-                latitude: lastConfirmedStation.latitude,
-                longitude: lastConfirmedStation.longitude
-              };
-            }
-          }
-        }
-        if (trackerEntry) trackerEntry.lastProgress = progress;
+        progress = Math.max(0.0, Math.min(0.95, 1 - (segundosParaArriboLocal / 90)));
         if (nextSeqIndex > 0) {
           prevStopId = seqList[nextSeqIndex - 1].stopId;
           prevStopName = stationMap.get(prevStopId)?.stopName || 'Estación';
@@ -591,8 +558,8 @@ export async function getTelemetryData() {
 
       // Interpolate coordinates
       const prevStation = prevStopId ? stationMap.get(prevStopId) : null;
-      let lat = latOverride ? latOverride.latitude : (nextStation?.latitude || 0);
-      let lon = latOverride ? latOverride.longitude : (nextStation?.longitude || 0);
+      let lat = nextStation?.latitude || 0;
+      let lon = nextStation?.longitude || 0;
 
       if (status === 'IN_TRANSIT' && prevStation && nextStation) {
         const shape = LINE_SHAPES[routeId];
