@@ -545,14 +545,18 @@ export async function getTelemetryData() {
       const apiConfirmaAnden = activeStop.etaEnPaquete <= 15 && activeStop.etaEnPaquete >= -60;
 
       const trackerEntry = trackerDB.get(stableId);
+      let latOverride: { latitude: number; longitude: number } | null = null;
+
       if (apiConfirmaAnden) {
         status = 'STOPPED';
         progress = 0.0;
         prevStopId = activeStop.stopId;
         prevStopName = nextStopName;
         // Ratchet: lock confirmed position
-        if (trackerEntry && activeStop.stopSequence > trackerEntry.lastConfirmedSeq) {
-          trackerEntry.lastConfirmedSeq = activeStop.stopSequence;
+        if (trackerEntry) {
+          if (activeStop.stopSequence > trackerEntry.lastConfirmedSeq) {
+            trackerEntry.lastConfirmedSeq = activeStop.stopSequence;
+          }
           trackerEntry.lastProgress = 0;
         }
       } else {
@@ -564,7 +568,19 @@ export async function getTelemetryData() {
         } else if (trackerEntry && activeStop.stopSequence > trackerEntry.lastConfirmedSeq) {
           progress = rawProgress;
         } else {
-          progress = Math.max(trackerEntry?.lastProgress || 0, rawProgress);
+          // Stale API packet pointing to an older sequence: hold at the last confirmed station
+          progress = 0.0;
+          status = 'STOPPED';
+          const lastConfirmedStop = sortedStops.find(s => s.stopSequence === trackerEntry?.lastConfirmedSeq);
+          if (lastConfirmedStop) {
+            const lastConfirmedStation = stationMap.get(lastConfirmedStop.stopId);
+            if (lastConfirmedStation) {
+              latOverride = {
+                latitude: lastConfirmedStation.latitude,
+                longitude: lastConfirmedStation.longitude
+              };
+            }
+          }
         }
         if (trackerEntry) trackerEntry.lastProgress = progress;
         if (nextSeqIndex > 0) {
@@ -575,8 +591,8 @@ export async function getTelemetryData() {
 
       // Interpolate coordinates
       const prevStation = prevStopId ? stationMap.get(prevStopId) : null;
-      let lat = nextStation?.latitude || 0;
-      let lon = nextStation?.longitude || 0;
+      let lat = latOverride ? latOverride.latitude : (nextStation?.latitude || 0);
+      let lon = latOverride ? latOverride.longitude : (nextStation?.longitude || 0);
 
       if (status === 'IN_TRANSIT' && prevStation && nextStation) {
         const shape = LINE_SHAPES[routeId];
