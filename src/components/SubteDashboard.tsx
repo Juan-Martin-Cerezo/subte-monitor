@@ -166,6 +166,74 @@ export default function SubteDashboard({
       trainsGroup.clearLayers();
 
       // Render Tracks
+      const getRoutePathWithCurves = (lineId: string, points: L.LatLngTuple[]): L.LatLngTuple[] => {
+        if (points.length < 2) return points;
+        const curvedPoints: L.LatLngTuple[] = [];
+        for (let i = 0; i < points.length - 1; i++) {
+          const current = points[i];
+          const next = points[i + 1];
+          curvedPoints.push(current);
+          
+          if (lineId === 'LineaB') {
+            if (i === 12) { // Lacroze -> Tronador
+              curvedPoints.push([-34.5866, -58.4555]); // Corrientes & Lacroze & Triunvirato corner
+            }
+          }
+          if (lineId === 'LineaC') {
+            if (i === 0) { // Retiro -> San Martín
+              curvedPoints.push([-34.5930, -58.3761]);
+            }
+            if (i === 1) { // San Martín -> Lavalle
+              curvedPoints.push([-34.5955, -58.3776]);
+            }
+            if (i === 3) { // Diagonal Norte -> Avenida de Mayo
+              curvedPoints.push([-34.6065, -58.3800]); // Obelisco turn
+            }
+          }
+          if (lineId === 'LineaD') {
+            if (i === 1) { // 9 de Julio -> Tribunales
+              curvedPoints.push([-34.6025, -58.3828]); // Diagonal Norte & Libertad turn
+            }
+            if (i === 2) { // Tribunales -> Callao
+              curvedPoints.push([-34.6009, -58.3853]); // Córdoba & Libertad turn
+            }
+            if (i === 4) { // Facultad de Medicina -> Pueyrredón
+              curvedPoints.push([-34.5968, -58.4011]); // Córdoba & Pueyrredón turn
+            }
+          }
+          if (lineId === 'LineaE') {
+            if (i === 0) { // Retiro -> Catalinas
+              curvedPoints.push([-34.5941, -58.3742]); // Alem & San Martín turn
+            }
+            if (i === 2) { // Correo Central -> Bolivar
+              curvedPoints.push([-34.6071, -58.3712]); // Alem & Rivadavia turn
+            }
+            if (i === 5) { // Independencia -> San José
+              curvedPoints.push([-34.6205, -58.3835]); // Bernardo de Irigoyen & San José turn
+            }
+            if (i === 6) { // San José -> Entre Ríos
+              curvedPoints.push([-34.6225, -58.3879]); // San José & San Juan turn
+            }
+            if (i === 14) { // Emilio Mitre -> Medalla Milagrosa
+              curvedPoints.push([-34.6321, -58.4430]); // Eva Perón & Emilio Mitre underpark curve
+            }
+          }
+          if (lineId === 'LineaH') {
+            if (i === 0) { // Fac Derecho -> Las Heras
+              curvedPoints.push([-34.5847, -58.3916]); // Pueyrredón & Libertador turn
+            }
+            if (i === 2) { // Santa Fe -> Córdoba
+              curvedPoints.push([-34.5975, -58.4029]); // Pueyrredón & Córdoba turn
+            }
+            if (i === 5) { // Once -> Venezuela
+              curvedPoints.push([-34.6120, -58.4055]); // Jujuy & Rivadavia turn
+            }
+          }
+        }
+        curvedPoints.push(points[points.length - 1]);
+        return curvedPoints;
+      };
+
       Object.entries(LINE_DETAILS).map(([lineId, details]) => {
         if (!activeLines.includes(lineId)) return;
 
@@ -181,8 +249,10 @@ export default function SubteDashboard({
           })
           .filter((p): p is L.LatLngTuple => p !== null);
 
-        if (points.length > 0) {
-          L.polyline(points, {
+        const curvedPoints = getRoutePathWithCurves(lineId, points);
+
+        if (curvedPoints.length > 0) {
+          L.polyline(curvedPoints, {
             color: details.color,
             weight: activeLine === lineId ? 6.5 : 4,
             opacity: activeLine === 'All' ? 0.7 : 0.95
