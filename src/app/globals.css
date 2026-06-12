@@ -1,5 +1,42 @@
 @import "tailwindcss";
 
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.3;
+  }
+}
+
+.custom-train-icon, .custom-station-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Override default Leaflet tooltip style to make it dark and premium */
+.leaflet-tooltip {
+  background: #0b0f19 !important;
+  border: 1px solid #334155 !important;
+  border-radius: 6px !important;
+  padding: 4px 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+}
+.leaflet-tooltip-top:before {
+  border-top-color: #334155 !important;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -24,3 +61,4 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+

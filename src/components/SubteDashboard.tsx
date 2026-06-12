@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { TrainTelemetry, AlertData } from '@/lib/telemetry';
+import 'leaflet/dist/leaflet.css';
 
 interface ReportData {
   id: string;
@@ -106,6 +107,190 @@ export default function SubteDashboard({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentTime, setCurrentTime] = useState<string>('');
   const [connectionError, setConnectionError] = useState(false);
+
+  // Leaflet map refs
+  const mapContainerRef = React.useRef<HTMLDivElement>(null);
+  const mapInstanceRef = React.useRef<any>(null);
+  const tracksGroupRef = React.useRef<any>(null);
+  const stationsGroupRef = React.useRef<any>(null);
+  const trainsGroupRef = React.useRef<any>(null);
+
+  // Initialize Leaflet Map
+  useEffect(() => {
+    if (!mapContainerRef.current || mapInstanceRef.current) return;
+
+    import('leaflet').then((L) => {
+      const map = L.map(mapContainerRef.current!, {
+        center: [-34.6037, -58.3816],
+        zoom: 13,
+        zoomControl: false,
+        attributionControl: false
+      });
+
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19
+      }).addTo(map);
+
+      L.control.zoom({ position: 'topright' }).addTo(map);
+
+      const tracksGroup = L.layerGroup().addTo(map);
+      const stationsGroup = L.layerGroup().addTo(map);
+      const trainsGroup = L.layerGroup().addTo(map);
+
+      mapInstanceRef.current = map;
+      tracksGroupRef.current = tracksGroup;
+      stationsGroupRef.current = stationsGroup;
+      trainsGroupRef.current = trainsGroup;
+    });
+
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, []);
+
+  // Update Map Layers
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+
+    import('leaflet').then((L) => {
+      const map = mapInstanceRef.current;
+      const tracksGroup = tracksGroupRef.current;
+      const stationsGroup = stationsGroupRef.current;
+      const trainsGroup = trainsGroupRef.current;
+
+      tracksGroup.clearLayers();
+      stationsGroup.clearLayers();
+      trainsGroup.clearLayers();
+
+      // Render Tracks
+      Object.entries(LINE_DETAILS).map(([lineId, details]) => {
+        if (!activeLines.includes(lineId)) return;
+
+        const lineSeqs = initialSequences.filter(s => s.routeId === lineId && s.directionId === 0);
+        if (lineSeqs.length === 0) return;
+
+        const points = lineSeqs
+          .map(seq => {
+            const station = initialStations.find(s => s.stopId === seq.stopId);
+            return station ? [station.latitude, station.longitude] as L.LatLngTuple : null;
+          })
+          .filter((p): p is L.LatLngTuple => p !== null);
+
+        if (points.length > 0) {
+          L.polyline(points, {
+            color: details.color,
+            weight: activeLine === lineId ? 6.5 : 4,
+            opacity: activeLine === 'All' ? 0.7 : 0.95
+          }).addTo(tracksGroup);
+        }
+      });
+
+      // Render Stations
+      Array.from(stationsByName.entries()).map(([, group]) => {
+        const activeGroupStations = group.filter(s => {
+          const seq = initialSequences.find(seq => seq.stopId === s.stopId);
+          return seq && activeLines.includes(seq.routeId);
+        });
+
+        if (activeGroupStations.length === 0) return;
+
+        const s = activeGroupStations[0];
+        const isSelected = activeGroupStations.some(gs => gs.stopId === selectedStationId);
+
+        const seq = initialSequences.find(seq => seq.stopId === s.stopId);
+        const lineColor = seq ? LINE_DETAILS[seq.routeId]?.color : '#475569';
+
+        const stationHtml = `
+          <div style="position: relative; width: 20px; height: 20px; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center;">
+            ${isSelected ? `
+              <div style="position: absolute; inset: -4px; border: 2px solid #fff; border-radius: 50%; animation: pulse 1.5s infinite;"></div>
+            ` : ''}
+            <div style="width: ${isSelected ? '14px' : '11px'}; height: ${isSelected ? '14px' : '11px'}; background: #090d16; border: 3px solid ${lineColor}; border-radius: 50%;"></div>
+            <div style="position: absolute; width: 4px; height: 4px; background: ${isSelected ? '#fff' : '#cbd5e1'}; border-radius: 50%;"></div>
+            ${(activeLine !== 'All' || isSelected) ? `
+              <div style="position: absolute; left: 16px; white-space: nowrap; font-size: 9px; font-weight: bold; color: ${isSelected ? '#fff' : '#94a3b8'}; text-shadow: 0 1px 3px rgba(0,0,0,0.8); pointer-events: none;">
+                ${s.stopName}
+              </div>
+            ` : ''}
+          </div>
+        `;
+
+        const stationIcon = L.divIcon({
+          className: 'custom-station-icon',
+          html: stationHtml,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10]
+        });
+
+        const marker = L.marker([s.latitude, s.longitude], { icon: stationIcon }).addTo(stationsGroup);
+        marker.on('click', () => {
+          setSelectedStationId(s.stopId);
+          setSelectedTrainId(null);
+        });
+      });
+
+      // Render Trains
+      activeTrains.map(train => {
+        const color = LINE_DETAILS[train.routeId]?.color || '#fff';
+        const isSelected = selectedTrainId === train.id;
+        const isPinned = pinnedTrainId === train.id;
+        const heading = getTrainHeading(train);
+
+        const htmlContent = `
+          <div style="position: relative; width: 30px; height: 30px; transform: translate(-50%, -50%); cursor: pointer;">
+            ${isPinned ? `
+              <div style="position: absolute; inset: -5px; border: 2px dashed ${color}; border-radius: 50%; animation: spin 6s linear infinite;"></div>
+            ` : ''}
+            ${isSelected && !isPinned ? `
+              <div style="position: absolute; inset: -4px; border: 1.5px solid #fff; border-radius: 50%;"></div>
+            ` : ''}
+            <div style="position: absolute; top: 11px; left: 11px; width: 8px; height: 8px; background: ${color}; clip-path: polygon(100% 50%, 0% 0%, 0% 100%); transform: rotate(${heading}deg) translate(9px, 0);"></div>
+            <div style="position: absolute; inset: 2px; background: #090d16; border: 3px solid ${color}; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 10px ${color};">
+              <div style="width: 0; height: 0; border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent; border-left: 5.5px solid ${color}; transform: rotate(${heading}deg); margin-left: 1.5px;"></div>
+            </div>
+            <div style="position: absolute; top: -18px; left: 50%; transform: translateX(-50%); color: ${isPinned ? '#fff' : color}; font-family: monospace; font-size: 10px; font-weight: bold; white-space: nowrap; text-shadow: 0 2px 4px rgba(0,0,0,0.9);">
+              ${train.id}
+            </div>
+          </div>
+        `;
+
+        const trainIcon = L.divIcon({
+          className: 'custom-train-icon',
+          html: htmlContent,
+          iconSize: [30, 30],
+          iconAnchor: [15, 15]
+        });
+
+        const marker = L.marker([train.latitude, train.longitude], { icon: trainIcon }).addTo(trainsGroup);
+
+        const statusText = train.status === 'STOPPED' ? 'Detenido en' : 'Rumbo a';
+        const etaMin = Math.round(train.etaSeconds / 60);
+        marker.bindTooltip(`
+          <div style="color: #fff; background: #0b0f19; border: 1px solid #334155; padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 600;">
+            <strong>TREN ${train.id}</strong><br/>
+            ${statusText} ${train.nextStopName} (ETA: ${etaMin}m)
+          </div>
+        `, { direction: 'top', offset: [0, -10], opacity: 0.95 });
+
+        marker.on('click', () => {
+          setSelectedTrainId(train.id);
+          setSelectedStationId(null);
+        });
+      });
+    });
+  }, [telemetry, activeLine, selectedStationId, selectedTrainId, pinnedTrainId]);
+
+  // Center/Zoom view on pinned train
+  useEffect(() => {
+    if (!mapInstanceRef.current || !pinnedTrainId) return;
+    const pinnedTrain = telemetry.trains.find(t => t.id === pinnedTrainId);
+    if (pinnedTrain) {
+      mapInstanceRef.current.setView([pinnedTrain.latitude, pinnedTrain.longitude], 15, { animate: true });
+    }
+  }, [telemetry.trains, pinnedTrainId]);
 
   // User Reports state
   const [reports, setReports] = useState<ReportData[]>([]);
@@ -275,15 +460,7 @@ export default function SubteDashboard({
     finalMaxLon = maxLon + lonPad;
   }
 
-  const projectX = (lon: number) => {
-    return ((lon - finalMinLon) / (finalMaxLon - finalMinLon)) * svgWidth;
-  };
-
-  const projectY = (lat: number) => {
-    return (1 - (lat - finalMinLat) / (finalMaxLat - finalMinLat)) * svgHeight;
-  };
-
-  // Helper function to calculate heading angle of a train based on its route direction
+  // Helper function to calculate heading angle of a train based on its route direction (negated for screen rotation)
   const getTrainHeading = (train: TrainTelemetry) => {
     const nextStation = initialStations.find(s => s.stopId === train.nextStopId);
     const prevStation = train.prevStopId ? initialStations.find(s => s.stopId === train.prevStopId) : null;
@@ -294,26 +471,26 @@ export default function SubteDashboard({
     let y2: number | null = null;
 
     if (prevStation && nextStation) {
-      x1 = projectX(prevStation.longitude);
-      y1 = projectY(prevStation.latitude);
-      x2 = projectX(nextStation.longitude);
-      y2 = projectY(nextStation.latitude);
+      x1 = prevStation.longitude;
+      y1 = prevStation.latitude;
+      x2 = nextStation.longitude;
+      y2 = nextStation.latitude;
     } else if (nextStation) {
-      x1 = projectX(train.longitude);
-      y1 = projectY(train.latitude);
-      x2 = projectX(nextStation.longitude);
-      y2 = projectY(nextStation.latitude);
+      x1 = train.longitude;
+      y1 = train.latitude;
+      x2 = nextStation.longitude;
+      y2 = nextStation.latitude;
     }
 
     if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
       const dx = x2 - x1;
       const dy = y2 - y1;
-      if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
-        return Math.atan2(dy, dx) * (180 / Math.PI);
+      if (Math.abs(dx) > 0.00001 || Math.abs(dy) > 0.00001) {
+        return -Math.atan2(dy, dx) * (180 / Math.PI);
       }
     }
 
-    return train.directionId === 0 ? 0 : 180;
+    return train.directionId === 0 ? 90 : 270;
   };
 
   const stationsByName = new Map<string, Station[]>();
@@ -392,314 +569,8 @@ export default function SubteDashboard({
       {/* FULL-SCREEN MAP CONTAINER */}
       <main className="flex-1 w-full relative overflow-hidden bg-slate-950">
         
-        {/* INTERACTIVE SVG MAP */}
-        <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-slate-950 p-6 z-0">
-          <svg
-            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-            className="w-full h-full max-w-full max-h-full transition-all duration-300 drop-shadow-2xl select-none"
-          >
-            <defs>
-              <filter id="neon-glow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="4" result="blur" />
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-              
-              <filter id="train-glow" x="-30%" y="-30%" width="160%" height="160%">
-                <feGaussianBlur stdDeviation="6" result="blur" />
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-            </defs>
-
-            {/* Grid Mesh */}
-            <g stroke="#0f172a" strokeWidth="0.5" opacity="0.45">
-              {Array.from({ length: 11 }).map((_, i) => (
-                <line key={`v-${i}`} x1={(i * svgWidth) / 10} y1="0" x2={(i * svgWidth) / 10} y2={svgHeight} />
-              ))}
-              {Array.from({ length: 11 }).map((_, i) => (
-                <line key={`h-${i}`} x1="0" y1={(i * svgHeight) / 10} x2={svgWidth} y2={(i * svgHeight) / 10} />
-              ))}
-            </g>
-
-            {/* DRAW TRACKS */}
-            {Object.entries(LINE_DETAILS).map(([lineId, details]) => {
-              if (!activeLines.includes(lineId)) return null;
-
-              const lineSeqs = initialSequences.filter(s => s.routeId === lineId && s.directionId === 0);
-              if (lineSeqs.length === 0) return null;
-
-              const points = lineSeqs
-                .map(seq => {
-                  const station = initialStations.find(s => s.stopId === seq.stopId);
-                  if (!station) return null;
-                  return `${projectX(station.longitude)},${projectY(station.latitude)}`;
-                })
-                .filter(Boolean)
-                .join(' ');
-
-              return (
-                <polyline
-                  key={`track-${lineId}`}
-                  points={points}
-                  fill="none"
-                  stroke={details.color}
-                  strokeWidth={activeLine === lineId ? 6.5 : 4}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity={activeLine === 'All' ? 0.75 : 0.95}
-                  filter="url(#neon-glow)"
-                  className="transition-all duration-300"
-                />
-              );
-            })}
-
-            {/* DRAW STATIONS */}
-            {Array.from(stationsByName.entries()).map(([, group]) => {
-              const activeGroupStations = group.filter(s => {
-                const seq = initialSequences.find(seq => seq.stopId === s.stopId);
-                return seq && activeLines.includes(seq.routeId);
-              });
-
-              if (activeGroupStations.length === 0) return null;
-
-              const s = activeGroupStations[0];
-              const x = projectX(s.longitude);
-              const y = projectY(s.latitude);
-              const isSelected = activeGroupStations.some(gs => gs.stopId === selectedStationId);
-
-              const seq = initialSequences.find(seq => seq.stopId === s.stopId);
-              const lineColor = seq ? LINE_DETAILS[seq.routeId]?.color : '#475569';
-
-              return (
-                <g
-                  key={`station-group-${s.stopId}`}
-                  className="cursor-pointer group"
-                  onClick={() => {
-                    setSelectedStationId(s.stopId);
-                    setSelectedTrainId(null);
-                  }}
-                  onMouseEnter={() => {
-                    const lines = activeGroupStations.map(gs => {
-                      const sq = initialSequences.find(q => q.stopId === gs.stopId);
-                      return sq ? LINE_DETAILS[sq.routeId]?.name : '';
-                    }).filter(Boolean).join(', ');
-
-                    setHoveredEntity({
-                      type: 'station',
-                      name: s.stopName,
-                      detail: `Conexión: ${lines}`,
-                      x: x,
-                      y: y - 10
-                    });
-                  }}
-                  onMouseLeave={() => setHoveredEntity(null)}
-                >
-                  {isSelected && (
-                    <circle
-                      cx={x}
-                      cy={y}
-                      r={12}
-                      fill="none"
-                      stroke="#fff"
-                      strokeWidth={2}
-                      className="animate-pulse"
-                    />
-                  )}
-
-                  <circle
-                    cx={x}
-                    cy={y}
-                    r={isSelected ? 7.5 : 6}
-                    fill="#090d16"
-                    stroke={lineColor}
-                    strokeWidth={3}
-                    className="group-hover:scale-125 transition-transform duration-200"
-                  />
-                  
-                  <circle
-                    cx={x}
-                    cy={y}
-                    r={2.5}
-                    fill={isSelected ? '#fff' : '#cbd5e1'}
-                  />
-
-                  {(activeLine !== 'All' || isSelected) && (
-                    <text
-                      x={x + 10}
-                      y={y + 4}
-                      fill="#94a3b8"
-                      fontSize="9"
-                      fontWeight="bold"
-                      className="pointer-events-none drop-shadow-md select-none group-hover:fill-white font-sans transition-colors"
-                    >
-                      {s.stopName}
-                    </text>
-                  )}
-                </g>
-              );
-            })}
-
-            {/* DRAW TRAINS */}
-            {activeTrains.map(train => {
-              const x = projectX(train.longitude);
-              const y = projectY(train.latitude);
-              const color = LINE_DETAILS[train.routeId]?.color || '#fff';
-              const isSelected = selectedTrainId === train.id;
-              const isPinned = pinnedTrainId === train.id;
-              const heading = getTrainHeading(train);
-
-              return (
-                <g
-                  key={`train-${train.id}`}
-                  className="cursor-pointer group"
-                  onClick={() => {
-                    setSelectedTrainId(train.id);
-                    setSelectedStationId(null);
-                  }}
-                  onMouseEnter={() => {
-                    setHoveredEntity({
-                      type: 'train',
-                      name: `Tren ${train.id}`,
-                      detail: `${train.status === 'STOPPED' ? 'Detenido en' : 'Rumbo a'} ${train.nextStopName} (ETA: ${Math.round(train.etaSeconds / 60)}m)`,
-                      x: x,
-                      y: y - 12
-                    });
-                  }}
-                  onMouseLeave={() => setHoveredEntity(null)}
-                >
-                  <g transform={`translate(${x}, ${y})`}>
-                    {/* Active Tracking Ring (rotating dashed circle) */}
-                    {isPinned && (
-                      <circle
-                        cx={0}
-                        cy={0}
-                        r={15}
-                        fill="none"
-                        stroke={color}
-                        strokeWidth={2}
-                        strokeDasharray="4 2"
-                        className="animate-spin"
-                        style={{ animationDuration: '6s' }}
-                      />
-                    )}
-
-                    {/* Selection Ring (steady highlight) */}
-                    {isSelected && !isPinned && (
-                      <circle
-                        cx={0}
-                        cy={0}
-                        r={14}
-                        fill="none"
-                        stroke="#fff"
-                        strokeWidth={1.5}
-                      />
-                    )}
-
-                    {/* Rotated subgroup for direction indicator nose, circle and inner chevron */}
-                    <g transform={`rotate(${heading})`}>
-                      {/* Directional nose pointing forward */}
-                      <polygon
-                        points="8.5,-4 13.5,0 8.5,4"
-                        fill={color}
-                      />
-
-                      {/* Main Train Dot */}
-                      <circle
-                        cx={0}
-                        cy={0}
-                        r={9.5}
-                        fill="#090d16"
-                        stroke={color}
-                        strokeWidth={3}
-                        filter="url(#train-glow)"
-                        className="group-hover:scale-110 transition-transform duration-200"
-                      />
-
-                      {/* Inner Direction Chevron */}
-                      <path
-                        d="M-3,-4.5 L2.5,0 L-3,4.5 L-1.2,0 Z"
-                        fill={color}
-                      />
-                    </g>
-
-                    {/* Upright Train ID text */}
-                    <text
-                      x={0}
-                      y={-17}
-                      fill={isPinned ? '#fff' : color}
-                      fontSize="10"
-                      fontWeight="black"
-                      textAnchor="middle"
-                      className="pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] font-mono tracking-tight"
-                    >
-                      {train.id}
-                    </text>
-                  </g>
-                </g>
-              );
-            })}
-
-            {/* SVG Tooltip Overlay */}
-            {hoveredEntity && (
-              <g
-                transform={`translate(${hoveredEntity.x}, ${hoveredEntity.y - 12})`}
-                className="pointer-events-none transition-all duration-150"
-              >
-                {/* Tooltip Background */}
-                <rect
-                  x="-100"
-                  y="-50"
-                  width="200"
-                  height="45"
-                  rx="10"
-                  fill="#0b0f19"
-                  stroke="#334155"
-                  strokeWidth="1.5"
-                  opacity="0.95"
-                  filter="url(#neon-glow)"
-                />
-                
-                {/* Icon indicator dot */}
-                <circle
-                  cx="-86"
-                  cy="-34"
-                  r="3.5"
-                  fill={hoveredEntity.type === 'train' ? '#6366f1' : '#06b6d4'}
-                />
-
-                {/* Title */}
-                <text
-                  x="-76"
-                  y="-31"
-                  fill="#f8fafc"
-                  fontSize="9"
-                  fontWeight="900"
-                  fontFamily="sans-serif"
-                  letterSpacing="0.5"
-                >
-                  {hoveredEntity.name.toUpperCase()}
-                </text>
-
-                {/* Detail */}
-                <text
-                  x="-86"
-                  y="-15"
-                  fill="#94a3b8"
-                  fontSize="8"
-                  fontWeight="600"
-                  fontFamily="sans-serif"
-                >
-                  {hoveredEntity.detail}
-                </text>
-              </g>
-            )}
-          </svg>
-        </div>
+        {/* INTERACTIVE LEAFLET MAP */}
+        <div ref={mapContainerRef} className="absolute inset-0 w-full h-full z-0" />
 
         {/* FLOATING LINE SELECTOR - Top Center */}
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex gap-1.5 p-1.5 rounded-2xl bg-slate-900/65 backdrop-blur-xl border border-slate-800/80 shadow-2xl">
