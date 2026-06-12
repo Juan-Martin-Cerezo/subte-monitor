@@ -144,6 +144,14 @@ if (!globalForSync.subteSync) {
 }
 const syncDB = globalForSync.subteSync;
 
+// Persistent memory to keep last successfully fetched alerts in case API fails
+const globalForAlerts = globalThis as unknown as {
+  lastAlerts: AlertData[];
+};
+if (!globalForAlerts.lastAlerts) {
+  globalForAlerts.lastAlerts = [];
+}
+
 // Permissive route matching helper to handle GCBA variants (like "LineC", "linec", "LineaC", etc.)
 function matchDbRoute(rawRouteId: string | undefined): string | null {
   if (!rawRouteId) return null;
@@ -213,7 +221,7 @@ export async function getTelemetryData() {
     }
 
     // Process alerts
-    if (rawAlerts && rawAlerts.entity) {
+    if (rawAlerts && rawAlerts.entity && rawAlerts.entity.length > 0) {
       rawAlerts.entity.forEach((ent: GCBAAlertEntity) => {
         if (ent.alert) {
           const routeId = ent.alert.informed_entity?.[0]?.route_id || 'Global';
@@ -241,6 +249,7 @@ export async function getTelemetryData() {
           });
         }
       });
+      globalForAlerts.lastAlerts = alerts;
     } else if (isMocked) {
       // Generate some mock alerts if we are simulating
       alerts.push({
@@ -259,6 +268,10 @@ export async function getTelemetryData() {
         cause: 'Mantenimiento',
         effect: 'Frecuencia Reducida'
       });
+      globalForAlerts.lastAlerts = alerts;
+    } else {
+      // Use the last successfully fetched alerts if current fetch returned empty or failed
+      alerts = globalForAlerts.lastAlerts;
     }
 
     // Save to global cache
