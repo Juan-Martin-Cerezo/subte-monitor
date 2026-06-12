@@ -1,5 +1,6 @@
 import { db } from './db';
 import { createHash } from 'crypto';
+import { LINE_SHAPES } from './shapes';
 
 export interface TrainTelemetry {
   id: string;
@@ -105,6 +106,95 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return R * c;
+}
+
+// Snaps coordinates along a high-resolution GTFS line shape
+function interpolateOnShape(
+  shape: [number, number][] | undefined,
+  prevLat: number,
+  prevLon: number,
+  nextLat: number,
+  nextLon: number,
+  progress: number
+): { latitude: number; longitude: number } {
+  if (!shape || shape.length === 0) {
+    return {
+      latitude: prevLat + progress * (nextLat - prevLat),
+      longitude: prevLon + progress * (nextLon - prevLon)
+    };
+  }
+
+  // Find index in shape closest to prev coordinates
+  let prevIdx = 0;
+  let minPrevDist = Infinity;
+  for (let i = 0; i < shape.length; i++) {
+    const dist = getDistanceMeters(prevLat, prevLon, shape[i][0], shape[i][1]);
+    if (dist < minPrevDist) {
+      minPrevDist = dist;
+      prevIdx = i;
+    }
+  }
+
+  // Find index in shape closest to next coordinates
+  let nextIdx = 0;
+  let minNextDist = Infinity;
+  for (let i = 0; i < shape.length; i++) {
+    const dist = getDistanceMeters(nextLat, nextLon, shape[i][0], shape[i][1]);
+    if (dist < minNextDist) {
+      minNextDist = dist;
+      nextIdx = i;
+    }
+  }
+
+  // If both matched the same or invalid order, fallback to linear
+  if (prevIdx === nextIdx) {
+    return {
+      latitude: prevLat + progress * (nextLat - prevLat),
+      longitude: prevLon + progress * (nextLon - prevLon)
+    };
+  }
+
+  // Extract the segment points in the correct direction
+  const segment: [number, number][] = [];
+  if (prevIdx < nextIdx) {
+    for (let i = prevIdx; i <= nextIdx; i++) {
+      segment.push(shape[i]);
+    }
+  } else {
+    for (let i = prevIdx; i >= nextIdx; i--) {
+      segment.push(shape[i]);
+    }
+  }
+
+  // Compute cumulative distances
+  const distances: number[] = [0];
+  let totalDist = 0;
+  for (let i = 0; i < segment.length - 1; i++) {
+    const d = getDistanceMeters(
+      segment[i][0], segment[i][1],
+      segment[i+1][0], segment[i+1][1]
+    );
+    totalDist += d;
+    distances.push(totalDist);
+  }
+
+  const targetDist = progress * totalDist;
+
+  // Find the sub-segment
+  for (let i = 0; i < segment.length - 1; i++) {
+    if (targetDist >= distances[i] && targetDist <= distances[i + 1]) {
+      const segLength = distances[i + 1] - distances[i];
+      const segProgress = segLength > 0 ? (targetDist - distances[i]) / segLength : 0;
+      return {
+        latitude: segment[i][0] + segProgress * (segment[i+1][0] - segment[i][0]),
+        longitude: segment[i][1] + segProgress * (segment[i+1][1] - segment[i][1])
+      };
+    }
+  }
+
+  // Fallback
+  const last = segment[segment.length - 1];
+  return { latitude: last[0], longitude: last[1] };
 }
 
 // Persistent memory tracker to survive hot reload in Next.js development
@@ -484,8 +574,15 @@ export async function getTelemetryData() {
       let lon = nextStation?.longitude || 0;
 
       if (status === 'IN_TRANSIT' && prevStation && nextStation) {
-        lat = prevStation.latitude + progress * (nextStation.latitude - prevStation.latitude);
-        lon = prevStation.longitude + progress * (nextStation.longitude - prevStation.longitude);
+        const shape = LINE_SHAPES[routeId];
+        const snapped = interpolateOnShape(
+          shape,
+          prevStation.latitude, prevStation.longitude,
+          nextStation.latitude, nextStation.longitude,
+          progress
+        );
+        lat = snapped.latitude;
+        lon = snapped.longitude;
       }
 
       trains.push({
@@ -566,8 +663,15 @@ export async function getTelemetryData() {
       let lon = nextStation?.longitude || 0;
 
       if (status === 'IN_TRANSIT' && prevStation && nextStation) {
-        lat = prevStation.latitude + progress * (nextStation.latitude - prevStation.latitude);
-        lon = prevStation.longitude + progress * (nextStation.longitude - prevStation.longitude);
+        const shape = LINE_SHAPES[entry.routeId];
+        const snapped = interpolateOnShape(
+          shape,
+          prevStation.latitude, prevStation.longitude,
+          nextStation.latitude, nextStation.longitude,
+          progress
+        );
+        lat = snapped.latitude;
+        lon = snapped.longitude;
       }
 
       trains.push({
