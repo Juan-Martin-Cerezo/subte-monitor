@@ -88,7 +88,7 @@ async function main() {
   console.log('Identifying canonical route sequences...');
   const canonicalSequences: { routeId: string; directionId: number; stops: { stopId: string; sequence: number }[] }[] = [];
 
-  const subteRoutes = ['LineaA', 'LineaB', 'LineaC', 'LineaD', 'LineaE', 'LineaH'];
+  const subteRoutes = ['LineaA', 'LineaB', 'LineaC', 'LineaD', 'LineaE', 'LineaH', 'PM-Civico', 'PM-Savio'];
 
   subteRoutes.forEach(routeId => {
     [0, 1].forEach(directionId => {

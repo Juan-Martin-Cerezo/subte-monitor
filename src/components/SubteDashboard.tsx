@@ -87,6 +87,22 @@ const LINE_DETAILS: Record<string, { name: string; color: string; bgClass: strin
     borderClass: 'border-yellow-500/30',
     textColor: 'text-yellow-400',
     gradient: 'from-yellow-500 to-amber-500'
+  },
+  'PM-Civico': {
+    name: 'Premetro Cívico',
+    color: '#FFBD33',
+    bgClass: 'bg-orange-500/10',
+    borderClass: 'border-orange-500/30',
+    textColor: 'text-orange-400',
+    gradient: 'from-orange-400 to-amber-500'
+  },
+  'PM-Savio': {
+    name: 'Premetro Savio',
+    color: '#FFBD33',
+    bgClass: 'bg-orange-500/10',
+    borderClass: 'border-orange-500/30',
+    textColor: 'text-orange-400',
+    gradient: 'from-orange-400 to-amber-500'
   }
 };
 
@@ -105,7 +121,9 @@ const MANUAL_TRANSFERS: Record<string, string[]> = {
   'Jujuy': ['Humberto I'],
   'Santa Fe': ['Pueyrredón'],
   'Pueyrredón': ['Santa Fe', 'Corrientes'],
-  'Corrientes': ['Pueyrredón']
+  'Corrientes': ['Pueyrredón'],
+  'Intendente Saguier': ['Plaza de los Virreyes'],
+  'Plaza de los Virreyes': ['Intendente Saguier']
 };
 
 export default function SubteDashboard({
