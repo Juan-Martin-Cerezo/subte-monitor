@@ -221,7 +221,7 @@ export default function SubteDashboard({
 
   useEffect(() => {
     fetchTelemetry();
-    const interval = setInterval(fetchTelemetry, 3000);
+    const interval = setInterval(fetchTelemetry, 2000);
     return () => clearInterval(interval);
   }, [fetchTelemetry]);
 
@@ -842,7 +842,7 @@ export default function SubteDashboard({
       )}
       
       {/* TopAppBar - Responsive Flex layout to prevent overlaps */}
-      <header className="h-16 shrink-0 w-full z-50 flex justify-between items-center px-gutter bg-surface-container/70 dark:bg-surface-container-lowest/80 backdrop-blur-xl border-b border-outline-variant/30">
+      <header className="hidden md:flex h-16 shrink-0 w-full z-50 justify-between items-center px-gutter bg-surface-container/70 dark:bg-surface-container-lowest/80 backdrop-blur-xl border-b border-outline-variant/30">
         <div className="flex items-center gap-md">
           <span className="text-title-sm font-headline-md font-bold tracking-tight text-on-surface dark:text-on-background md:hidden">SUBTE-MONITOR</span>
         </div>
@@ -915,7 +915,7 @@ export default function SubteDashboard({
       </header>
 
       {/* Mobile Top Bar (Mobile Only) */}
-      <header className="md:hidden fixed top-0 w-full z-50 bg-surface-container/90 backdrop-blur-xl border-b border-outline-variant/20 flex justify-between items-center px-4 h-14">
+      <header className="md:hidden h-14 shrink-0 w-full z-50 bg-surface-container/90 backdrop-blur-xl border-b border-outline-variant/20 flex justify-between items-center px-4">
         <h1 className="text-title-sm font-headline-md font-bold tracking-tight text-on-background">BA SUBTE</h1>
         <div className="flex gap-2">
           <button onClick={() => { setCurrentTab('stations'); setShowMobileList(true); }} className="p-2"><span className="material-symbols-outlined text-outline">search</span></button>
@@ -1957,7 +1957,7 @@ export default function SubteDashboard({
       </nav>
 
       {/* Footer - Positioned relative to layout columns to avoid overlaps */}
-      <footer className="h-10 shrink-0 w-full flex justify-between items-center px-gutter bg-surface-container-lowest border-t border-outline-variant/10 z-30">
+      <footer className="hidden md:flex h-10 shrink-0 w-full justify-between items-center px-gutter bg-surface-container-lowest border-t border-outline-variant/10 z-30">
         <p className="text-[11px] text-outline">© 2026 SBASE - Gobierno de la Ciudad de Buenos Aires</p>
         <div className="flex gap-md text-[11px]">
           <a className="text-on-surface-variant hover:text-primary transition-colors" href="#">Política de Privacidad</a>

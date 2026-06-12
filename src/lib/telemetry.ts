@@ -285,7 +285,7 @@ export async function getTelemetryData() {
   let isMocked = false;
   let fetchedAt = nowUnix;
 
-  const cacheLimitSeconds = 4; // cache for 4 seconds
+  const cacheLimitSeconds = 1.5; // cache for 1.5 seconds
   const cached = globalForCache.subteCache;
 
   if (cached && nowUnix - cached.fetchedAt < cacheLimitSeconds) {
