@@ -305,9 +305,9 @@ export async function getTelemetryData() {
     }
 
     if (!rawForecast || !rawForecast.Entity || rawForecast.Entity.length === 0) {
-      console.log('Using simulated live telemetry (empty/failed API response)');
-      isMocked = true;
-      rawForecast = generateMockForecast(nowUnix, sequences);
+      console.log('No live telemetry data available (API response empty/failed)');
+      isMocked = false;
+      rawForecast = { Header: { timestamp: nowUnix }, Entity: [] };
     }
 
     // Process alerts
@@ -338,25 +338,6 @@ export async function getTelemetryData() {
             effect: effectMap[effectCode] || 'Modificación de Servicio'
           });
         }
-      });
-      globalForAlerts.lastAlerts = alerts;
-    } else if (isMocked) {
-      // Generate some mock alerts if we are simulating
-      alerts.push({
-        id: 'mock-alert-1',
-        routeId: 'LineaA',
-        headerText: 'Línea A: Demoras por problemas técnicos en estación Congreso',
-        descriptionText: 'Se registran demoras de hasta 10 minutos debido a una falla de señales.',
-        cause: 'Problemas Técnicos',
-        effect: 'Servicio Demorado'
-      });
-      alerts.push({
-        id: 'mock-alert-2',
-        routeId: 'LineaC',
-        headerText: 'Línea C: Estación Retiro con andenes alternados',
-        descriptionText: 'Obras de mantenimiento preventivo en aparatos de vía.',
-        cause: 'Mantenimiento',
-        effect: 'Frecuencia Reducida'
       });
       globalForAlerts.lastAlerts = alerts;
     } else {
@@ -719,72 +700,4 @@ function getDirectionFromStopId(stopId: string): number | null {
   return null;
 }
 
-// Generate realistic mock forecast when live API has no data or is down
-function generateMockForecast(nowUnix: number, sequences: any[]): GCBAForecastResponse {
-  const subteRoutes = ['LineaA', 'LineaB', 'LineaC', 'LineaD', 'LineaE', 'LineaH'];
-  const entities: GCBAEntity[] = [];
 
-  // Group sequences by routeId and directionId
-  const routeSeqMap: Record<string, string[]> = {};
-  sequences.forEach(seq => {
-    const key = `${seq.routeId}_${seq.directionId}`;
-    if (!routeSeqMap[key]) routeSeqMap[key] = [];
-    routeSeqMap[key].push(seq.stopId);
-  });
-
-  subteRoutes.forEach(routeId => {
-    [0, 1].forEach(directionId => {
-      const key = `${routeId}_${directionId}`;
-      const stopsList = routeSeqMap[key] || [];
-      if (stopsList.length === 0) return;
-
-      // 3 simulated trains per line and direction
-      for (let trainIndex = 0; trainIndex < 3; trainIndex++) {
-        // Stagger departure times: every 8 minutes (480 seconds)
-        const offset = trainIndex * 480;
-        const baseStart = nowUnix - 600 + offset;
-        const tripId = `${routeId.replace('Linea', '')}_T${trainIndex + 1}`;
-
-        const estaciones: GCBAStation[] = [];
-        let runningTime = baseStart;
-
-        stopsList.forEach((stopId) => {
-          // ~100 seconds transit, ~25 seconds stop
-          const arrivalTime = runningTime + 100;
-          const departureTime = arrivalTime + 25;
-          runningTime = departureTime;
-
-          estaciones.push({
-            stop_id: stopId,
-            stop_name: `Estación ${stopId}`,
-            arrival: {
-              time: arrivalTime,
-              delay: 30 * trainIndex // Mock slight delay
-            },
-            departure: {
-              time: departureTime,
-              delay: 30 * trainIndex
-            }
-          });
-        });
-
-        entities.push({
-          ID: `${routeId}_${tripId}`,
-          Linea: {
-            Trip_Id: tripId,
-            Route_Id: routeId,
-            Direction_ID: directionId,
-            start_time: '12:00:00',
-            start_date: '20260610',
-            Estaciones: estaciones
-          }
-        });
-      }
-    });
-  });
-
-  return {
-    Header: { timestamp: nowUnix },
-    Entity: entities
-  };
-}
