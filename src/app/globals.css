@@ -42,7 +42,7 @@
 }
 
 .leaflet-tile-container {
-  filter: brightness(0.55) contrast(1.5) saturate(0.8);
+  filter: brightness(0.85) contrast(1.25);
 }
 
 :root {
