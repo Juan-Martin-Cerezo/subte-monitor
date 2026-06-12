@@ -50,6 +50,15 @@ img.leaflet-tile {
   -webkit-filter: invert(100%) hue-rotate(180deg) grayscale(100%) brightness(90%) contrast(110%) !important;
 }
 
+/* Hide scrollbar utility for clean responsive menus */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

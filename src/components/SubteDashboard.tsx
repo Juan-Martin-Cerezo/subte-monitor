@@ -534,50 +534,50 @@ export default function SubteDashboard({
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 font-sans antialiased overflow-hidden">
       {/* HEADER NAVBAR */}
-      <header className="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md h-16 shrink-0 flex items-center justify-between px-6 z-50">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+      <header className="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md h-16 shrink-0 flex items-center justify-between px-4 sm:px-6 z-50">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 shrink-0">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-              SUBTE-MONITOR Live Map
+            <h1 className="text-sm sm:text-lg font-bold tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+              SUBTE-MONITOR
             </h1>
-            <p className="text-xs text-slate-500 font-medium">Algoritmo Fixed-Slot & Stable Hashing</p>
+            <p className="text-[10px] sm:text-xs text-slate-500 font-medium hidden sm:block">Algoritmo Fixed-Slot & Stable Hashing</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 rounded-full bg-slate-900 border border-slate-800">
             {connectionError ? (
               <>
-                <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>
-                <span className="text-xs font-semibold text-rose-400 uppercase tracking-wider">
+                <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-rose-500 animate-pulse"></span>
+                <span className="text-[9px] sm:text-xs font-semibold text-rose-400 uppercase tracking-wider">
                   Reconectando...
                 </span>
               </>
             ) : (
               <>
-                <span className={`h-2 w-2 rounded-full ${telemetry.isMocked ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500 animate-ping'}`}></span>
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  {telemetry.isMocked ? 'Simulación Activa' : 'API GCBA Conectada'}
+                <span className={`h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full ${telemetry.isMocked ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500 animate-ping'}`}></span>
+                <span className="text-[9px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  {telemetry.isMocked ? 'Simulado' : 'GCBA Conectado'}
                 </span>
               </>
             )}
           </div>
 
-          <div className="text-sm font-mono text-slate-400 bg-slate-900 px-3 py-1 rounded-lg border border-slate-800">
+          <div className="text-xs sm:text-sm font-mono text-slate-400 bg-slate-900 px-2 sm:px-3 py-1 rounded-lg border border-slate-800 hidden md:block">
             {currentTime || '--:--:--'}
           </div>
 
           <button
             onClick={fetchTelemetry}
             disabled={isRefreshing}
-            className="p-2 rounded-lg bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white transition disabled:opacity-50"
+            className="p-1.5 sm:p-2 rounded-lg bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-white transition disabled:opacity-50"
           >
-            <svg className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.2" />
             </svg>
           </button>
@@ -591,7 +591,7 @@ export default function SubteDashboard({
         <div ref={mapContainerRef} className="absolute inset-0 w-full h-full z-0" />
 
         {/* FLOATING LINE SELECTOR - Top Center */}
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex gap-1.5 p-1.5 rounded-2xl bg-slate-900/65 backdrop-blur-xl border border-slate-800/80 shadow-2xl">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex gap-1.5 p-1.5 rounded-2xl bg-slate-900/65 backdrop-blur-xl border border-slate-800/80 shadow-2xl max-w-[90vw] overflow-x-auto scrollbar-none flex-nowrap">
           <button
             onClick={() => {
               setActiveLine('All');
@@ -599,7 +599,7 @@ export default function SubteDashboard({
               setSelectedTrainId(null);
               setPinnedTrainId(null);
             }}
-            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition uppercase ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition uppercase shrink-0 ${
               activeLine === 'All'
                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
                 : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
@@ -616,7 +616,7 @@ export default function SubteDashboard({
                 setSelectedTrainId(null);
                 setPinnedTrainId(null);
               }}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
                 activeLine === id
                   ? 'bg-slate-800 text-white shadow-md border border-slate-700'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800/30'
@@ -629,38 +629,38 @@ export default function SubteDashboard({
         </div>
 
         {/* FLOATING METRICS SUMMARY - Top Left */}
-        <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-          <div className="bg-slate-900/65 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-3.5 shadow-2xl w-48 text-left">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Formaciones</span>
-            <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-xl font-black text-slate-200">{activeTrains.length}</span>
-              <span className="text-xs text-slate-500 font-bold">activas</span>
+        <div className="absolute top-20 md:top-4 left-4 z-10 flex flex-row md:flex-col gap-2 max-w-[calc(100vw-32px)] overflow-x-auto scrollbar-none">
+          <div className="bg-slate-900/65 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-2.5 md:p-3.5 shadow-2xl w-36 md:w-48 text-left shrink-0">
+            <span className="text-[8px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Formaciones</span>
+            <div className="flex items-baseline gap-1 mt-0.5">
+              <span className="text-base md:text-xl font-black text-slate-200">{activeTrains.length}</span>
+              <span className="text-[10px] text-slate-500 font-bold ml-1">activas</span>
             </div>
           </div>
 
-          <div className="bg-slate-900/65 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-3.5 shadow-2xl w-48 text-left">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Demora Promedio</span>
+          <div className="bg-slate-900/65 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-2.5 md:p-3.5 shadow-2xl w-36 md:w-48 text-left shrink-0">
+            <span className="text-[8px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Demora Promedio</span>
             <div className="flex items-baseline gap-1 mt-0.5">
-              <span className="text-lg font-black text-slate-200">
+              <span className="text-sm md:text-lg font-black text-slate-200">
                 {averageDelay > 0 ? `${Math.round(averageDelay / 60)}m ${averageDelay % 60}s` : '0s'}
               </span>
             </div>
           </div>
 
           {delayedTrains.length > 0 && (
-            <div className="bg-rose-950/40 backdrop-blur-xl border border-rose-900/40 rounded-2xl p-3 shadow-2xl w-48 text-left">
-              <span className="text-[10px] font-bold text-rose-400 uppercase tracking-widest block flex items-center gap-1">
+            <div className="bg-rose-950/40 backdrop-blur-xl border border-rose-900/40 rounded-2xl p-2.5 md:p-3.5 shadow-2xl w-36 md:w-48 text-left shrink-0">
+              <span className="text-[8px] md:text-[10px] font-bold text-rose-400 uppercase tracking-widest block flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-ping"></span>
                 Demoradas
               </span>
-              <span className="text-lg font-black text-rose-300 mt-0.5 block">{delayedTrains.length} formación</span>
+              <span className="text-xs md:text-lg font-black text-rose-300 mt-0.5 block truncate">{delayedTrains.length} formación{delayedTrains.length > 1 ? 'es' : ''}</span>
             </div>
           )}
         </div>
 
         {/* FLOATING STATION DETAILS / COMPACT REPORT PANEL - Bottom Right */}
         {selectedStationId && (
-          <div className="absolute bottom-4 right-4 z-10 w-80 bg-slate-900/85 backdrop-blur-xl border border-slate-800 rounded-2xl p-4 shadow-2xl flex flex-col gap-3.5 text-left">
+          <div className="fixed bottom-0 left-0 right-0 w-full rounded-t-3xl rounded-b-none border-t border-slate-850 z-30 md:absolute md:bottom-4 md:right-4 md:left-auto md:w-80 md:rounded-2xl md:border bg-slate-900/90 backdrop-blur-xl p-4 shadow-2xl flex flex-col gap-3.5 text-left">
             <div className="flex justify-between items-start">
               <div>
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Estación</span>
@@ -803,7 +803,7 @@ export default function SubteDashboard({
           const isPinned = pinnedTrainId === train.id;
 
           return (
-            <div className="absolute bottom-4 right-4 z-10 w-80 bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-2xl p-4 shadow-2xl flex flex-col gap-3.5 text-left transition-all animate-in fade-in slide-in-from-bottom-5 duration-200">
+            <div className="fixed bottom-0 left-0 right-0 w-full rounded-t-3xl rounded-b-none border-t border-slate-850 z-30 md:absolute md:bottom-4 md:right-4 md:left-auto md:w-80 md:rounded-2xl md:border bg-slate-900/90 backdrop-blur-xl p-4 shadow-2xl flex flex-col gap-3.5 text-left transition-all animate-in fade-in slide-in-from-bottom-5 duration-200">
               <div className="flex justify-between items-start">
                 <div>
                   <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Formación</span>
@@ -901,17 +901,17 @@ export default function SubteDashboard({
 
         {/* ACTIVE TRACKING BADGE */}
         {pinnedTrain && (
-          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 px-4 py-2 rounded-full bg-indigo-950/80 border border-indigo-500/30 backdrop-blur-md shadow-lg shadow-indigo-950/30">
-            <span className="relative flex h-2 w-2">
+          <div className="absolute top-36 md:top-20 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-indigo-950/80 border border-indigo-500/30 backdrop-blur-md shadow-lg shadow-indigo-950/30 max-w-[90vw]">
+            <span className="relative flex h-2 w-2 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
             </span>
-            <span className="text-xs font-bold text-indigo-200">
+            <span className="text-[10px] sm:text-xs font-bold text-indigo-200 truncate">
               Siguiendo formación <span className="font-mono font-black">{pinnedTrain.id}</span> ({LINE_DETAILS[pinnedTrain.routeId]?.name})
             </span>
             <button
               onClick={() => setPinnedTrainId(null)}
-              className="text-[10px] font-black text-indigo-300 hover:text-white px-2 py-0.5 rounded bg-indigo-900/50 border border-indigo-700/30 transition uppercase"
+              className="text-[9px] sm:text-[10px] font-black text-indigo-300 hover:text-white px-2 py-0.5 rounded bg-indigo-900/50 border border-indigo-700/30 transition uppercase shrink-0"
             >
               Liberar
             </button>
@@ -919,7 +919,9 @@ export default function SubteDashboard({
         )}
 
         {/* FLOATING SERVICE ALERTS - Bottom Left */}
-        <div className="absolute bottom-4 left-4 z-10 w-80 max-h-48 overflow-y-auto bg-slate-900/65 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-4 shadow-2xl text-left">
+        <div className={`absolute z-10 max-h-48 overflow-y-auto bg-slate-900/65 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-4 shadow-2xl text-left transition-all duration-200 bottom-4 left-4 right-4 md:right-auto w-auto md:w-80 ${
+          (selectedStationId || selectedTrainId) ? 'hidden md:block' : 'block'
+        }`}>
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">Estado del Servicio</span>
           
           <div className="flex flex-col gap-2">
