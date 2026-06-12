@@ -11,7 +11,8 @@ La aplicación está construida utilizando un enfoque moderno y robusto de grado
 *   **Framework**: [Next.js 15+ (App Router)](file:///home/juan/Programación/subte-monitor/src/app) con renderizado híbrido. El punto de entrada inicial es del lado del servidor (SSR) para cargar los datos de estaciones estáticas desde la base de datos, y luego pasa el control al cliente para la telemetría en tiempo real.
 *   **Base de Datos y ORM**: **PostgreSQL** administrado a través de **Prisma ORM (v6)**. Almacena las estaciones de la red, las secuencias de parada de cada línea (GTFS) y los reportes de los usuarios.
 *   **Diseño Visual**: **Tailwind CSS v4** con un diseño inmersivo y de alta fidelidad, basado en paneles translúcidos flotantes (glassmorphic panels) sobre una malla de fondo oscura (mesh grid).
-*   **Telemetría y Tiempo Real**: Consumo periódico de la API oficial de Tránsito del GCBA (formato GTFS Realtime) con fallback de simulación determinista cuando el token está ausente o la API falla.
+*   **Telemetría y Tiempo Real**: Consumo periódico de la API oficial de Tránsito del GCBA (formato GTFS Realtime) cada 3 segundos, con caché de 4 segundos en servidor.
+*   **Líneas soportadas**: Subte A, B, C, D, E, H + **Premetro** (ramales Cívico y Savio).
 
 ---
 
@@ -37,7 +38,8 @@ subte-monitor/
 │   │   └── SubteDashboard.tsx # Componente de mapas e interacciones en tiempo real
 │   └── lib/
 │       ├── db.ts            # Cliente Singleton de Prisma
-│       └── telemetry.ts     # Algoritmo Fixed Track-Slot, Stable Hashing y fallback de simulación
+│       ├── telemetry.ts     # Algoritmo Fixed Track-Slot, Stable Hashing y Holding at the Signal
+│       └── shapes.ts        # Coordenadas GTFS de formas de vía para interpolación geoespacial
 ├── gtfs.zip                 # Archivo zip con la especificación GTFS oficial de la red
 └── package.json             # Dependencias del proyecto
 ```
@@ -65,6 +67,18 @@ Para asignar un identificador persistente (ej. `A-4EF2`) a cada grupo (tren virt
 3. Se genera un hash MD5 combinando:
    $$\text{Hash} = \text{MD5}(\text{routeId} + \text{directionId} + T_{redondeado})$$
 4. Se toman los primeros 4 caracteres hex del hash para componer el ID final: `[Línea]-[4-HEX-CHARS]`. Este ID se mantendrá estable durante todo el recorrido del tren por la línea y cambiará únicamente cuando inicie una nueva vuelta (trip).
+
+### C. Holding at the Signal (Confirmación Estricta de Eventos)
+Esta arquitectura resuelve el problema de **teletransportación de formaciones** cuando la API del GCBA sufre latencia.
+
+El problema: cuando la API se congela por N segundos, el reloj local (`nowUnix`) sigue avanzando. Las condiciones matemáticas del filtrado eliminaban estaciones del array y el tren "saltaba" a la siguiente sin confirmación real.
+
+**Las 3 Reglas de Oro:**
+1. **`etaEnPaquete`**: Cada parada almacena su ETA relativa al timestamp del paquete de la API (`arr.arrivalTime - feedTimestamp`). Si la API se congela, este valor se congela con ella.
+2. **Selección inmutable del `activeStop`**: Se evalúa contra `etaEnPaquete >= -40` en vez de contra `nowUnix`. La estación objetivo solo cambia cuando la API envía un paquete confirmando que ya pasó.
+3. **Techo de cristal en 0.95**: El reloj local solo se usa para interpolar el progreso visual, pero se limita a `Math.min(0.95, ...)`. Si el reloj llega al final del tramo pero la API no confirma, el tren se queda clavado al 95% ("esperando en la señal").
+
+**Dead Reckoning**: Para trenes temporalmente ausentes del feed (hasta 40s), se fuerza `IN_TRANSIT` con techo 0.95. Nunca se confirma arribo a andén sin datos frescos.
 
 ---
 
