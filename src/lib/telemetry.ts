@@ -199,7 +199,7 @@ function interpolateOnShape(
 
 // Persistent memory tracker to survive hot reload in Next.js development
 const globalForTracker = globalThis as unknown as { 
-  subteTracker: Map<string, { routeId: string; directionId: number; tripId: string; t_inicio: number; lastSeen: number }> 
+  subteTracker: Map<string, { routeId: string; directionId: number; tripId: string; t_inicio: number; lastSeen: number; lastConfirmedSeq: number; lastProgress: number }> 
 };
 if (!globalForTracker.subteTracker) {
   globalForTracker.subteTracker = new Map();
@@ -513,7 +513,9 @@ export async function getTelemetryData() {
           directionId,
           tripId: stableId,
           t_inicio: avg_t_inicio,
-          lastSeen: nowUnix
+          lastSeen: nowUnix,
+          lastConfirmedSeq: 0,
+          lastProgress: 0
         });
       }
       usedIds.add(stableId);
@@ -542,14 +544,29 @@ export async function getTelemetryData() {
       // RULE 3: Holding at the Signal - only confirm arrival when API packet says <= 15s
       const apiConfirmaAnden = activeStop.etaEnPaquete <= 15 && activeStop.etaEnPaquete >= -60;
 
+      const trackerEntry = trackerDB.get(stableId);
       if (apiConfirmaAnden) {
         status = 'STOPPED';
         progress = 0.0;
         prevStopId = activeStop.stopId;
         prevStopName = nextStopName;
+        // Ratchet: lock confirmed position
+        if (trackerEntry && activeStop.stopSequence > trackerEntry.lastConfirmedSeq) {
+          trackerEntry.lastConfirmedSeq = activeStop.stopSequence;
+          trackerEntry.lastProgress = 0;
+        }
       } else {
         status = 'IN_TRANSIT';
-        progress = Math.max(0.0, Math.min(0.95, 1 - (segundosParaArriboLocal / 90)));
+        const rawProgress = Math.max(0.0, Math.min(0.95, 1 - (segundosParaArriboLocal / 90)));
+        // Monotonic ratchet: never go behind last known position
+        if (trackerEntry && activeStop.stopSequence === trackerEntry.lastConfirmedSeq) {
+          progress = Math.max(trackerEntry.lastProgress, rawProgress);
+        } else if (trackerEntry && activeStop.stopSequence > trackerEntry.lastConfirmedSeq) {
+          progress = rawProgress;
+        } else {
+          progress = Math.max(trackerEntry?.lastProgress || 0, rawProgress);
+        }
+        if (trackerEntry) trackerEntry.lastProgress = progress;
         if (nextSeqIndex > 0) {
           prevStopId = seqList[nextSeqIndex - 1].stopId;
           prevStopName = stationMap.get(prevStopId)?.stopName || 'Estación';
