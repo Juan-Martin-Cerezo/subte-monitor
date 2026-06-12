@@ -200,7 +200,7 @@ export default function SubteDashboard({
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(fetchTelemetry, 2000);
+    const interval = setInterval(fetchTelemetry, 5000);
     return () => clearInterval(interval);
   }, [fetchTelemetry]);
 
