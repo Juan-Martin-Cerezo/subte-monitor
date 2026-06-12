@@ -728,12 +728,15 @@ export default function SubteDashboard({
   // Invalidate Map size on screen tab switch to redraw Leaflet correctly
   useEffect(() => {
     if (currentTab === 'map' && mapInstanceRef.current) {
-      setTimeout(() => {
-        mapInstanceRef.current.invalidateSize({ animate: false });
-        if (!mapUserMovedRef.current) {
-          fitMapBounds();
+      const timer = setTimeout(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize({ animate: false });
+          if (!mapUserMovedRef.current) {
+            fitMapBounds();
+          }
         }
       }, 100);
+      return () => clearTimeout(timer);
     }
   }, [currentTab, fitMapBounds]);
 
