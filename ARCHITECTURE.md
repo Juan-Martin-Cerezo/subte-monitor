@@ -84,28 +84,27 @@ El problema: cuando la API se congela por N segundos, el reloj local (`nowUnix`)
 
 ## 4. Visualización en Mapa e Interpolación Geoespacial
 
-El mapa interactivo full-screen está renderizado en SVG puro dentro de [`src/components/SubteDashboard.tsx`](file:///home/juan/Programación/subte-monitor/src/components/SubteDashboard.tsx).
+El mapa interactivo full-screen está renderizado en **Leaflet** de forma nativa en [`src/components/SubteDashboard.tsx`](file:///home/juan/Programación/subte-monitor/src/components/SubteDashboard.tsx).
 
-### A. Proyección de Coordenadas
-Las coordenadas geográficas (latitud, longitud) se proyectan linealmente a coordenadas SVG ($1000 \times 720$) utilizando los extremos geográficos de la red:
-```typescript
-const projectX = (lon: number) => {
-  return ((lon - finalMinLon) / (finalMaxLon - finalMinLon)) * svgWidth;
-};
+### A. Capa de Mosaicos y Tema Oscuro
+Para lograr una estética de centro de control premium y unificada con Stitch UI:
+1. Se utiliza el proveedor de mosaicos estándar de **OpenStreetMap** (OSM).
+2. Se inyecta una capa de filtros CSS personalizados sobre los elementos de imagen de Leaflet (`.leaflet-tile`) para invertir y cambiar el tono de las calles:
+   ```css
+   .leaflet-tile {
+     filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(1.15) grayscale(0.2) !important;
+   }
+   ```
+3. Esto genera un mapa completamente oscuro con calles en gris claro y agua en tonos oscuros, sirviendo de contraste perfecto para los trazos brillantes de las líneas de subte.
 
-const projectY = (lat: number) => {
-  return (1 - (lat - finalMinLat) / (finalMaxLat - finalMinLat)) * svgHeight;
-};
-```
-
-### B. Interpolación de Posición
-Si un tren se encuentra en tránsito entre la estación anterior ($S_{prev}$) y la estación siguiente ($S_{next}$):
-1. Se calcula la duración nominal del tramo en segundos.
-2. Se calcula el progreso lineal del tren:
-   $$\text{progreso} = \frac{\text{duración nominal} - \text{ETA a } S_{next}}{\text{duración nominal}}$$
-3. Se interpola la latitud y longitud del marcador:
-   $$\text{lat}_{tren} = \text{lat}_{prev} + \text{progreso} \times (\text{lat}_{next} - \text{lat}_{prev})$$
-   $$\text{lon}_{tren} = \text{lon}_{prev} + \text{progreso} \times (\text{lon}_{next} - \text{lon}_{prev})$$
+### B. Interpolación Geoespacial y Snapping
+Cuando un tren se encuentra `IN_TRANSIT` entre su estación anterior ($S_{prev}$) y su estación siguiente ($S_{next}$):
+1. Se calcula el `progress` decay del trayecto:
+   $$\text{progress} = \max\left(0.0, \min\left(0.95, 1 - \frac{\text{segundosParaArriboLocal}}{90}\right)\right)$$
+2. En lugar de interpolar en línea recta entre las dos estaciones (lo que haría que el tren atraviese manzanas y edificios en diagonal), el motor de renderizado realiza **snapping geoespacial de alta resolución**:
+   - Obtiene el shape oficial de la línea (un arreglo ordenado de puntos geográficos) cargado en `src/lib/shapes.ts`.
+   - Busca el segmento de vía delimitado por las coordenadas geográficas de $S_{prev}$ y $S_{next}$.
+   - Interpola la posición exacta del tren a lo largo de este trazado curvo según el porcentaje de progreso calculado. Esto hace que el tren ruede con total precisión física sobre las curvas reales de la red ferroviaria subterránea.
 
 ---
 
