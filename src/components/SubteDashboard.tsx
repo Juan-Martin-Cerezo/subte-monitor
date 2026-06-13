@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { TrainTelemetry, AlertData } from '@/lib/telemetry';
 import 'leaflet/dist/leaflet.css';
 import { LINE_SHAPES } from '@/lib/shapes';
+import { ACCESSIBILITY_METADATA, ANNUAL_TRIPS_METADATA } from '@/lib/metadata';
 
 interface ReportData {
   id: string;
@@ -1671,6 +1672,25 @@ export default function SubteDashboard({
                         </div>
                         <h2 className="text-display-lg font-display-lg text-on-surface">{directorySelectedStation.stopName}</h2>
                         <p className="text-data-lg font-data-lg text-outline mt-2">Estación de la red de subterráneos de Buenos Aires</p>
+                        {(() => {
+                          const accessKey = directorySelectedStation.stopName.toLowerCase()
+                            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                            .replace(/[^a-z0-9]/g, '');
+                          const access = ACCESSIBILITY_METADATA[accessKey];
+                          if (!access) return null;
+                          return (
+                            <div className="flex gap-4 mt-4 text-xs text-slate-350">
+                              <span className="flex items-center gap-1.5 bg-surface-container-low px-3 py-1.5 rounded-xl border border-outline-variant/10">
+                                <span className="material-symbols-outlined text-[16px] text-indigo-400">elevator</span>
+                                <span className="font-bold text-white">{access.ascensores}</span> {access.ascensores === 1 ? 'Ascensor' : 'Ascensores'}
+                              </span>
+                              <span className="flex items-center gap-1.5 bg-surface-container-low px-3 py-1.5 rounded-xl border border-outline-variant/10">
+                                <span className="material-symbols-outlined text-[16px] text-indigo-400">stairs</span>
+                                <span className="font-bold text-white">{access.escaleras}</span> {access.escaleras === 1 ? 'Escalera Mecánica' : 'Escaleras Mecánicas'}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
 
@@ -2081,6 +2101,78 @@ export default function SubteDashboard({
                     )}
                   </div>
                 </div>
+
+                {/* Historical Passenger Flow Stats Card */}
+                <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-2xl p-6 shadow-2xl flex flex-col gap-4">
+                  <div>
+                    <h3 className="text-lg font-black text-white flex items-center gap-2">
+                      <span className="material-symbols-outlined text-secondary">analytics</span>
+                      Historial Anual de Viajes (2013 - 2020)
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Flujo total de pasajeros transportados al año por cada línea de subterráneo.
+                    </p>
+                  </div>
+                  
+                  <hr className="border-slate-850" />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {Object.entries(ANNUAL_TRIPS_METADATA).map(([lineLetter, dataPoints]) => {
+                      const lineId = `Linea${lineLetter}`;
+                      const details = LINE_DETAILS[lineId];
+                      if (!details) return null;
+                      
+                      const latestPoint = dataPoints[dataPoints.length - 1];
+                      const maxVal = Math.max(...dataPoints.map(d => d.total));
+                      
+                      return (
+                        <div key={`annual-card-${lineLetter}`} className="bg-slate-950/45 border border-slate-900 rounded-xl p-4 flex flex-col gap-3">
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-sm"
+                                style={{ backgroundColor: details.color }}
+                              >
+                                {lineLetter}
+                              </span>
+                              <span className="text-sm font-bold text-slate-200">{details.name}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[10px] text-slate-500 font-mono block font-bold">Último Reporte ({latestPoint.year})</span>
+                              <span className="text-xs font-bold text-indigo-400 font-mono">{latestPoint.total.toLocaleString('es-AR')} viajes</span>
+                            </div>
+                          </div>
+                          
+                          {/* Sparkline chart */}
+                          <div className="flex items-end justify-between h-14 pt-2 border-b border-slate-900/50">
+                            {dataPoints.map(dp => {
+                              const heightPct = Math.round((dp.total / maxVal) * 105); // slightly scale to fit height nicely
+                              return (
+                                <div key={`${lineLetter}-${dp.year}`} className="flex flex-col items-center flex-1 group relative">
+                                  <div className="absolute opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 border border-slate-800 text-[8px] px-2 py-0.5 rounded shadow-xl text-center pointer-events-none -translate-y-8 z-10 whitespace-nowrap font-mono text-slate-200">
+                                    {dp.year}: {Math.round(dp.total / 1000000)}M
+                                  </div>
+                                  <div
+                                    className="w-2 rounded-t-sm transition-colors duration-200 shadow-md cursor-pointer"
+                                    style={{ height: `${heightPct}%`, minHeight: '3px', backgroundColor: details.color + '4D' }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.backgroundColor = details.color;
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.backgroundColor = details.color + '4D';
+                                    }}
+                                  />
+                                  <span className="text-[7px] text-slate-600 font-mono mt-1">{String(dp.year).substring(2)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
               </div>
             </div>
           )}

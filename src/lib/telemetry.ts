@@ -486,7 +486,7 @@ export async function getTelemetryData() {
       for (const [tripId, entry] of trackerDB.entries()) {
         if (entry.routeId === routeId && entry.directionId === directionId && !usedIds.has(tripId)) {
           const diff = Math.abs(entry.t_inicio - avg_t_inicio);
-          if (diff < minDiff && diff <= 240) {
+          if (diff < minDiff && diff <= 600) {
             minDiff = diff;
             matchedTripId = tripId;
           }
