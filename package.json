@@ -27,5 +27,8 @@
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5"
+  },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
   }
 }
