@@ -208,6 +208,7 @@ export interface TrackerEntry {
   lastTargetSeq: number;
   lastProgress: number;
   stationEnterTime: number;
+  lastStatus: 'IN_TRANSIT' | 'STOPPED';
 }
 
 const globalForTracker = globalThis as unknown as { 
@@ -502,7 +503,8 @@ export async function getTelemetryData() {
       // Sort cluster stops strictly by stopSequence early for Ghost Buster tracking
       const sortedStops = [...cluster.stops].sort((a, b) => a.stopSequence - b.stopSequence);
       if (sortedStops.length === 0) return;
-      const activeStop = sortedStops.find(s => s.arrivalTime - nowUnix >= -40) || sortedStops[sortedStops.length - 1];
+      
+      let activeStop = sortedStops.find(s => s.etaEnPaquete >= -40) || sortedStops[sortedStops.length - 1];
 
       let stableId: string;
       let trackedTrain: TrackerEntry;
@@ -512,6 +514,41 @@ export async function getTelemetryData() {
         trackedTrain.t_inicio = avg_t_inicio;
         trackedTrain.lastSeen = nowUnix;
         
+        // REGLA 1: Anti-Moonwalking (Evitar que el tren retroceda si la API manda datos viejos)
+        if (activeStop.stopSequence < trackedTrain.lastTargetSeq) {
+          const simStop = seqList.find(s => s.stopSequence === trackedTrain.lastTargetSeq);
+          if (simStop) {
+            activeStop = {
+              t_inicio: trackedTrain.t_inicio,
+              stopId: simStop.stopId,
+              stopSequence: trackedTrain.lastTargetSeq,
+              arrivalTime: nowUnix,
+              delay: 0,
+              etaEnPaquete: trackedTrain.lastStatus === 'STOPPED' ? -10 : 30 // Mantiene el estado anterior
+            };
+          }
+        } 
+        // REGLA 2: Breadcrumb Trail / Anti-Teleportation (Obligar a visitar secuencias intermedias)
+        else {
+          // Si estaba STOPPED, el siguiente paso lógico es la estación + 1. Si estaba en TRANSIT, es la misma estación.
+          const nextLogicalSeq = trackedTrain.lastStatus === 'STOPPED' ? trackedTrain.lastTargetSeq + 1 : trackedTrain.lastTargetSeq;
+          
+          if (activeStop.stopSequence > nextLogicalSeq) {
+            // El tren dio un salto. Lo forzamos a ir a la secuencia intermedia lógica.
+            const simStop = seqList.find(s => s.stopSequence === nextLogicalSeq);
+            if (simStop) {
+              activeStop = {
+                t_inicio: trackedTrain.t_inicio,
+                stopId: simStop.stopId,
+                stopSequence: nextLogicalSeq,
+                arrivalTime: nowUnix - 10,
+                delay: 0,
+                etaEnPaquete: -10 // Forzamos ETA negativo para que la máquina lo registre como STOPPED rápidamente
+              };
+            }
+          }
+        }
+
         // Verificamos si cambió de estación
         if (trackedTrain.lastStopId !== activeStop.stopId) {
           trackedTrain.lastStopId = activeStop.stopId;
@@ -535,7 +572,8 @@ export async function getTelemetryData() {
           lastStopId: activeStop.stopId,
           lastTargetSeq: activeStop.stopSequence,
           lastProgress: 0.0,
-          stationEnterTime: nowUnix
+          stationEnterTime: nowUnix,
+          lastStatus: 'STOPPED'
         };
         trackerDB.set(stableId, trackedTrain);
       }
@@ -546,41 +584,43 @@ export async function getTelemetryData() {
       const nextStopId = activeStop.stopId;
       const etaSeconds = Math.max(0, activeStop.arrivalTime - nowUnix);
 
-      let status: 'STOPPED' | 'IN_TRANSIT' = 'STOPPED';
-      let progress = 0;
-      let prevStopId: string | null = null;
-      let prevStopName: string | null = null;
-
-      const nextSeqIndex = seqList.findIndex(s => s.stopId === activeStop.stopId);
-
       const segundosParaArriboLocal = activeStop.arrivalTime - nowUnix;
-      // Holding at the Signal: API confirms stop explicitly if etaEnPaquete is between -60 and 15 seconds
       const apiConfirmaAnden = activeStop.etaEnPaquete <= 15 && activeStop.etaEnPaquete >= -60;
+
+      let status: 'IN_TRANSIT' | 'STOPPED' = 'IN_TRANSIT';
+      let progress = 0.0;
+      let prevStopId = activeStop.stopId;
+      let prevStopName = nextStopName;
 
       if (apiConfirmaAnden) {
         status = 'STOPPED';
         progress = 0.0;
-        prevStopId = activeStop.stopId;
-        prevStopName = nextStopName;
       } else {
+        status = 'IN_TRANSIT';
+        const rawProgress = Math.max(0.0, Math.min(0.95, 1 - (segundosParaArriboLocal / 90)));
+        
+        // Trinquete Estricto (No puede disminuir su progreso visual hacia el mismo objetivo)
+        if (matchedTripId) {
+          if (trackedTrain.lastTargetSeq === activeStop.stopSequence) {
+            progress = Math.max(trackedTrain.lastProgress || 0, rawProgress);
+          } else {
+            progress = rawProgress;
+          }
+        } else {
+          progress = rawProgress;
+        }
+        
+        const nextSeqIndex = seqList.findIndex(s => s.stopId === activeStop.stopId);
         if (nextSeqIndex > 0) {
           prevStopId = seqList[nextSeqIndex - 1].stopId;
           prevStopName = stationMap.get(prevStopId)?.stopName || 'Estación';
         }
-        status = 'IN_TRANSIT';
-        const newProgress = Math.max(0.0, Math.min(0.95, 1 - (segundosParaArriboLocal / 90)));
-        
-        // El Trinquete logic:
-        if (trackedTrain.lastTargetSeq === activeStop.stopSequence) {
-          progress = Math.max(trackedTrain.lastProgress, newProgress);
-        } else {
-          trackedTrain.lastTargetSeq = activeStop.stopSequence;
-          trackedTrain.lastProgress = 0.0;
-          progress = newProgress;
-        }
       }
 
+      // GUARDADO DE ESTADO PARA EL PRÓXIMO FRAME
+      trackedTrain.lastTargetSeq = activeStop.stopSequence;
       trackedTrain.lastProgress = progress;
+      trackedTrain.lastStatus = status;
 
       // Interpolate coordinates
       const prevStation = prevStopId ? stationMap.get(prevStopId) : null;
@@ -679,6 +719,7 @@ export async function getTelemetryData() {
         progress = newProgress;
       }
       entry.lastProgress = progress;
+      entry.lastStatus = status;
 
       if (nextSeqIndex > 0) {
         prevStopId = seqList[nextSeqIndex - 1].stopId;
