@@ -203,7 +203,11 @@ export default function SubteDashboard({
   // Helper to filter lines that have active trains/predictions (unless they are LineaA/LineaB)
   const visibleLines = useMemo(() => {
     return Object.keys(LINE_DETAILS).filter(lineId => {
-      if (['LineaC', 'LineaD', 'LineaH', 'PM-Civico', 'PM-Savio'].includes(lineId)) {
+      if (lineId === 'LineaD') {
+        const hasMovingTrains = telemetry.trains.some(t => t.routeId === 'LineaD' && t.status === 'IN_TRANSIT');
+        return hasMovingTrains;
+      }
+      if (['LineaC', 'LineaH', 'PM-Civico', 'PM-Savio'].includes(lineId)) {
         const hasTrains = telemetry.trains.some(t => t.routeId === lineId);
         const hasPredictions = telemetry.predictions?.some(p => p.routeId === lineId);
         return hasTrains || hasPredictions;
