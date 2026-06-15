@@ -486,25 +486,38 @@ export async function getTelemetryData() {
     // Process each cluster (each physical train found)
     clusters.forEach(cluster => {
       const avg_t_inicio = cluster.t_inicio_values.reduce((sum, v) => sum + v, 0) / cluster.t_inicio_values.length;
-      
       let matchedTripId: string | null = null;
       let minDiff = Infinity;
       
-      for (const [tripId, entry] of trackerDB.entries()) {
-        if (entry.routeId === routeId && entry.directionId === directionId && !usedIds.has(tripId)) {
+      // 1. Time-based matching (Primary)
+      for (const [id, entry] of trackerDB.entries()) {
+        if (entry.routeId === routeId && entry.directionId === directionId && !usedIds.has(id)) {
           const diff = Math.abs(entry.t_inicio - avg_t_inicio);
           if (diff < minDiff && diff <= 360) {
             minDiff = diff;
-            matchedTripId = tripId;
+            matchedTripId = id;
           }
         }
       }
-      
-      // Sort cluster stops strictly by stopSequence early for Ghost Buster tracking
+
+      // 2. Early activeStop extraction
       const sortedStops = [...cluster.stops].sort((a, b) => a.stopSequence - b.stopSequence);
-      if (sortedStops.length === 0) return;
-      
+      if (sortedStops.length === 0) return; // continues to next cluster
       let activeStop = sortedStops.find(s => s.etaEnPaquete >= -40) || sortedStops[sortedStops.length - 1];
+
+      // 3. Spatial matching (Fallback for massive lag spikes)
+      if (!matchedTripId) {
+        for (const [id, entry] of trackerDB.entries()) {
+          if (entry.routeId === routeId && entry.directionId === directionId && !usedIds.has(id)) {
+            // If a 'new' train occupies the exact same physical block (+/- 1 sequence) 
+            // as an existing tracked train, assume it's the same physical train to preserve ID.
+            if (Math.abs(entry.lastTargetSeq - activeStop.stopSequence) <= 1) {
+              matchedTripId = id;
+              break;
+            }
+          }
+        }
+      }
 
       let stableId: string;
       let trackedTrain: TrackerEntry;
@@ -644,9 +657,13 @@ export async function getTelemetryData() {
         return;
       }
 
-      // ALGORITMO CAZAFANTASMAS: Si el tren está 'STOPPED' en el mismo andén por más de 180 segundos, ignorarlo.
-      if (status === 'STOPPED' && (nowUnix - trackedTrain.stationEnterTime > 180)) {
-         return; // Ignorar (es un tren fantasma del CBTC)
+      // ALGORITMO CAZAFANTASMAS: Exempt terminals (sequence 1 or max sequence)
+      const entryData = trackerDB.get(stableId);
+      const maxSeq = Math.max(...seqList.map(s => s.stopSequence));
+      const isTerminal = activeStop.stopSequence === 1 || activeStop.stopSequence === maxSeq;
+      
+      if (status === 'STOPPED' && entryData && (nowUnix - entryData.stationEnterTime > 180)) {
+         if (!isTerminal) return; // Drop phantom trains in mid-route only
       }
 
       trains.push({
