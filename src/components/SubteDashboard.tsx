@@ -615,6 +615,12 @@ export default function SubteDashboard({
       map.on('zoomend', handleUserInteraction);
       map.on('movestart', handleUserInteraction);
 
+      // Disable marker transitions during zoom or panning to avoid drifting artifacts
+      map.on('zoomstart', () => container.classList.add('map-zooming'));
+      map.on('zoomend', () => container.classList.remove('map-zooming'));
+      map.on('movestart', () => container.classList.add('map-zooming'));
+      map.on('moveend', () => container.classList.remove('map-zooming'));
+
       const tracksGroup = L.layerGroup().addTo(map);
       const stationsGroup = L.layerGroup().addTo(map);
       const trainsGroup = L.layerGroup().addTo(map);

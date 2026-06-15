@@ -26,7 +26,11 @@
 }
 
 .custom-train-icon {
-  transition: top 1.9s linear, transform 1.9s linear !important;
+  transition: top 1.9s linear, left 1.9s linear, transform 1.9s linear !important;
+}
+
+.map-zooming .custom-train-icon {
+  transition: none !important;
 }
 
 /* Override default Leaflet tooltip style to make it dark and premium */
