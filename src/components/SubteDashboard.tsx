@@ -5,6 +5,7 @@ import { TrainTelemetry, AlertData } from '@/lib/telemetry';
 import 'leaflet/dist/leaflet.css';
 import { LINE_SHAPES } from '@/lib/shapes';
 import { ACCESSIBILITY_METADATA, ANNUAL_TRIPS_METADATA } from '@/lib/metadata';
+import { ARTWORK_METADATA, PREMETRO_STATION_DETAILS, SUBTE_LINES_GEOM, AOM_SUMMARY } from '@/lib/metadata_extended';
 
 interface ReportData {
   id: string;
@@ -144,7 +145,7 @@ export default function SubteDashboard({
   initialTelemetry
 }: SubteDashboardProps) {
   // Navigation Screens Tab state
-  const [currentTab, setCurrentTab] = useState<'map' | 'planner' | 'stations' | 'status' | 'arrivals'>('map');
+  const [currentTab, setCurrentTab] = useState<'map' | 'planner' | 'stations' | 'status' | 'arrivals' | 'aom'>('map');
 
   // Interactive Map State
   const [activeLine, setActiveLine] = useState<string>('All'); // 'All' or lineId
@@ -172,6 +173,18 @@ export default function SubteDashboard({
   const tracksGroupRef = useRef<any>(null);
   const stationsGroupRef = useRef<any>(null);
   const trainsGroupRef = useRef<any>(null);
+  const mapBoundsInitializedRef = useRef(false);
+  const isProgrammaticMoveRef = useRef(false);
+  const trainMarkersRef = useRef<Map<string, any>>(new Map());
+
+  // Helper to determine route direction destination
+  const getTrainDestination = useCallback((routeId: string, directionId: number) => {
+    const seqList = initialSequences.filter(s => s.routeId === routeId && s.directionId === directionId);
+    if (seqList.length === 0) return 'Terminal';
+    const terminalSeq = seqList[seqList.length - 1];
+    const station = initialStations.find(st => st.stopId === terminalSeq.stopId);
+    return station ? station.stopName : 'Terminal';
+  }, [initialSequences, initialStations]);
 
   // Planner Screen state
   const [plannerOrigin, setPlannerOrigin] = useState<string>('');
@@ -181,11 +194,36 @@ export default function SubteDashboard({
 
   // Station Directory Screen state
   const [stationSearch, setStationSearch] = useState<string>('');
-  const [stationLineFilter, setStationLineFilter] = useState<string>('LineaD'); // Default Line D
+  const [stationLineFilter, setStationLineFilter] = useState<string>('LineaA'); // Default Line A
   const [arrivalsLineFilter, setArrivalsLineFilter] = useState<string>('LineaA'); // Default Line A for raw arrivals
   const [directorySelectedStationId, setDirectorySelectedStationId] = useState<string | null>(null);
   const [stationFlowData, setStationFlowData] = useState<any[]>([]);
   const [isLoadingFlow, setIsLoadingFlow] = useState(false);
+
+  // Helper to filter lines that have active trains/predictions (unless they are LineaA/LineaB)
+  const visibleLines = useMemo(() => {
+    return Object.keys(LINE_DETAILS).filter(lineId => {
+      if (['LineaC', 'LineaD', 'LineaH', 'PM-Civico', 'PM-Savio'].includes(lineId)) {
+        const hasTrains = telemetry.trains.some(t => t.routeId === lineId);
+        const hasPredictions = telemetry.predictions?.some(p => p.routeId === lineId);
+        return hasTrains || hasPredictions;
+      }
+      return true;
+    });
+  }, [telemetry.trains, telemetry.predictions]);
+
+  // Reset selected lines if they disappear
+  useEffect(() => {
+    if (activeLine !== 'All' && !visibleLines.includes(activeLine)) {
+      setActiveLine('All');
+    }
+    if (stationLineFilter !== 'All' && !visibleLines.includes(stationLineFilter)) {
+      setStationLineFilter(visibleLines[0] || 'LineaA');
+    }
+    if (!visibleLines.includes(arrivalsLineFilter)) {
+      setArrivalsLineFilter(visibleLines[0] || 'LineaA');
+    }
+  }, [visibleLines, activeLine, stationLineFilter, arrivalsLineFilter]);
 
   // Responsive mobile list toggle
   const [showMobileList, setShowMobileList] = useState(true);
@@ -235,11 +273,11 @@ export default function SubteDashboard({
     return initialStations.find(s => s.stopId === selectedStationId) || null;
   }, [selectedStationId, initialStations]);
 
-  // Fetch telemetry updates every 5 seconds
+  // Fetch telemetry updates every 2 seconds
   const fetchTelemetry = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const res = await fetch(`/api/telemetry?t=${Date.now()}`, { cache: 'no-store' });
+      const res = await fetch(`/api/telemetry?line=${activeLine}&t=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setTelemetry(data);
@@ -254,7 +292,7 @@ export default function SubteDashboard({
       setIsRefreshing(false);
       setIsInitialLoading(false);
     }
-  }, []);
+  }, [activeLine]);
 
   useEffect(() => {
     fetchTelemetry();
@@ -393,8 +431,13 @@ export default function SubteDashboard({
         const isManual = MANUAL_TRANSFERS[s1.stopName]?.includes(s2.stopName);
 
         if (hasSameName || isManual) {
-          g[s1.stopId].push({ node: s2.stopId, weight: 3, routeId: null });
-          g[s2.stopId].push({ node: s1.stopId, weight: 3, routeId: null });
+          const r1 = initialSequences.filter(seq => seq.stopId === s1.stopId).map(seq => seq.routeId);
+          const r2 = initialSequences.filter(seq => seq.stopId === s2.stopId).map(seq => seq.routeId);
+          const shareAnyRoute = r1.some(routeId => r2.includes(routeId));
+          if (!shareAnyRoute) {
+            g[s1.stopId].push({ node: s2.stopId, weight: 3, routeId: null });
+            g[s2.stopId].push({ node: s1.stopId, weight: 3, routeId: null });
+          }
         }
       }
     }
@@ -562,11 +605,15 @@ export default function SubteDashboard({
 
       L.control.zoom({ position: 'topright' }).addTo(map);
 
-      // Track manual map interactions to prevent auto-centering resets (zoom is preserved)
-      map.on('dragend', () => {
+      // Track manual map interactions to prevent auto-centering resets
+      const handleUserInteraction = () => {
+        if (isProgrammaticMoveRef.current) return;
         mapUserMovedRef.current = true;
         setMapUserMoved(true);
-      });
+      };
+      map.on('dragend', handleUserInteraction);
+      map.on('zoomend', handleUserInteraction);
+      map.on('movestart', handleUserInteraction);
 
       const tracksGroup = L.layerGroup().addTo(map);
       const stationsGroup = L.layerGroup().addTo(map);
@@ -601,9 +648,8 @@ export default function SubteDashboard({
 
       tracksGroup.clearLayers();
       stationsGroup.clearLayers();
-      trainsGroup.clearLayers();
 
-      const activeLines = activeLine === 'All' ? Object.keys(LINE_DETAILS) : [activeLine];
+      const activeLines = activeLine === 'All' ? visibleLines : [activeLine];
 
       // Draw Tracks
       Object.entries(LINE_DETAILS).forEach(([lineId, details]) => {
@@ -616,6 +662,16 @@ export default function SubteDashboard({
             opacity: activeLine === 'All' ? 0.7 : 0.95
           }).addTo(tracksGroup);
         }
+      });
+
+      // Draw Physical tracks backing from NUEVADATA geometries
+      SUBTE_LINES_GEOM.forEach(track => {
+        L.polyline(track.coords, {
+          color: '#1e293b',
+          weight: 2.5,
+          opacity: 0.3,
+          dashArray: '4, 4'
+        }).addTo(tracksGroup);
       });
 
       // Group active stations by name
@@ -670,6 +726,16 @@ export default function SubteDashboard({
 
       // Draw Trains
       const activeTrains = telemetry.trains.filter(t => activeLines.includes(t.routeId));
+      const activeTrainIds = new Set(activeTrains.map(t => t.id));
+
+      // Remove markers for trains that are no longer active
+      for (const [id, marker] of trainMarkersRef.current.entries()) {
+        if (!activeTrainIds.has(id)) {
+          marker.remove();
+          trainMarkersRef.current.delete(id);
+        }
+      }
+
       activeTrains.forEach(train => {
         const color = LINE_DETAILS[train.routeId]?.color || '#fff';
         const isSelected = selectedTrainId === train.id;
@@ -714,35 +780,53 @@ export default function SubteDashboard({
           iconAnchor: [15, 15]
         });
 
-        const marker = L.marker([train.latitude, train.longitude], { icon: trainIcon }).addTo(trainsGroup);
-
         const statusText = train.status === 'STOPPED' ? 'Detenido en' : 'Rumbo a';
         const etaMin = Math.round(train.etaSeconds / 60);
-        marker.bindTooltip(`
+        const tooltipContent = `
           <div style="color: #fff; background: #0b0f19; border: 1px solid #334155; padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 600;">
             <strong>TREN ${train.id}</strong><br/>
-            ${statusText} ${train.nextStopName} (ETA: ${etaMin}m)
+            ${statusText} ${train.nextStopName} (ETA: ${etaMin}m)<br/>
+            <span style="color: #f59e0b; font-size: 9px;">Sentido: Hacia ${getTrainDestination(train.routeId, train.directionId)}</span>
           </div>
-        `, { direction: 'top', offset: [0, -10], opacity: 0.95 });
+        `;
 
-        marker.on('click', () => {
-          setSelectedTrainId(train.id);
-          setSelectedStationId(null);
-        });
+        let marker = trainMarkersRef.current.get(train.id);
+        if (marker) {
+          marker.setLatLng([train.latitude, train.longitude]);
+          marker.setIcon(trainIcon);
+          marker.setTooltipContent(tooltipContent);
+        } else {
+          marker = L.marker([train.latitude, train.longitude], { icon: trainIcon }).addTo(trainsGroup);
+          marker.bindTooltip(tooltipContent, { direction: 'top', offset: [0, -10], opacity: 0.95 });
+          marker.on('click', () => {
+            setSelectedTrainId(train.id);
+            setSelectedStationId(null);
+          });
+          trainMarkersRef.current.set(train.id, marker);
+        }
       });
     });
-  }, [telemetry, activeLine, selectedStationId, selectedTrainId, pinnedTrainId, initialStations, initialSequences]);
+  }, [telemetry, activeLine, selectedStationId, selectedTrainId, pinnedTrainId, initialStations, initialSequences, getTrainDestination, visibleLines]);
+
 
   // Center or Fit Bounds only if user has not panned or zoomed manually
   const fitMapBounds = useCallback(() => {
     if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
 
+    isProgrammaticMoveRef.current = true;
+    const resetProgrammatic = () => {
+      setTimeout(() => {
+        isProgrammaticMoveRef.current = false;
+      }, 500);
+    };
+
     if (pinnedTrainId) {
       const pinnedTrain = telemetry.trains.find(t => t.id === pinnedTrainId);
       if (pinnedTrain) {
         const currentZoom = map.getZoom() || 15;
         map.setView([pinnedTrain.latitude, pinnedTrain.longitude], currentZoom, { animate: true });
+        resetProgrammatic();
       }
     } else if (activeLine !== 'All') {
       const lineSeqs = initialSequences.filter(s => s.routeId === activeLine && s.directionId === 0);
@@ -751,15 +835,22 @@ export default function SubteDashboard({
         import('leaflet').then((L) => {
           const latlngs = lineStations.map(s => [s.latitude, s.longitude] as L.LatLngTuple);
           map.fitBounds(L.latLngBounds(latlngs), { padding: [50, 50], animate: true });
+          resetProgrammatic();
         });
       }
     } else {
-      import('leaflet').then((L) => {
-        const latlngs = initialStations.map(s => [s.latitude, s.longitude] as L.LatLngTuple);
-        if (latlngs.length > 0) {
-          map.fitBounds(L.latLngBounds(latlngs), { padding: [40, 40], animate: true });
-        }
-      });
+      if (!mapBoundsInitializedRef.current) {
+        import('leaflet').then((L) => {
+          const latlngs = initialStations.map(s => [s.latitude, s.longitude] as L.LatLngTuple);
+          if (latlngs.length > 0) {
+            map.fitBounds(L.latLngBounds(latlngs), { padding: [40, 40], animate: true });
+            mapBoundsInitializedRef.current = true;
+            resetProgrammatic();
+          }
+        });
+      } else {
+        isProgrammaticMoveRef.current = false;
+      }
     }
   }, [activeLine, initialStations, initialSequences, pinnedTrainId, telemetry.trains]);
 
@@ -776,7 +867,11 @@ export default function SubteDashboard({
     const pinnedTrain = telemetry.trains.find(t => t.id === pinnedTrainId);
     if (pinnedTrain) {
       const currentZoom = mapInstanceRef.current.getZoom() || 15;
+      isProgrammaticMoveRef.current = true;
       mapInstanceRef.current.setView([pinnedTrain.latitude, pinnedTrain.longitude], currentZoom, { animate: true });
+      setTimeout(() => {
+        isProgrammaticMoveRef.current = false;
+      }, 500);
     }
   }, [telemetry.trains, pinnedTrainId]);
 
@@ -786,14 +881,14 @@ export default function SubteDashboard({
       const timer = setTimeout(() => {
         if (mapInstanceRef.current) {
           mapInstanceRef.current.invalidateSize({ animate: false });
-          if (!mapUserMovedRef.current) {
+          if (!mapUserMovedRef.current && activeLine !== 'All') {
             fitMapBounds();
           }
         }
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [currentTab, fitMapBounds]);
+  }, [currentTab, fitMapBounds, activeLine]);
 
   const handleResetMapPosition = () => {
     mapUserMovedRef.current = false;
@@ -805,9 +900,9 @@ export default function SubteDashboard({
   // PRE CALCULATED SUMMARY DATA
   // -------------------------------------------------------------
   const activeTrains = useMemo(() => {
-    const activeLines = activeLine === 'All' ? Object.keys(LINE_DETAILS) : [activeLine];
+    const activeLines = activeLine === 'All' ? visibleLines : [activeLine];
     return telemetry.trains.filter(t => activeLines.includes(t.routeId));
-  }, [telemetry.trains, activeLine]);
+  }, [telemetry.trains, activeLine, visibleLines]);
 
   const averageDelay = useMemo(() => {
     if (activeTrains.length === 0) return 0;
@@ -939,14 +1034,24 @@ export default function SubteDashboard({
           >
             Arribos en Vivo
           </button>
+          <button
+            onClick={() => setCurrentTab('aom')}
+            className={`px-sm py-xs text-headline-md font-headline-md transition-colors duration-205 rounded ${
+              currentTab === 'aom'
+                ? 'text-secondary-container dark:text-secondary border-b-2 border-secondary-container dark:border-secondary pb-1'
+                : 'text-on-surface-variant dark:text-outline hover:text-on-surface hover:bg-surface-variant/50'
+            }`}
+          >
+            AOM y Datos
+          </button>
         </nav>
 
         {/* Header Icons and Pill */}
         <div className="flex items-center gap-sm text-secondary dark:text-secondary-fixed">
           {/* Real-time Indicator Badge */}
           <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container-low border border-outline-variant/30 text-[10px] font-mono tracking-widest text-outline mr-2 uppercase">
-            <span className={`h-1.5 w-1.5 rounded-full ${telemetry.isMocked ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500 animate-ping'}`}></span>
-            {telemetry.isMocked ? 'Simulado' : 'GCBA Vivo'}
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+            GCBA TIEMPO REAL
           </div>
 
           <button onClick={fetchTelemetry} disabled={isRefreshing} aria-label="Notifications" className="p-sm hover:bg-surface-variant/50 transition-colors duration-200 rounded-full active:scale-95 active:opacity-80 flex items-center justify-center">
@@ -1003,7 +1108,8 @@ export default function SubteDashboard({
               </span>
             </button>
 
-            {Object.entries(LINE_DETAILS).map(([lineId, details]) => {
+            {visibleLines.map(lineId => {
+              const details = LINE_DETAILS[lineId];
               const lineTrains = telemetry.trains.filter(t => t.routeId === lineId);
               const isSelected = activeLine === lineId && currentTab === 'map';
 
@@ -1081,6 +1187,49 @@ export default function SubteDashboard({
               overflow: 'hidden'
             }}
           >
+            {/* Mobile Line Filter Bar */}
+            <div className="absolute top-4 left-4 right-4 z-[1000] md:hidden flex gap-2 overflow-x-auto pb-2 scrollbar-none flex-nowrap bg-slate-900/90 backdrop-blur-md p-2.5 rounded-2xl border border-slate-800/80 shadow-2xl">
+              <button
+                onClick={() => {
+                  setActiveLine('All');
+                  setSelectedStationId(null);
+                  setSelectedTrainId(null);
+                  setPinnedTrainId(null);
+                }}
+                className={`px-3 py-1.5 rounded-full border border-outline-variant/30 text-xs font-bold transition-all shrink-0 ${
+                  activeLine === 'All'
+                    ? 'text-white border-transparent bg-secondary'
+                    : 'text-outline hover:border-outline'
+                }`}
+              >
+                TODAS
+              </button>
+              {visibleLines.map(lineId => {
+                const details = LINE_DETAILS[lineId];
+                const isActive = activeLine === lineId;
+                const shortLabel = lineId === 'PM-Civico' ? 'P-C' : lineId === 'PM-Savio' ? 'P-S' : lineId.replace('Linea', '');
+                return (
+                  <button
+                    key={`mobile-map-filter-${lineId}`}
+                    onClick={() => {
+                      setActiveLine(lineId);
+                      setSelectedStationId(null);
+                      setSelectedTrainId(null);
+                      setPinnedTrainId(null);
+                    }}
+                    className={`w-8 h-8 rounded-full border border-outline-variant/30 flex items-center justify-center text-xs font-bold transition-all shrink-0 ${
+                      isActive
+                        ? 'text-white border-transparent'
+                        : 'text-outline hover:border-outline'
+                    }`}
+                    style={{ backgroundColor: isActive ? details.color : 'transparent' }}
+                  >
+                    {shortLabel}
+                  </button>
+                );
+              })}
+            </div>
+
             {/* LEAFLET MAP */}
             <div ref={mapContainerRef} className="w-full h-full z-0" />
 
@@ -1177,6 +1326,10 @@ export default function SubteDashboard({
                         <span className="font-semibold text-slate-350">{train.nextStopName}</span>
                       </div>
                       <div className="flex justify-between">
+                        <span className="text-slate-550 font-medium font-mono uppercase text-[9px]">Sentido:</span>
+                        <span className="font-bold text-amber-500">Hacia {getTrainDestination(train.routeId, train.directionId)}</span>
+                      </div>
+                      <div className="flex justify-between">
                         <span className="text-slate-500 font-medium font-mono uppercase text-[9px]">Llegada Estimada:</span>
                         <span className="font-bold text-cyan-400 font-mono">{train.etaSeconds === 0 ? 'En andén' : `${Math.floor(train.etaSeconds / 60)}m ${train.etaSeconds % 60}s`}</span>
                       </div>
@@ -1197,7 +1350,11 @@ export default function SubteDashboard({
                             setMapUserMoved(false);
                             if (mapInstanceRef.current) {
                               const currentZoom = mapInstanceRef.current.getZoom() || 15;
+                              isProgrammaticMoveRef.current = true;
                               mapInstanceRef.current.setView([train.latitude, train.longitude], currentZoom, { animate: true });
+                              setTimeout(() => {
+                                isProgrammaticMoveRef.current = false;
+                              }, 500);
                             }
                           }
                         }}
@@ -1416,7 +1573,8 @@ export default function SubteDashboard({
                                 </div>
                                 
                                 <div className="col-span-6 text-title-sm font-title-sm text-on-background uppercase tracking-wide">
-                                  {dep.nextStopName}
+                                  Hacia {getTrainDestination(dep.routeId, dep.directionId)}
+                                  <span className="text-[10px] text-slate-500 normal-case block">Próxima: {dep.nextStopName}</span>
                                 </div>
                                 
                                 <div className={`col-span-2 text-right text-label-caps font-label-caps ${
@@ -1438,80 +1596,7 @@ export default function SubteDashboard({
                     </div>
                   </section>
 
-                  {/* Accessibility & Line Frequency Stats */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-lg">
-                    <section className="glass-panel rounded-xl p-md flex flex-col h-64 text-left">
-                      <div className="flex justify-between items-center mb-md">
-                        <h3 className="text-body-md font-body-md font-bold text-on-background">Tendencia de Congestión</h3>
-                        <span className="text-label-caps font-label-caps text-on-surface-variant font-mono">Hoy</span>
-                      </div>
-                      
-                      <div className="flex-1 flex items-end gap-xs px-xs relative">
-                        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-20">
-                          <div className="border-t border-outline-variant w-full h-0"></div>
-                          <div className="border-t border-outline-variant w-full h-0"></div>
-                          <div className="border-t border-outline-variant w-full h-0"></div>
-                          <div className="border-t border-outline-variant w-full h-0"></div>
-                        </div>
 
-                        {/* Chart Bars */}
-                        {(() => {
-                          const mockHours = [6, 8, 10, 12, 14, 16, 18, 20, 22];
-                          const mockFlowPct = [30, 60, 90, 75, 45, 65, 95, 55, 25];
-
-                          return mockHours.map((h, idx) => {
-                            const isPeak = h === 18;
-                            const heightVal = mockFlowPct[idx];
-
-                            return (
-                              <div key={`chart-leg-${h}`} className="w-full bg-secondary/60 rounded-t-sm hover:bg-secondary transition-colors relative group" style={{ height: `${heightVal}%` }}>
-                                {isPeak && <div className="absolute inset-0 bg-error rounded-t-sm" />}
-                                <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block bg-surface-container border border-outline-variant/40 px-2 py-1 text-[9px] rounded text-white font-mono whitespace-nowrap z-20">
-                                  {isPeak ? '18hs (Pico)' : `${h}hs`}
-                                </div>
-                              </div>
-                            );
-                          });
-                        })()}
-                      </div>
-                    </section>
-
-                    <section className="glass-panel rounded-xl p-md flex flex-col text-left">
-                      <div className="flex justify-between items-center mb-md">
-                        <h3 className="text-body-md font-body-md font-bold text-on-background flex items-center gap-xs">
-                          <span className="material-symbols-outlined text-[20px]">accessible_forward</span>
-                          Accesibilidad
-                        </h3>
-                        <span className="text-label-caps font-label-caps text-on-surface-variant font-mono">Estado</span>
-                      </div>
-                      
-                      <div className="flex flex-col gap-sm">
-                        <div className="flex items-center justify-between p-sm bg-surface-container/30 rounded border border-outline-variant/10">
-                          <div className="flex items-center gap-sm">
-                            <span className="material-symbols-outlined text-outline">elevator</span>
-                            <span className="text-body-sm font-body-sm">Ascensores Principales</span>
-                          </div>
-                          <span className="text-label-caps font-label-caps text-secondary px-2 py-1 bg-secondary/10 rounded">OPERATIVO</span>
-                        </div>
-
-                        <div className="flex items-center justify-between p-sm bg-surface-container/30 rounded border border-outline-variant/10">
-                          <div className="flex items-center gap-sm">
-                            <span className="material-symbols-outlined text-outline">elevator</span>
-                            <span className="text-body-sm font-body-sm">Andenes Línea D</span>
-                          </div>
-                          <span className="text-label-caps font-label-caps text-secondary px-2 py-1 bg-secondary/10 rounded">OPERATIVO</span>
-                        </div>
-
-                        <div className="flex items-center justify-between p-sm bg-surface-container/30 rounded border border-outline-variant/10">
-                          <div className="flex items-center gap-sm">
-                            <span className="material-symbols-outlined text-outline">escalator</span>
-                            <span className="text-body-sm font-body-sm">Escaleras de Combinación</span>
-                          </div>
-                          <span className="text-label-caps font-label-caps text-error px-2 py-1 bg-error/10 rounded border border-error/20">SERVICIO REDUCIDO</span>
-                        </div>
-                      </div>
-                    </section>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1545,9 +1630,9 @@ export default function SubteDashboard({
                           : 'text-outline hover:border-outline'
                       }`}
                     >
-                      TODAS
+                      T
                     </button>
-                    {Object.keys(LINE_DETAILS).map(lineId => {
+                    {visibleLines.map(lineId => {
                       const isActive = stationLineFilter === lineId;
                       const details = LINE_DETAILS[lineId];
                       return (
@@ -1561,14 +1646,14 @@ export default function SubteDashboard({
                               setShowMobileList(false);
                             }
                           }}
-                          className={`w-8 h-8 rounded-full border border-outline-variant/30 flex items-center justify-center text-label-caps font-bold transition-all shrink-0 ${
+                          className={`w-8 h-8 rounded-full border border-outline-variant/30 flex items-center justify-center text-[10px] font-bold transition-all shrink-0 ${
                             isActive
                               ? 'text-white border-transparent shadow-[0_0_10px_rgba(0,150,94,0.5)]'
                               : 'text-outline hover:border-outline'
                           }`}
                           style={{ backgroundColor: isActive ? details.color : 'transparent' }}
                         >
-                          {details.name.replace('Línea ', '')}
+                          {lineId === 'PM-Civico' ? 'P-C' : lineId === 'PM-Savio' ? 'P-S' : 'T'}
                         </button>
                       );
                     })}
@@ -1704,9 +1789,16 @@ export default function SubteDashboard({
                         </h3>
                         <div className="space-y-4 flex-1">
                           {(() => {
+                            const currentSeq = initialSequences.find(s => s.stopId === directorySelectedStation.stopId);
+                            const currentRouteId = currentSeq ? currentSeq.routeId : '';
+
                             const connections = initialStations.filter(
-                              st => st.stopName === directorySelectedStation.stopName && st.stopId !== directorySelectedStation.stopId
-                            );
+                              st => (st.stopName === directorySelectedStation.stopName || MANUAL_TRANSFERS[directorySelectedStation.stopName]?.includes(st.stopName)) && st.stopId !== directorySelectedStation.stopId
+                            ).filter(conn => {
+                              const connSeq = initialSequences.find(s => s.stopId === conn.stopId);
+                              const connRouteId = connSeq ? connSeq.routeId : '';
+                              return connRouteId && connRouteId !== currentRouteId;
+                            });
 
                             if (connections.length === 0) {
                               return <p className="text-xs text-slate-550 italic py-4">No hay líneas de combinación en esta plataforma.</p>;
@@ -1757,69 +1849,120 @@ export default function SubteDashboard({
                               );
                             }
 
-                            return arrivals.map(arr => {
-                              const details = LINE_DETAILS[arr.routeId];
-                              return (
-                                <div key={arr.id} className="flex items-center justify-between p-3.5 bg-surface-container-low rounded-lg border border-outline-variant/15 font-mono text-xs text-left">
-                                  <div className="flex items-center gap-3">
-                                    <span
-                                      className="h-6 w-6 rounded flex items-center justify-center font-bold text-white text-[10px]"
-                                      style={{ backgroundColor: details?.color }}
-                                    >
-                                      {arr.routeId.replace('Linea', '')}
-                                    </span>
-                                    <span className="font-bold text-slate-350">{arr.id}</span>
-                                    <span className="text-[10px] text-slate-500">→ {arr.nextStopName}</span>
-                                  </div>
-                                  <span className="text-cyan-400 font-black text-sm">
-                                    {arr.etaSeconds === 0 ? 'AHORA' : `${Math.floor(arr.etaSeconds / 60)} min`}
-                                  </span>
-                                </div>
-                              );
-                            });
+                             return arrivals.map(arr => {
+                               const details = LINE_DETAILS[arr.routeId];
+                               const seqList = initialSequences.filter(s => s.routeId === arr.routeId && s.directionId === arr.directionId);
+                               const terminalSeq = seqList[seqList.length - 1];
+                               const destinationName = terminalSeq 
+                                 ? (initialStations.find(st => st.stopId === terminalSeq.stopId)?.stopName || 'Terminal')
+                                 : 'Terminal';
+
+                               return (
+                                 <div key={arr.id} className="flex items-center justify-between p-3.5 bg-surface-container-low rounded-lg border border-outline-variant/15 font-mono text-xs text-left">
+                                   <div className="flex flex-col gap-1">
+                                     <div className="flex items-center gap-3">
+                                       <span
+                                         className="h-6 w-6 rounded flex items-center justify-center font-bold text-white text-[10px]"
+                                         style={{ backgroundColor: details?.color }}
+                                       >
+                                         {arr.routeId.replace('Linea', '')}
+                                       </span>
+                                       <span className="font-bold text-slate-350">{arr.id}</span>
+                                       <span className="text-[10px] text-slate-500">→ {arr.nextStopName}</span>
+                                     </div>
+                                     <span className="text-[9px] text-amber-500 font-bold">Sentido: Hacia {destinationName}</span>
+                                   </div>
+                                   <span className="text-cyan-400 font-black text-sm shrink-0">
+                                     {arr.etaSeconds === 0 ? 'AHORA' : `${Math.floor(arr.etaSeconds / 60)} min`}
+                                   </span>
+                                 </div>
+                               );
+                             });
                           })()}
                         </div>
                       </div>
 
-                      {/* Passenger flow Bar Chart */}
-                      <div className="lg:col-span-3 glass-panel rounded-2xl p-6 flex flex-col">
-                        <h3 className="text-title-sm font-headline-md text-outline mb-4 flex items-center gap-2 font-mono">
-                          <span className="material-symbols-outlined">bar_chart</span>
-                          Gráfico de Congestión
-                        </h3>
 
-                        {isLoadingFlow ? (
-                          <div className="h-32 flex items-center justify-center text-xs text-slate-500">Cargando estadísticas históricas...</div>
-                        ) : stationFlowData.length === 0 ? (
-                          <p className="text-xs text-slate-550 italic py-6 text-center">No hay registros de flujo de pasajeros disponibles.</p>
-                        ) : (
-                          <div className="flex items-end justify-between h-36 pt-4 border-b border-outline-variant/20">
-                            {stationFlowData.map(item => {
-                              const maxVal = Math.max(...stationFlowData.map(d => d.passengerFlow)) || 1;
-                              const heightPct = Math.round((item.passengerFlow / maxVal) * 100);
-
-                              let barColor = 'bg-secondary/40 hover:bg-secondary/70';
-                              if (item.congestionLevel === 'Rojo') barColor = 'bg-error/50 hover:bg-error/85';
-                              else if (item.congestionLevel === 'Amarillo') barColor = 'bg-tertiary/60 hover:bg-tertiary/90';
-
-                              return (
-                                <div key={`chart-dir-${item.hour}`} className="flex flex-col items-center flex-1 group relative">
-                                  <div className="absolute opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 border border-slate-800 text-[9px] px-2 py-1 rounded shadow-xl text-center pointer-events-none -translate-y-8 z-10 whitespace-nowrap">
-                                    <span className="font-bold text-white block">{item.passengerFlow} pasajeros</span>
-                                    <span className="text-slate-400">{item.congestionLevel}</span>
-                                  </div>
-
-                                  <div
-                                    className={`w-4 rounded-t-sm transition-all duration-300 ${barColor} shadow-md`}
-                                    style={{ height: `${heightPct}%`, minHeight: '4px' }}
-                                  />
-                                  <span className="text-[9px] text-slate-500 font-mono mt-2">{String(item.hour).padStart(2, '0')}</span>
-                                </div>
-                              );
-                            })}
+                      {/* Premetro Station details card */}
+                      {(() => {
+                        const accessKey = directorySelectedStation.stopName.toLowerCase()
+                          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                          .replace(/[^a-z0-9]/g, '');
+                        const pmDetail = PREMETRO_STATION_DETAILS[accessKey];
+                        if (!pmDetail) return null;
+                        return (
+                          <div className="lg:col-span-3 glass-panel rounded-2xl p-6 flex flex-col text-left animate-fade-in">
+                            <h3 className="text-title-sm font-headline-md text-outline mb-4 flex items-center gap-2 font-mono">
+                              <span className="material-symbols-outlined text-orange-400">info</span>
+                              Detalles de Estación Premetro
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                              <div className="bg-slate-950/40 border border-slate-900 rounded-xl p-4">
+                                <span className="text-slate-500 block font-bold mb-1 font-mono uppercase tracking-widest text-[9px]">Dirección / Ubicación</span>
+                                <span className="text-slate-200 font-bold">{pmDetail.address || 'No disponible'}</span>
+                              </div>
+                              <div className="bg-slate-950/40 border border-slate-900 rounded-xl p-4">
+                                <span className="text-slate-500 block font-bold mb-1 font-mono uppercase tracking-widest text-[9px]">Barrio</span>
+                                <span className="text-slate-200 font-bold">{pmDetail.barrio || 'No disponible'}</span>
+                              </div>
+                              <div className="bg-slate-950/40 border border-slate-900 rounded-xl p-4">
+                                <span className="text-slate-500 block font-bold mb-1 font-mono uppercase tracking-widest text-[9px]">Comuna</span>
+                                <span className="text-slate-200 font-bold">{pmDetail.comuna || 'No disponible'}</span>
+                              </div>
+                            </div>
                           </div>
-                        )}
-                      </div>
+                        );
+                      })()}
+
+                      {/* Artworks (Obras de Arte) Bento Item */}
+                      {(() => {
+                        const accessKey = directorySelectedStation.stopName.toLowerCase()
+                          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                          .replace(/[^a-z0-9]/g, '');
+                        // Check exact or partial matching
+                        let artworks = ARTWORK_METADATA[accessKey];
+                        if (!artworks) {
+                          // Try partial matching
+                          const matchingKey = Object.keys(ARTWORK_METADATA).find(k => k.includes(accessKey) || accessKey.includes(k));
+                          if (matchingKey) {
+                            artworks = ARTWORK_METADATA[matchingKey];
+                          }
+                        }
+                        if (!artworks || artworks.length === 0) return null;
+                        return (
+                          <div className="lg:col-span-3 glass-panel rounded-2xl p-6 flex flex-col text-left animate-fade-in">
+                            <h3 className="text-title-sm font-headline-md text-outline mb-4 flex items-center gap-2 font-mono">
+                              <span className="material-symbols-outlined text-indigo-400 font-bold">palette</span>
+                              Patrimonio Artístico y Obras de Arte ({artworks.length})
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {artworks.map((art, idx) => (
+                                <div key={idx} className="bg-slate-950/40 border border-slate-900 rounded-xl p-4 flex flex-col gap-2 hover:border-slate-800 transition-colors">
+                                  <div className="flex justify-between items-start gap-2">
+                                    <h4 className="font-bold text-slate-200 text-sm leading-snug">{art.nombre || 'Sin Título'}</h4>
+                                    {art.periodo && (
+                                      <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 text-[10px] font-bold font-mono shrink-0">
+                                        {art.periodo}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-indigo-400 font-bold font-mono">{art.artistas}</p>
+                                  {art.tecnica && (
+                                    <p className="text-[11px] text-slate-400 leading-normal">
+                                      <span className="text-slate-500 font-bold">Técnica:</span> {art.tecnica}
+                                    </p>
+                                  )}
+                                  {art.observaciones && (
+                                    <p className="text-[11px] text-slate-500 italic mt-1 leading-relaxed border-l border-slate-800 pl-2">
+                                      {art.observaciones}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Station reports form bento */}
                       <div className="lg:col-span-3 glass-panel rounded-2xl p-6 flex flex-col text-left">
@@ -1953,7 +2096,7 @@ export default function SubteDashboard({
 
                   {/* Line Selector Badges */}
                   <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none flex-nowrap border-t border-outline-variant/10 pt-4">
-                    {Object.keys(LINE_DETAILS).map(lineId => {
+                    {visibleLines.map(lineId => {
                       const isActive = arrivalsLineFilter === lineId;
                       const details = LINE_DETAILS[lineId];
                       return (
@@ -2170,6 +2313,115 @@ export default function SubteDashboard({
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================= */}
+          {/* SCREEN 6: AOM & SYSTEM STATISTICS                       */}
+          {/* ======================================================= */}
+          {currentTab === 'aom' && (
+            <div className="flex-1 p-gutter md:p-margin-desktop overflow-x-hidden overflow-y-auto animate-fade-in text-left">
+              <div className="max-w-4xl mx-auto flex flex-col gap-6">
+                
+                {/* AOM Summary Card */}
+                <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-2xl p-6 shadow-2xl flex flex-col gap-4">
+                  <div>
+                    <h2 className="text-xl font-black text-white flex items-center gap-2">
+                      <span className="material-symbols-outlined text-indigo-400">description</span>
+                      {AOM_SUMMARY.title}
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Detalles regulatorios y contractuales de la concesión del servicio público.
+                    </p>
+                  </div>
+                  
+                  <hr className="border-slate-800" />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div className="bg-slate-950/40 p-4 border border-slate-900 rounded-xl">
+                      <span className="text-indigo-400 font-bold block mb-1 font-mono uppercase tracking-widest text-[9px]">Fecha de Suscripción</span>
+                      <span className="text-slate-200">{AOM_SUMMARY.date}</span>
+                    </div>
+                    <div className="bg-slate-950/40 p-4 border border-slate-900 rounded-xl">
+                      <span className="text-indigo-400 font-bold block mb-1 font-mono uppercase tracking-widest text-[9px]">Partes Involucradas</span>
+                      <span className="text-slate-200">{AOM_SUMMARY.parties}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3 mt-2">
+                    <h3 className="text-sm font-bold text-slate-200">Obligaciones Principales del Operador</h3>
+                    <ul className="list-disc list-inside text-xs text-slate-350 space-y-2 pl-2">
+                      {AOM_SUMMARY.key_obligations.map((ob, idx) => (
+                        <li key={idx} className="leading-relaxed">{ob}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    <div className="bg-slate-950/20 p-4 border border-slate-900 rounded-xl">
+                      <h4 className="text-xs font-bold text-indigo-300 mb-1 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[16px]">train</span>
+                        Material Rodante
+                      </h4>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">{AOM_SUMMARY.material_rodante}</p>
+                    </div>
+                    <div className="bg-slate-950/20 p-4 border border-slate-900 rounded-xl">
+                      <h4 className="text-xs font-bold text-indigo-300 mb-1 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[16px]">engineering</span>
+                        Infraestructura
+                      </h4>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">{AOM_SUMMARY.infrastructure}</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-red-500/5 p-4 border border-red-500/10 rounded-xl">
+                    <h4 className="text-xs font-bold text-rose-400 mb-1 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[16px]">gavel</span>
+                      Régimen de Penalidades y Sanciones
+                    </h4>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">{AOM_SUMMARY.penalties}</p>
+                  </div>
+
+                  <div className="bg-slate-950/50 p-4 border border-slate-900 rounded-xl font-mono text-[10px] text-slate-400 leading-relaxed">
+                    <span className="text-slate-500 font-bold block mb-1 text-[9px] uppercase tracking-wider">Detalles de Operación (Extracto)</span>
+                    <p className="whitespace-pre-line">{AOM_SUMMARY.details_operation}</p>
+                  </div>
+                </div>
+
+                {/* Premetro Stations List Card */}
+                <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-2xl p-6 shadow-2xl flex flex-col gap-4">
+                  <div>
+                    <h3 className="text-lg font-black text-white flex items-center gap-2">
+                      <span className="material-symbols-outlined text-orange-400">explore</span>
+                      Catastro e Información del Premetro (NUEVADATA 2026)
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Detalle geográfico, catastral y de ubicación de las paradas activas del Premetro de Buenos Aires.
+                    </p>
+                  </div>
+
+                  <hr className="border-slate-800" />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {Object.entries(PREMETRO_STATION_DETAILS).map(([normName, st]) => (
+                      <div key={normName} className="bg-slate-950/45 border border-slate-900 rounded-xl p-4 flex flex-col gap-2">
+                        <div className="flex justify-between items-start">
+                          <h4 className="font-bold text-slate-200 text-sm">{st.fullName.replace('Estación de premetro ', '')}</h4>
+                          <span className="px-2 py-0.5 rounded bg-orange-500/10 text-orange-400 text-[9px] font-bold uppercase tracking-widest font-mono">
+                            Premetro
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-400 space-y-1 mt-1 leading-normal">
+                          <p><span className="text-slate-500 font-bold">Dirección:</span> {st.address}</p>
+                          <p><span className="text-slate-500 font-bold">Barrio:</span> {st.barrio}</p>
+                          <p><span className="text-slate-500 font-bold">Comuna:</span> {st.comuna}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 

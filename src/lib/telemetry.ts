@@ -198,8 +198,20 @@ function interpolateOnShape(
 }
 
 // Persistent memory tracker to survive hot reload in Next.js development
+export interface TrackerEntry {
+  routeId: string;
+  directionId: number;
+  tripId: string;
+  t_inicio: number;
+  lastSeen: number;
+  lastStopId: string;
+  lastTargetSeq: number;
+  lastProgress: number;
+  stationEnterTime: number;
+}
+
 const globalForTracker = globalThis as unknown as { 
-  subteTracker: Map<string, { routeId: string; directionId: number; tripId: string; t_inicio: number; lastSeen: number }> 
+  subteTracker: Map<string, TrackerEntry> 
 };
 if (!globalForTracker.subteTracker) {
   globalForTracker.subteTracker = new Map();
@@ -245,23 +257,16 @@ if (!globalForAlerts.lastAlerts) {
 // Permissive route matching helper to handle GCBA variants (like "LineC", "linec", "LineaC", etc.)
 function matchDbRoute(rawRouteId: string | undefined): string | null {
   if (!rawRouteId) return null;
-  const cleaned = rawRouteId.trim().toLowerCase().replace(/\s+/g, '').replace(/_/g, '');
+  const cleanedRoute = rawRouteId.trim().toLowerCase().replace(/\s+/g, '').replace(/_/g, '');
   
   const dbRoutes = ['LineaA', 'LineaB', 'LineaC', 'LineaD', 'LineaE', 'LineaH', 'PM-Civico', 'PM-Savio'];
   for (const dbRoute of dbRoutes) {
-    const line = dbRoute.replace('Linea', '').toLowerCase();
-    if (
-      cleaned === `linea${line}` ||
-      cleaned === line ||
-      cleaned === `line${line}` ||
-      cleaned === `subte${line}`
-    ) {
-      return dbRoute;
+    const line = dbRoute.replace('Linea', '').replace('PM-', '').toLowerCase();
+    if (!cleanedRoute.includes(line.toLowerCase()) && !cleanedRoute.includes(`linea${line.toLowerCase()}`)) {
+      continue;
     }
+    return dbRoute;
   }
-  // PM route matching
-  if (cleaned === 'pm-civico' || cleaned === 'pmcivico' || cleaned === 'pm-c') return 'PM-Civico';
-  if (cleaned === 'pm-savio' || cleaned === 'pmsavio' || cleaned === 'pm-s') return 'PM-Savio';
   return null;
 }
 
@@ -429,7 +434,7 @@ export async function getTelemetryData() {
         if (seq) {
           const arrivalTimeAdjusted = arr.arrivalTime + timeDiff;
           const etaEnPaquete = arr.arrivalTime - feedTimestamp;
-          // RULE 1: Filter by feed-relative time, not local clock
+          // Filter based solely on API package: etaEnPaquete >= -60
           if (etaEnPaquete >= -60) {
             validStops.push({
               stopId: arr.stopId,
@@ -486,19 +491,31 @@ export async function getTelemetryData() {
       for (const [tripId, entry] of trackerDB.entries()) {
         if (entry.routeId === routeId && entry.directionId === directionId && !usedIds.has(tripId)) {
           const diff = Math.abs(entry.t_inicio - avg_t_inicio);
-          if (diff < minDiff && diff <= 600) {
+          if (diff < minDiff && diff <= 360) {
             minDiff = diff;
             matchedTripId = tripId;
           }
         }
       }
       
+      // Sort cluster stops strictly by stopSequence early for Ghost Buster tracking
+      const sortedStops = [...cluster.stops].sort((a, b) => a.stopSequence - b.stopSequence);
+      if (sortedStops.length === 0) return;
+      const activeStop = sortedStops.find(s => s.arrivalTime - nowUnix >= -40) || sortedStops[sortedStops.length - 1];
+
       let stableId: string;
+      let trackedTrain: TrackerEntry;
       if (matchedTripId) {
         stableId = matchedTripId;
-        const entry = trackerDB.get(matchedTripId)!;
-        entry.t_inicio = avg_t_inicio;
-        entry.lastSeen = nowUnix;
+        trackedTrain = trackerDB.get(matchedTripId)!;
+        trackedTrain.t_inicio = avg_t_inicio;
+        trackedTrain.lastSeen = nowUnix;
+        
+        // Verificamos si cambió de estación
+        if (trackedTrain.lastStopId !== activeStop.stopId) {
+          trackedTrain.lastStopId = activeStop.stopId;
+          trackedTrain.stationEnterTime = nowUnix;
+        }
       } else {
         const lineChar = routeId.startsWith('PM-') ? routeId.replace('-', '') : routeId.replace('Linea', '');
         let randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -508,23 +525,20 @@ export async function getTelemetryData() {
           stableId = `${lineChar}-${randomPart}`;
         }
         
-        trackerDB.set(stableId, {
+        trackedTrain = {
           routeId,
           directionId,
           tripId: stableId,
           t_inicio: avg_t_inicio,
-          lastSeen: nowUnix
-        });
+          lastSeen: nowUnix,
+          lastStopId: activeStop.stopId,
+          lastTargetSeq: activeStop.stopSequence,
+          lastProgress: 0.0,
+          stationEnterTime: nowUnix
+        };
+        trackerDB.set(stableId, trackedTrain);
       }
       usedIds.add(stableId);
-
-      // Sort cluster stops strictly by stopSequence
-      const sortedStops = [...cluster.stops].sort((a, b) => a.stopSequence - b.stopSequence);
-      if (sortedStops.length === 0) return;
-
-      // Find activeStop: the stop with the lowest arrivalTime meeting arrivalTime - nowUnix >= -40
-      // RULE 2: Station changes only when the API packet confirms it
-      const activeStop = sortedStops.find(s => s.etaEnPaquete >= -40) || sortedStops[sortedStops.length - 1];
 
       const nextStation = stationMap.get(activeStop.stopId);
       const nextStopName = nextStation?.stopName || 'Estación';
@@ -539,7 +553,7 @@ export async function getTelemetryData() {
       const nextSeqIndex = seqList.findIndex(s => s.stopId === activeStop.stopId);
 
       const segundosParaArriboLocal = activeStop.arrivalTime - nowUnix;
-      // RULE 3: Holding at the Signal - only confirm arrival when API packet says <= 15s
+      // Holding at the Signal: API confirms stop explicitly if etaEnPaquete is between -60 and 15 seconds
       const apiConfirmaAnden = activeStop.etaEnPaquete <= 15 && activeStop.etaEnPaquete >= -60;
 
       if (apiConfirmaAnden) {
@@ -548,13 +562,24 @@ export async function getTelemetryData() {
         prevStopId = activeStop.stopId;
         prevStopName = nextStopName;
       } else {
-        status = 'IN_TRANSIT';
-        progress = Math.max(0.0, Math.min(0.95, 1 - (segundosParaArriboLocal / 90)));
         if (nextSeqIndex > 0) {
           prevStopId = seqList[nextSeqIndex - 1].stopId;
           prevStopName = stationMap.get(prevStopId)?.stopName || 'Estación';
         }
+        status = 'IN_TRANSIT';
+        const newProgress = Math.max(0.0, Math.min(0.95, 1 - (segundosParaArriboLocal / 90)));
+        
+        // El Trinquete logic:
+        if (trackedTrain.lastTargetSeq === activeStop.stopSequence) {
+          progress = Math.max(trackedTrain.lastProgress, newProgress);
+        } else {
+          trackedTrain.lastTargetSeq = activeStop.stopSequence;
+          trackedTrain.lastProgress = 0.0;
+          progress = newProgress;
+        }
       }
+
+      trackedTrain.lastProgress = progress;
 
       // Interpolate coordinates
       const prevStation = prevStopId ? stationMap.get(prevStopId) : null;
@@ -571,6 +596,11 @@ export async function getTelemetryData() {
         );
         lat = snapped.latitude;
         lon = snapped.longitude;
+      }
+
+      // ALGORITMO CAZAFANTASMAS: Si el tren está 'STOPPED' en el mismo andén por más de 180 segundos, ignorarlo.
+      if (status === 'STOPPED' && (nowUnix - trackedTrain.stationEnterTime > 180)) {
+         return; // Ignorar (es un tren fantasma del CBTC)
       }
 
       trains.push({
@@ -594,7 +624,7 @@ export async function getTelemetryData() {
 
   // Dead reckoning: Keep returning active trains that are temporarily missing from the feed
   for (const [tripId, entry] of trackerDB.entries()) {
-    if (!usedIds.has(tripId) && nowUnix - entry.lastSeen <= 40) {
+    if (!usedIds.has(tripId) && nowUnix - entry.lastSeen <= 90) {
       // Find the route sequence for this train
       const key = `${entry.routeId}_${entry.directionId}`;
       const seqList = routeSequences[key];
@@ -632,7 +662,18 @@ export async function getTelemetryData() {
 
       // Dead reckoning: no fresh API data, so never confirm platform arrival
       status = 'IN_TRANSIT';
-      progress = Math.max(0.0, Math.min(0.95, 1 - ((activeStop.arrivalTime - nowUnix) / 90)));
+      const newProgress = Math.max(0.0, Math.min(0.95, 1 - ((activeStop.arrivalTime - nowUnix) / 90)));
+      
+      // Trinquete
+      if (entry.lastTargetSeq === activeStop.stopSequence) {
+        progress = Math.max(entry.lastProgress, newProgress);
+      } else {
+        entry.lastTargetSeq = activeStop.stopSequence;
+        entry.lastProgress = 0.0;
+        progress = newProgress;
+      }
+      entry.lastProgress = progress;
+
       if (nextSeqIndex > 0) {
         prevStopId = seqList[nextSeqIndex - 1].stopId;
         prevStopName = stationMap.get(prevStopId)?.stopName || 'Estación';
@@ -655,6 +696,11 @@ export async function getTelemetryData() {
         lon = snapped.longitude;
       }
 
+      // ALGORITMO CAZAFANTASMAS: Si el tren está 'STOPPED' en el mismo andén por más de 180 segundos, ignorarlo.
+      if ((status as string) === 'STOPPED' && (nowUnix - entry.stationEnterTime > 180)) {
+         continue; // Ignorar (es un tren fantasma del CBTC)
+      }
+
       trains.push({
         id: entry.tripId,
         routeId: entry.routeId,
@@ -674,9 +720,9 @@ export async function getTelemetryData() {
     }
   }
 
-  // Memory cleanup: remove trains last seen more than 120s ago
+  // Memory cleanup: remove trains last seen more than 300s ago
   for (const [tripId, entry] of trackerDB.entries()) {
-    if (nowUnix - entry.lastSeen > 120) {
+    if (nowUnix - entry.lastSeen > 300) {
       trackerDB.delete(tripId);
     }
   }

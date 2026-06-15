@@ -265,34 +265,11 @@ async function main() {
     }
   }
 
-  // Insert HistoricalFlow in chunks to prevent database transaction limits
-  const chunkSize = 200;
-  for (let i = 0; i < flowRecords.length; i += chunkSize) {
-    const chunk = flowRecords.slice(i, i + chunkSize);
-    // Use upsert to avoid conflicts
-    for (const record of chunk) {
-      await prisma.historicalFlow.upsert({
-        where: {
-          line_station_hour: {
-            line: record.line,
-            station: record.station,
-            hour: record.hour,
-          },
-        },
-        update: {
-          congestionLevel: record.congestionLevel,
-          passengerFlow: record.passengerFlow,
-        },
-        create: {
-          line: record.line,
-          station: record.station,
-          hour: record.hour,
-          congestionLevel: record.congestionLevel,
-          passengerFlow: record.passengerFlow,
-        },
-      });
-    }
-  }
+  // Insert HistoricalFlow in bulk using createMany
+  await prisma.historicalFlow.createMany({
+    data: flowRecords,
+    skipDuplicates: true,
+  });
 
   console.log(`Seeded ${flowRecords.length} historical flow records.`);
   console.log('GTFS Seeding completed successfully!');
