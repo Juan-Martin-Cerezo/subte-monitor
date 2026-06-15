@@ -262,7 +262,8 @@ function matchDbRoute(rawRouteId: string | undefined): string | null {
   const dbRoutes = ['LineaA', 'LineaB', 'LineaC', 'LineaD', 'LineaE', 'LineaH', 'PM-Civico', 'PM-Savio'];
   for (const dbRoute of dbRoutes) {
     const line = dbRoute.replace('Linea', '').replace('PM-', '').toLowerCase();
-    if (!cleanedRoute.includes(line.toLowerCase()) && !cleanedRoute.includes(`linea${line.toLowerCase()}`)) {
+    const routeSuffix = cleanedRoute.replace('linea', '').replace('line', '').replace('subte', '');
+    if (!routeSuffix.includes(line.toLowerCase())) {
       continue;
     }
     return dbRoute;
