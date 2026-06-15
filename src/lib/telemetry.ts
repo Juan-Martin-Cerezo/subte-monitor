@@ -599,6 +599,11 @@ export async function getTelemetryData() {
         lon = snapped.longitude;
       }
 
+      // Line D special: Ignore stopped trains completely
+      if (routeId === 'LineaD' && status === 'STOPPED') {
+        return;
+      }
+
       // ALGORITMO CAZAFANTASMAS: Si el tren está 'STOPPED' en el mismo andén por más de 180 segundos, ignorarlo.
       if (status === 'STOPPED' && (nowUnix - trackedTrain.stationEnterTime > 180)) {
          return; // Ignorar (es un tren fantasma del CBTC)
@@ -695,6 +700,12 @@ export async function getTelemetryData() {
         );
         lat = snapped.latitude;
         lon = snapped.longitude;
+      }
+
+
+      // Expire dead reckoned trains that have completed their journey to avoid getting stuck at 0.95 progress
+      if (progress >= 0.95) {
+        continue;
       }
 
       // ALGORITMO CAZAFANTASMAS: Si el tren está 'STOPPED' en el mismo andén por más de 180 segundos, ignorarlo.
