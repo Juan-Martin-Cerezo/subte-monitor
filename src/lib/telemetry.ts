@@ -221,12 +221,11 @@ const trackerDB = globalForTracker.subteTracker;
 
 // Persistent memory cache for the feed
 const globalForCache = globalThis as unknown as { 
-  subteCache: { 
-    rawForecast: GCBAForecastResponse; 
+  subteCache: {
+    rawForecast: GCBAForecastResponse;
     alerts: AlertData[];
-    fetchedAt: number; 
-    isMocked: boolean;
-  } | null 
+    fetchedAt: number;
+  } | null
 };
 if (!globalForCache.subteCache) {
   globalForCache.subteCache = null;
@@ -289,7 +288,6 @@ export async function getTelemetryData() {
 
   let rawForecast: GCBAForecastResponse | null = null;
   let alerts: AlertData[] = [];
-  let isMocked = false;
   let fetchedAt = nowUnix;
 
   const cacheLimitSeconds = 1.5; // cache for 1.5 seconds
@@ -298,7 +296,6 @@ export async function getTelemetryData() {
   if (cached && nowUnix - cached.fetchedAt < cacheLimitSeconds) {
     rawForecast = cached.rawForecast;
     alerts = cached.alerts;
-    isMocked = cached.isMocked;
     fetchedAt = cached.fetchedAt;
   } else {
     // Fetch fresh
@@ -316,7 +313,6 @@ export async function getTelemetryData() {
 
     if (!rawForecast || !rawForecast.Entity || rawForecast.Entity.length === 0) {
       console.log('No live telemetry data available (API response empty/failed)');
-      isMocked = false;
       rawForecast = { Header: { timestamp: nowUnix }, Entity: [] };
     }
 
@@ -360,7 +356,6 @@ export async function getTelemetryData() {
       rawForecast,
       alerts,
       fetchedAt: nowUnix,
-      isMocked
     };
     fetchedAt = nowUnix;
   }
@@ -493,7 +488,7 @@ export async function getTelemetryData() {
       for (const [id, entry] of trackerDB.entries()) {
         if (entry.routeId === routeId && entry.directionId === directionId && !usedIds.has(id)) {
           const diff = Math.abs(entry.t_inicio - avg_t_inicio);
-          if (diff < minDiff && diff <= 360) {
+          if (diff < minDiff && diff <= 600) {
             minDiff = diff;
             matchedTripId = id;
           }
@@ -546,8 +541,9 @@ export async function getTelemetryData() {
           // Si estaba STOPPED, el siguiente paso lógico es la estación + 1. Si estaba en TRANSIT, es la misma estación.
           const nextLogicalSeq = trackedTrain.lastStatus === 'STOPPED' ? trackedTrain.lastTargetSeq + 1 : trackedTrain.lastTargetSeq;
           
-          if (activeStop.stopSequence > nextLogicalSeq) {
-            // El tren dio un salto. Lo forzamos a ir a la secuencia intermedia lógica.
+          const skipSize = activeStop.stopSequence - nextLogicalSeq;
+          if (skipSize > 0 && skipSize <= 3) {
+            // Salto ≤3 estaciones. Forzamos secuencia intermedia para evitar microsaltos.
             const simStop = seqList.find(s => s.stopSequence === nextLogicalSeq);
             if (simStop) {
               activeStop = {
@@ -662,7 +658,7 @@ export async function getTelemetryData() {
       const maxSeq = Math.max(...seqList.map(s => s.stopSequence));
       const isTerminal = activeStop.stopSequence === 1 || activeStop.stopSequence === maxSeq;
       
-      if (status === 'STOPPED' && entryData && (nowUnix - entryData.stationEnterTime > 180)) {
+      if (status === 'STOPPED' && entryData && (nowUnix - entryData.stationEnterTime > 300)) {
          if (!isTerminal) return; // Drop phantom trains in mid-route only
       }
 
@@ -761,13 +757,17 @@ export async function getTelemetryData() {
       }
 
 
-      // Expire dead reckoned trains that have completed their journey to avoid getting stuck at 0.95 progress
+      // Dead reckoning: train reached projected station. Mark STOPPED, push to client.
+      // Will be cleaned by ghostbuster after 300s timeout.
       if (progress >= 0.95) {
-        continue;
+        status = 'STOPPED';
+        progress = 0.0;
+        lat = nextStation?.latitude || 0;
+        lon = nextStation?.longitude || 0;
       }
 
       // ALGORITMO CAZAFANTASMAS: Si el tren está 'STOPPED' en el mismo andén por más de 180 segundos, ignorarlo.
-      if ((status as string) === 'STOPPED' && (nowUnix - entry.stationEnterTime > 180)) {
+      if ((status as string) === 'STOPPED' && (nowUnix - entry.stationEnterTime > 300)) {
          continue; // Ignorar (es un tren fantasma del CBTC)
       }
 
@@ -827,7 +827,6 @@ export async function getTelemetryData() {
   return {
     trains: trains.sort((a, b) => a.id.localeCompare(b.id)),
     alerts,
-    isMocked,
     predictions: schedulePredictions
   };
 }

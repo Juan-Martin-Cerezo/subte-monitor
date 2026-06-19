@@ -175,10 +175,32 @@ body {
 }
 
 .glass-panel {
-  background: rgba(11, 14, 20, 0.7);
+  background: rgba(18, 19, 23, 0.75);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(144, 144, 149, 0.2);
+  border: 1px solid rgba(144, 144, 149, 0.15);
+}
+
+.card-base {
+  background: rgba(30, 31, 35, 0.6);
+  border: 1px solid rgba(69, 71, 75, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 1rem;
+}
+
+.card-floating {
+  background: rgba(18, 19, 23, 0.9);
+  border: 1px solid rgba(69, 71, 75, 0.2);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 1rem;
+}
+
+.inner-card {
+  background: rgba(26, 27, 31, 0.5);
+  border: 1px solid rgba(69, 71, 75, 0.1);
+  border-radius: 0.75rem;
 }
 
 .pulse-dot {
@@ -189,4 +211,24 @@ body {
   0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 238, 252, 0.7); }
   70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(0, 238, 252, 0); }
   100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 238, 252, 0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes loadingBar {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(200%); }
+  100% { transform: translateX(400%); }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out;
 }

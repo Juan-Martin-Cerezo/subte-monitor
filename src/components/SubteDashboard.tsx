@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { TrainTelemetry, AlertData } from '@/lib/telemetry';
 import 'leaflet/dist/leaflet.css';
 import { LINE_SHAPES } from '@/lib/shapes';
-import { ACCESSIBILITY_METADATA, ANNUAL_TRIPS_METADATA } from '@/lib/metadata';
+import { ACCESSIBILITY_METADATA } from '@/lib/metadata';
 import { ARTWORK_METADATA, PREMETRO_STATION_DETAILS, SUBTE_LINES_GEOM, AOM_SUMMARY } from '@/lib/metadata_extended';
 
 interface ReportData {
@@ -47,7 +47,6 @@ interface SubteDashboardProps {
   initialTelemetry: {
     trains: TrainTelemetry[];
     alerts: AlertData[];
-    isMocked: boolean;
     predictions?: Prediction[];
   };
 }
@@ -102,7 +101,7 @@ const LINE_DETAILS: Record<string, { name: string; color: string; bgClass: strin
     gradient: 'from-yellow-500 to-amber-500'
   },
   'PM-Civico': {
-    name: 'Premetro Cívico',
+    name: 'P-C',
     color: '#FFBD33',
     bgClass: 'bg-orange-500/10',
     borderClass: 'border-orange-500/30',
@@ -110,7 +109,7 @@ const LINE_DETAILS: Record<string, { name: string; color: string; bgClass: strin
     gradient: 'from-orange-400 to-amber-500'
   },
   'PM-Savio': {
-    name: 'Premetro Savio',
+    name: 'P-S',
     color: '#FFBD33',
     bgClass: 'bg-orange-500/10',
     borderClass: 'border-orange-500/30',
@@ -195,26 +194,14 @@ export default function SubteDashboard({
   // Station Directory Screen state
   const [stationSearch, setStationSearch] = useState<string>('');
   const [stationLineFilter, setStationLineFilter] = useState<string>('LineaA'); // Default Line A
-  const [arrivalsLineFilter, setArrivalsLineFilter] = useState<string>('LineaA'); // Default Line A for raw arrivals
+  const [arrivalsLineFilter, setArrivalsLineFilter] = useState<string>('LineaA');
+  const [arrivalsDestFilter, setArrivalsDestFilter] = useState<string>('all');
   const [directorySelectedStationId, setDirectorySelectedStationId] = useState<string | null>(null);
-  const [stationFlowData, setStationFlowData] = useState<any[]>([]);
-  const [isLoadingFlow, setIsLoadingFlow] = useState(false);
 
-  // Helper to filter lines that have active trains/predictions (unless they are LineaA/LineaB)
+  // All lines always visible on map
   const visibleLines = useMemo(() => {
-    return Object.keys(LINE_DETAILS).filter(lineId => {
-      if (lineId === 'LineaD') {
-        const hasMovingTrains = telemetry.trains.some(t => t.routeId === 'LineaD' && t.status === 'IN_TRANSIT');
-        return hasMovingTrains;
-      }
-      if (['LineaC', 'LineaH', 'PM-Civico', 'PM-Savio'].includes(lineId)) {
-        const hasTrains = telemetry.trains.some(t => t.routeId === lineId);
-        const hasPredictions = telemetry.predictions?.some(p => p.routeId === lineId);
-        return hasTrains || hasPredictions;
-      }
-      return true;
-    });
-  }, [telemetry.trains, telemetry.predictions]);
+    return Object.keys(LINE_DETAILS);
+  }, []);
 
   // Reset selected lines if they disappear
   useEffect(() => {
@@ -228,6 +215,17 @@ export default function SubteDashboard({
       setArrivalsLineFilter(visibleLines[0] || 'LineaA');
     }
   }, [visibleLines, activeLine, stationLineFilter, arrivalsLineFilter]);
+
+  // Compute unique destinations for arrivals filter
+  const arrivalsDestinations = useMemo(() => {
+    const dests = new Set<string>();
+    (telemetry.predictions || []).forEach(p => {
+      if (p.routeId === arrivalsLineFilter && p.destinationName) {
+        dests.add(p.destinationName);
+      }
+    });
+    return Array.from(dests).sort();
+  }, [arrivalsLineFilter, telemetry.predictions]);
 
   // Responsive mobile list toggle
   const [showMobileList, setShowMobileList] = useState(true);
@@ -340,24 +338,6 @@ export default function SubteDashboard({
       active = false;
     };
   }, [activeLine, reportTrigger]);
-
-  // Fetch historical flow data for the selected station
-  useEffect(() => {
-    if (!directorySelectedStation) {
-      setStationFlowData([]);
-      return;
-    }
-    setIsLoadingFlow(true);
-    fetch(`/api/historical?station=${encodeURIComponent(directorySelectedStation.stopName)}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.hourlyStats) {
-          setStationFlowData(data.hourlyStats);
-        }
-      })
-      .catch(err => console.error('Error fetching historical flow:', err))
-      .finally(() => setIsLoadingFlow(false));
-  }, [directorySelectedStation]);
 
   // Handle report submission
   const handleSubmitReport = async (e: React.FormEvent, targetStationId: string) => {
@@ -949,36 +929,42 @@ export default function SubteDashboard({
   return (
     <div className="flex flex-col h-screen w-screen bg-background text-on-surface font-body-md overflow-hidden relative">
       
-      {/* Dynamic Skeleton Loading Overlay */}
+      {/* Skeleton Loading — matches layout structure, fades out */}
       {isInitialLoading && (
-        <div className="absolute inset-0 bg-background/95 backdrop-blur-md z-[9999] flex items-center justify-center">
-          <div className="flex flex-col items-center gap-6 max-w-sm w-full px-6">
-            {/* Pulsating Logo Icon */}
-            <div className="relative flex items-center justify-center w-20 h-20 rounded-full bg-secondary/10 border border-secondary/20 shadow-[0_0_30px_rgba(0,238,252,0.15)] animate-pulse">
-              <span className="material-symbols-outlined text-[40px] text-secondary">subway</span>
-              <div className="absolute inset-0 rounded-full border border-secondary/40 animate-ping opacity-20"></div>
+        <div className="absolute inset-0 z-[9999] flex flex-row animate-[fadeIn_0.2s_ease-in]">
+          {/* Sidebar skeleton */}
+          <aside className="hidden md:flex w-64 shrink-0 flex-col bg-surface-dim/80 border-r border-outline-variant/20">
+            <div className="p-5 border-b border-outline-variant/10 space-y-2">
+              <div className="w-7 h-5 rounded bg-slate-800/80 animate-pulse" />
+              <div className="w-14 h-2 rounded bg-slate-800/60 animate-pulse" />
             </div>
-
-            {/* Title & Status */}
-            <div className="text-center space-y-2">
-              <h2 className="text-2xl font-black tracking-wider text-white">BA SUBTE</h2>
-              <p className="text-xs text-secondary font-mono tracking-widest uppercase animate-pulse">Conectando telemetría...</p>
-            </div>
-
-            {/* Sidebar line list skeleton */}
-            <div className="w-full bg-surface-container-lowest/40 border border-outline-variant/10 p-4 rounded-2xl flex flex-col gap-3">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="flex items-center justify-between">
+            <div className="flex-1 p-3 space-y-1.5">
+              {[1, 2, 3, 4, 5, 6, 7].map(i => (
+                <div key={i} className="flex items-center justify-between px-3 py-2.5 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-800 animate-pulse"></div>
-                    <div className="w-24 h-3 bg-slate-800 rounded animate-pulse"></div>
+                    <div className="w-5 h-5 rounded-full bg-slate-800/80 animate-pulse" style={{ animationDelay: `${i * 60}ms` }} />
+                    <div className="w-20 h-3 rounded bg-slate-800/70 animate-pulse" style={{ animationDelay: `${i * 60}ms` }} />
                   </div>
-                  <div className="w-6 h-3 bg-slate-800 rounded animate-pulse"></div>
+                  <div className="w-5 h-2.5 rounded bg-slate-800/50 animate-pulse" style={{ animationDelay: `${i * 60}ms` }} />
                 </div>
               ))}
             </div>
+          </aside>
 
-            <p className="text-[9px] text-slate-500 font-mono text-center">Resolviendo ranuras de vía fijas en tiempo real...</p>
+          {/* Content area skeleton */}
+          <div className="flex-1 bg-surface flex items-center justify-center">
+            <div className="flex flex-col items-center gap-5 opacity-70">
+              <div className="relative flex items-center justify-center w-16 h-16 rounded-full bg-secondary/10 border border-secondary/20 shadow-[0_0_20px_rgba(0,238,252,0.1)] animate-pulse">
+                <span className="material-symbols-outlined text-[32px] text-secondary/80">subway</span>
+              </div>
+              <div className="text-center space-y-2">
+                <h2 className="text-xl font-black tracking-wider text-white/80">BA SUBTE</h2>
+                <p className="text-[11px] text-secondary/60 font-mono tracking-widest uppercase">Conectando telemetría...</p>
+              </div>
+              <div className="w-48 h-1.5 rounded-full bg-slate-800/50 overflow-hidden">
+                <div className="h-full w-1/3 rounded-full bg-secondary/30 animate-[loadingBar_1.2s_ease-in-out_infinite]" />
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1077,11 +1063,20 @@ export default function SubteDashboard({
       </header>
 
       {/* Mobile Top Bar (Mobile Only) */}
-      <header className="md:hidden h-14 shrink-0 w-full z-50 bg-surface-container/90 backdrop-blur-xl border-b border-outline-variant/20 flex justify-between items-center px-4">
-        <h1 className="text-title-sm font-headline-md font-bold tracking-tight text-on-background">BA SUBTE</h1>
-        <div className="flex gap-2">
-          <button onClick={() => { setCurrentTab('stations'); setShowMobileList(true); }} className="p-2"><span className="material-symbols-outlined text-outline">search</span></button>
-          <button onClick={() => setCurrentTab(prev => prev === 'planner' ? 'stations' : 'planner')} className="p-2"><span className="material-symbols-outlined text-outline">menu</span></button>
+      <header className="md:hidden h-12 shrink-0 w-full z-50 bg-surface-container/90 backdrop-blur-xl border-b border-outline-variant/20 flex justify-between items-center px-3">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-black tracking-tight text-secondary">BA SUBTE</span>
+          <span className="text-[9px] font-mono text-outline uppercase tracking-wider hidden xs:inline">
+            · Monitor
+          </span>
+        </div>
+        <div className="flex gap-1">
+          <button onClick={() => { setCurrentTab('stations'); setShowMobileList(true); }} className="p-1.5" aria-label="Buscar estaciones">
+            <span className="material-symbols-outlined text-[20px] text-outline">search</span>
+          </button>
+          <button onClick={() => { setCurrentTab('status'); }} className="p-1.5" aria-label="Alertas de servicio">
+            <span className="material-symbols-outlined text-[20px] text-outline">notifications</span>
+          </button>
         </div>
       </header>
 
@@ -1113,7 +1108,7 @@ export default function SubteDashboard({
                 <span className="material-symbols-outlined text-secondary">apps</span>
                 <span className="text-data-md font-data-md font-bold">Todas las Líneas</span>
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-container/60 text-outline border-outline-variant/10">
                 {telemetry.trains.length}
               </span>
             </button>
@@ -1145,7 +1140,7 @@ export default function SubteDashboard({
                     <span className="text-data-md font-data-md font-bold">{details.name}</span>
                   </span>
                   
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400">
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-container/60 text-outline border-outline-variant/10">
                     {lineTrains.length}
                   </span>
                 </button>
@@ -1179,7 +1174,7 @@ export default function SubteDashboard({
         </aside>
 
         {/* Content Area */}
-        <div className="flex-1 h-full min-h-0 overflow-hidden relative bg-surface flex flex-col pb-16 md:pb-0">
+        <div className="flex-1 h-full min-h-0 overflow-hidden relative bg-surface flex flex-col pb-14 md:pb-0">
           
           {/* Subtle grid background */}
           {currentTab !== 'map' && (
@@ -1198,7 +1193,7 @@ export default function SubteDashboard({
             }}
           >
             {/* Mobile Line Filter Bar */}
-            <div className="absolute top-4 left-4 right-4 z-[1000] md:hidden flex gap-2 overflow-x-auto pb-2 scrollbar-none flex-nowrap bg-slate-900/90 backdrop-blur-md p-2.5 rounded-2xl border border-slate-800/80 shadow-2xl">
+            <div className="absolute top-4 left-4 right-4 z-[1000] md:hidden flex gap-2 overflow-x-auto pb-2 scrollbar-none flex-nowrap card-floating p-2.5 shadow-2xl">
               <button
                 onClick={() => {
                   setActiveLine('All');
@@ -1256,10 +1251,10 @@ export default function SubteDashboard({
 
             {/* Floating metrics over map */}
             <div className="absolute top-4 left-4 z-10 hidden lg:flex flex-col gap-3 pointer-events-none">
-              <div className="bg-slate-900/90 border border-slate-800/80 backdrop-blur-md rounded-2xl p-4 text-left shadow-2xl w-52 flex flex-col gap-1 pointer-events-auto">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono">Filtro de Línea</span>
+              <div className="card-floating p-4 text-left shadow-2xl w-52 flex flex-col gap-1 pointer-events-auto">
+                <span className="text-[10px] font-black text-outline uppercase tracking-widest font-mono">Filtro de Línea</span>
                 <div className="flex justify-between items-center mt-1">
-                  <span className="text-sm font-bold text-slate-200">{activeLine === 'All' ? 'Todas las Líneas' : LINE_DETAILS[activeLine]?.name}</span>
+                  <span className="text-sm font-bold text-on-surface">{activeLine === 'All' ? 'Todas las Líneas' : LINE_DETAILS[activeLine]?.name}</span>
                   <button
                     onClick={() => {
                       setActiveLine('All');
@@ -1267,60 +1262,60 @@ export default function SubteDashboard({
                       setSelectedTrainId(null);
                       setPinnedTrainId(null);
                     }}
-                    className="text-[9px] text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20 hover:bg-indigo-500 hover:text-white transition"
+                    className="text-[9px] text-secondary bg-secondary/10 px-1.5 py-0.5 rounded border border-secondary/20 hover:bg-secondary hover:text-background transition"
                   >
                     Restablecer
                   </button>
                 </div>
               </div>
 
-              <div className="bg-slate-900/90 border border-slate-800/80 backdrop-blur-md rounded-2xl p-4 text-left shadow-2xl w-52 flex flex-col gap-1 pointer-events-auto">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono">Formaciones Activas</span>
-                <span className="text-xl font-black text-white font-mono mt-0.5">{activeTrains.length}</span>
+              <div className="card-floating p-4 text-left shadow-2xl w-52 flex flex-col gap-1 pointer-events-auto">
+                <span className="text-[10px] font-black text-outline uppercase tracking-widest font-mono">Formaciones Activas</span>
+                <span className="text-xl font-black text-on-surface font-mono mt-0.5">{activeTrains.length}</span>
               </div>
             </div>
 
             {/* Selected Station / Train Floating Detail (Map View) */}
             {(selectedStationId || selectedTrainId) && (
-              <div className="absolute bottom-20 md:bottom-4 left-4 right-4 md:left-auto z-10 md:w-80 bg-slate-900/90 border border-slate-800/80 backdrop-blur-md rounded-2xl p-4 shadow-2xl text-left flex flex-col gap-3">
+              <div className="absolute bottom-20 md:bottom-4 left-4 right-4 md:left-auto z-10 md:w-80 card-floating p-4 shadow-2xl text-left flex flex-col gap-3">
                 <div className="flex justify-between items-start">
                   <div>
                     {selectedStationId ? (
                       <>
-                        <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block font-mono">Estación</span>
-                        <h3 className="text-sm font-extrabold text-white leading-tight mt-0.5">{mapSelectedStation?.stopName}</h3>
+                        <span className="text-[8px] font-bold text-outline uppercase tracking-widest block font-mono">Estación</span>
+                        <h3 className="text-sm font-extrabold text-on-surface leading-tight mt-0.5">{mapSelectedStation?.stopName}</h3>
                       </>
                     ) : (() => {
                       const train = telemetry.trains.find(t => t.id === selectedTrainId);
                       return (
                         <>
-                          <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block font-mono">Formación</span>
-                          <h3 className="text-sm font-extrabold text-white leading-tight mt-0.5 font-mono">Tren {train?.id} ({LINE_DETAILS[train?.routeId || '']?.name.replace('Línea ', '')})</h3>
+                          <span className="text-[8px] font-bold text-outline uppercase tracking-widest block font-mono">Formación</span>
+                          <h3 className="text-sm font-extrabold text-on-surface leading-tight mt-0.5 font-mono">Tren {train?.id} ({LINE_DETAILS[train?.routeId || '']?.name.replace('Línea ', '')})</h3>
                         </>
                       );
                     })()}
                   </div>
                   <button
                     onClick={() => { setSelectedStationId(null); setSelectedTrainId(null); }}
-                    className="text-[10px] font-bold text-slate-400 hover:text-white px-2 py-0.5 bg-slate-950 border border-slate-850 rounded-lg hover:bg-slate-900 transition"
+                    className="text-[10px] font-bold text-on-surface-variant hover:text-on-surface px-2 py-0.5 inner-card hover:bg-surface-container transition"
                   >
                     Cerrar
                   </button>
                 </div>
                 
-                <hr className="border-slate-850" />
+                <hr className="border-outline-variant/10" />
 
                 {selectedStationId ? (
                   <div className="flex flex-col gap-2">
-                    <span className="text-[9px] font-bold text-slate-500 uppercase font-mono block">Próximos Arribos:</span>
+                    <span className="text-[9px] font-bold text-outline uppercase font-mono block">Próximos Arribos:</span>
                     <div className="flex flex-col gap-1 max-h-32 overflow-y-auto">
                       {telemetry.trains.filter(t => t.nextStopId === selectedStationId).length === 0 ? (
-                        <span className="text-[10px] text-slate-500 italic text-center py-2 bg-slate-950/30 rounded-lg border border-slate-900">No hay arribos próximos.</span>
+                        <span className="text-[10px] text-on-surface-variant italic text-center py-2 inner-card">No hay arribos próximos.</span>
                       ) : (
                         telemetry.trains.filter(t => t.nextStopId === selectedStationId).map(arr => (
-                          <div key={arr.id} className="p-2 rounded-lg bg-slate-950 border border-slate-900 flex items-center justify-between text-xs font-mono">
-                            <span className="text-slate-300 font-bold">{arr.id}</span>
-                            <span className="text-cyan-400 font-black">{arr.etaSeconds === 0 ? 'En andén' : `${Math.floor(arr.etaSeconds / 60)} min`}</span>
+                          <div key={arr.id} className="p-2 rounded-lg inner-card flex items-center justify-between text-xs font-mono">
+                            <span className="text-on-surface font-bold">{arr.id}</span>
+                            <span className="text-secondary font-black">{arr.etaSeconds === 0 ? 'En andén' : `${Math.floor(arr.etaSeconds / 60)} min`}</span>
                           </div>
                         ))
                       )}
@@ -1332,20 +1327,20 @@ export default function SubteDashboard({
                   return (
                     <div className="flex flex-col gap-2 text-xs">
                       <div className="flex justify-between">
-                        <span className="text-slate-500 font-medium font-mono uppercase text-[9px]">Próxima estación:</span>
-                        <span className="font-semibold text-slate-350">{train.nextStopName}</span>
+                        <span className="text-outline font-medium font-mono uppercase text-[9px]">Próxima estación:</span>
+                        <span className="font-semibold text-on-surface">{train.nextStopName}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-550 font-medium font-mono uppercase text-[9px]">Sentido:</span>
-                        <span className="font-bold text-amber-500">Hacia {getTrainDestination(train.routeId, train.directionId)}</span>
+                        <span className="text-outline font-medium font-mono uppercase text-[9px]">Sentido:</span>
+                        <span className="font-bold text-amber-400">Hacia {getTrainDestination(train.routeId, train.directionId)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-500 font-medium font-mono uppercase text-[9px]">Llegada Estimada:</span>
-                        <span className="font-bold text-cyan-400 font-mono">{train.etaSeconds === 0 ? 'En andén' : `${Math.floor(train.etaSeconds / 60)}m ${train.etaSeconds % 60}s`}</span>
+                        <span className="text-outline font-medium font-mono uppercase text-[9px]">Llegada Estimada:</span>
+                        <span className="font-bold text-secondary font-mono">{train.etaSeconds === 0 ? 'En andén' : `${Math.floor(train.etaSeconds / 60)}m ${train.etaSeconds % 60}s`}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-slate-550 font-medium font-mono uppercase text-[9px]">Demora:</span>
-                        <span className={`font-semibold ${train.delaySeconds > 60 ? 'text-rose-400' : 'text-emerald-450'}`}>
+                        <span className="text-outline font-medium font-mono uppercase text-[9px]">Demora:</span>
+                        <span className={`font-semibold ${train.delaySeconds > 60 ? 'text-error' : 'text-secondary'}`}>
                           {train.delaySeconds > 0 ? `${Math.floor(train.delaySeconds / 60)} min` : 'Sin demora'}
                         </span>
                       </div>
@@ -1371,7 +1366,7 @@ export default function SubteDashboard({
                         className={`w-full py-1.5 rounded-lg font-bold text-xs border transition flex items-center justify-center gap-1.5 mt-2 ${
                           pinnedTrainId === train.id
                             ? 'bg-amber-500/20 text-amber-400 border-amber-500/30 hover:bg-amber-500/30'
-                            : 'bg-indigo-600/20 text-indigo-400 border-indigo-600/30 hover:bg-indigo-600/30 hover:text-white'
+                            : 'bg-secondary/10 text-secondary border-secondary/20 hover:bg-secondary/20'
                         }`}
                       >
                         <span className="material-symbols-outlined text-sm">
@@ -1387,166 +1382,300 @@ export default function SubteDashboard({
           </div>
 
           {/* ======================================================= */}
-          {/* SCREEN 2: ROUTE PLANNER                                 */}
+          {/* SCREEN 2: ROUTE PLANNER — REDESIGNED                     */}
           {/* ======================================================= */}
           {currentTab === 'planner' && (
-            <div className="flex-1 p-gutter md:p-margin-desktop overflow-x-hidden overflow-y-auto">
+            <div className="flex-1 p-gutter md:p-margin-desktop overflow-x-hidden overflow-y-auto animate-fade-in">
               <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-lg">
-                {/* Left Column: Search & Results */}
-                <div className="lg:col-span-4 flex flex-col gap-lg">
-                  {/* Trip Planner Input Panel */}
-                  <section className="glass-panel rounded-xl p-md flex flex-col gap-md text-left">
-                    <h2 className="text-title-sm font-title-sm text-on-background flex items-center gap-sm">
-                      <span className="material-symbols-outlined text-secondary">route</span>
-                      Planificar Viaje
-                    </h2>
-                    <div className="relative flex flex-col gap-sm">
-                      {/* Origin input */}
-                      <div className="flex items-center bg-black border border-outline-variant/30 rounded-lg focus-within:border-secondary focus-within:shadow-[0_0_8px_rgba(0,238,252,0.3)] transition-all">
-                        <span className="material-symbols-outlined text-on-surface-variant pl-sm">trip_origin</span>
-                        <select
-                          value={plannerOrigin}
-                          onChange={(e) => setPlannerOrigin(e.target.value)}
-                          className="w-full bg-transparent border-none text-body-md text-on-background placeholder-on-surface-variant focus:ring-0 py-sm px-sm outline-none"
-                        >
-                          <option value="" className="bg-surface-container">Desde (ej. Catedral)</option>
-                          {uniqueStationNames.map(name => (
-                            <option key={`origin-select-${name}`} value={name} className="bg-surface-container">{name}</option>
-                          ))}
-                        </select>
+
+                {/* ── LEFT COLUMN: Planner + Route Timeline ── */}
+                <div className="lg:col-span-5 flex flex-col gap-lg">
+
+                  {/* Planner Panel */}
+                  <section className="relative overflow-hidden rounded-2xl border border-outline-variant/20 bg-gradient-to-br from-surface-container/90 via-surface-container/70 to-surface/90 backdrop-blur-xl shadow-2xl">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-secondary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-primary/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+
+                    <div className="relative p-md md:p-lg flex flex-col gap-md">
+                      {/* Header */}
+                      <div className="flex items-center gap-sm mb-xs">
+                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-secondary/20 to-secondary/5 border border-secondary/20 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-secondary text-xl">route</span>
+                        </div>
+                        <div>
+                          <h2 className="text-title-sm font-title-sm font-bold text-on-background">Planificar Viaje</h2>
+                          <p className="text-label-caps font-label-caps text-on-surface-variant">Encontrá la mejor ruta en Subte</p>
+                        </div>
                       </div>
 
-                      {/* Swap button */}
+                      {/* Inputs */}
+                      <div className="relative flex flex-col gap-sm">
+                        {/* Origin */}
+                        <div className="group relative">
+                          <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-secondary/50 rounded-full" />
+                          <div className="flex items-center bg-black/60 border border-outline-variant/20 rounded-xl group-focus-within:border-secondary/50 group-focus-within:shadow-[0_0_20px_rgba(0,238,252,0.15)] transition-all duration-300 pl-md">
+                            <span className="material-symbols-outlined text-secondary text-lg">trip_origin</span>
+                            <select
+                              value={plannerOrigin}
+                              onChange={(e) => setPlannerOrigin(e.target.value)}
+                              className="w-full bg-transparent border-none text-body-md text-on-background focus:ring-0 py-sm pr-sm pl-xs outline-none cursor-pointer appearance-none"
+                              style={{ backgroundImage: 'none' }}
+                            >
+                              <option value="" className="bg-surface-container">Estación de Origen</option>
+                              {uniqueStationNames.map(name => (
+                                <option key={`origin-${name}`} value={name} className="bg-surface-container">{name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Visual connector line */}
+                        <div className="flex flex-col items-center -my-1 z-10">
+                          <div className="w-px h-2 bg-outline-variant/40" />
+                          <button
+                            onClick={swapPlannerStations}
+                            className="w-7 h-7 flex items-center justify-center bg-surface-variant rounded-full border border-outline-variant/30 hover:border-secondary/50 hover:bg-surface-bright transition-all text-on-background active:scale-90 group"
+                            title="Intercambiar origen y destino"
+                          >
+                            <span className="material-symbols-outlined text-[16px] group-hover:text-secondary transition-colors">swap_vert</span>
+                          </button>
+                          <div className="w-px h-2 bg-outline-variant/40" />
+                        </div>
+
+                        {/* Destination */}
+                        <div className="group relative">
+                          <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-error/50 rounded-full" />
+                          <div className="flex items-center bg-black/60 border border-outline-variant/20 rounded-xl group-focus-within:border-error/50 group-focus-within:shadow-[0_0_20px_rgba(255,69,58,0.15)] transition-all duration-300 pl-md">
+                            <span className="material-symbols-outlined text-error text-lg">location_on</span>
+                            <select
+                              value={plannerDestination}
+                              onChange={(e) => setPlannerDestination(e.target.value)}
+                              className="w-full bg-transparent border-none text-body-md text-on-background focus:ring-0 py-sm pr-sm pl-xs outline-none cursor-pointer appearance-none"
+                              style={{ backgroundImage: 'none' }}
+                            >
+                              <option value="" className="bg-surface-container">Estación de Destino</option>
+                              {uniqueStationNames.map(name => (
+                                <option key={`dest-${name}`} value={name} className="bg-surface-container">{name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Options row */}
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-xs cursor-pointer group">
+                          <input
+                            checked={stepFreeRequired}
+                            onChange={(e) => setStepFreeRequired(e.target.checked)}
+                            className="form-checkbox bg-black/60 border-outline-variant/40 text-secondary rounded w-4 h-4 focus:ring-secondary focus:ring-offset-background cursor-pointer"
+                            type="checkbox"
+                          />
+                          <span className="text-label-caps font-label-caps text-on-surface-variant group-hover:text-on-background transition-colors flex items-center gap-xs">
+                            <span className="material-symbols-outlined text-[14px]">accessible</span>
+                            Sin barreras
+                          </span>
+                        </label>
+                      </div>
+
+                      {/* Search button */}
                       <button
-                        onClick={swapPlannerStations}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center bg-surface-variant rounded-full border border-outline-variant/50 hover:bg-surface-bright transition-colors text-on-background active:scale-95"
+                        onClick={handleFindRoutes}
+                        disabled={!plannerOrigin || !plannerDestination}
+                        className="relative w-full py-sm rounded-xl font-bold text-body-md text-background overflow-hidden transition-all duration-300 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
                       >
-                        <span className="material-symbols-outlined text-[18px]">swap_vert</span>
-                      </button>
-
-                      {/* Destination input */}
-                      <div className="flex items-center bg-black border border-outline-variant/30 rounded-lg focus-within:border-secondary focus-within:shadow-[0_0_8px_rgba(0,238,252,0.3)] transition-all mt-1">
-                        <span className="material-symbols-outlined text-on-surface-variant pl-sm">location_on</span>
-                        <select
-                          value={plannerDestination}
-                          onChange={(e) => setPlannerDestination(e.target.value)}
-                          className="w-full bg-transparent border-none text-body-md text-on-background placeholder-on-surface-variant focus:ring-0 py-sm px-sm outline-none"
-                        >
-                          <option value="" className="bg-surface-container">Hacia (ej. Juramento)</option>
-                          {uniqueStationNames.map(name => (
-                            <option key={`dest-select-${name}`} value={name} className="bg-surface-container">{name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-sm mt-xs">
-                      <label className="flex items-center gap-xs cursor-pointer group">
-                        <input
-                          checked={stepFreeRequired}
-                          onChange={(e) => setStepFreeRequired(e.target.checked)}
-                          className="form-checkbox bg-black border-outline-variant/50 text-secondary rounded w-4 h-4 focus:ring-secondary focus:ring-offset-background"
-                          type="checkbox"
-                        />
-                        <span className="text-body-sm font-body-sm text-on-surface-variant group-hover:text-on-background transition-colors flex items-center gap-xs">
-                          <span className="material-symbols-outlined text-[16px]">accessible</span>
-                          Sin barreras
+                        <div className="absolute inset-0 bg-gradient-to-r from-secondary via-secondary/90 to-primary" />
+                        <div className="absolute inset-0 bg-[length:200%_100%] bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
+                        <span className="relative flex items-center justify-center gap-xs">
+                          <span className="material-symbols-outlined text-[18px]">search</span>
+                          Buscar Rutas
                         </span>
-                      </label>
+                      </button>
                     </div>
-
-                    <button
-                      onClick={handleFindRoutes}
-                      className="mt-xs w-full bg-on-background text-background font-bold text-body-md py-sm rounded-lg hover:bg-surface-tint transition-colors active:scale-[0.98]"
-                    >
-                      Buscar Rutas
-                    </button>
                   </section>
 
-                  {/* Suggested Routes results list */}
-                  <section className="glass-panel rounded-xl flex flex-col flex-1 min-h-[300px] text-left">
+                  {/* Route Timeline Results */}
+                  <section className="relative flex-1 min-h-[250px] rounded-2xl border border-outline-variant/15 bg-gradient-to-b from-surface-container/60 to-surface/50 backdrop-blur-md shadow-lg overflow-hidden">
                     <div className="p-md border-b border-outline-variant/10 flex justify-between items-center">
-                      <h3 className="text-body-md font-body-md font-bold text-on-background">Rutas Sugeridas</h3>
-                      <span className="text-label-caps font-label-caps text-on-surface-variant">En Vivo</span>
+                      <h3 className="text-body-md font-body-md font-bold text-on-background flex items-center gap-xs">
+                        <span className="material-symbols-outlined text-secondary text-lg">map</span>
+                        Ruta
+                      </h3>
+                      {plannedRoute && (
+                        <div className="flex items-center gap-xs text-label-caps font-label-caps text-on-surface-variant">
+                          <span className="material-symbols-outlined text-[14px]">schedule</span>
+                          {routeSummaryMetrics.time} min
+                        </div>
+                      )}
                     </div>
 
-                    <div className="flex flex-col p-sm gap-sm overflow-y-auto">
+                    <div className="p-sm md:p-md overflow-y-auto">
                       {plannedRoute ? (
-                        <div className="bg-surface-container/50 border border-secondary/30 rounded-lg p-sm relative overflow-hidden">
-                          <div className="absolute top-0 left-0 w-1 h-full bg-secondary"></div>
-                          
-                          <div className="flex justify-between items-start mb-sm pl-xs">
-                            <div className="flex items-center gap-xs">
-                              <span className="text-headline-md font-headline-md font-bold font-mono">{routeSummaryMetrics.time}</span>
-                              <span className="text-body-sm font-body-sm text-on-surface-variant">min</span>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-body-sm font-body-sm text-on-background font-bold">Ruta Óptima</div>
-                              <div className="text-label-caps font-label-caps text-secondary flex items-center justify-end gap-xs">
-                                <span className="w-2 h-2 rounded-full bg-secondary pulse-dot inline-block"></span>
-                                {routeSummaryMetrics.transfers} trasbordos
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-sm pl-xs flex-wrap">
-                            {plannedRoute.map((leg, idx) => {
-                              if (!leg.routeId) return null;
+                        <div className="flex flex-col gap-0">
+                          {/* Route Timeline — each leg as a visual step */}
+                          {plannedRoute.map((leg, legIdx) => {
+                            if (!leg.routeId) {
+                              // Transfer step
                               return (
-                                <React.Fragment key={`suggested-badges-${idx}`}>
-                                  {idx > 0 && (
-                                    <span className="material-symbols-outlined text-outline text-[16px]">arrow_forward</span>
-                                  )}
-                                  <div
-                                    className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white uppercase border border-slate-900/20"
-                                    style={{ backgroundColor: LINE_DETAILS[leg.routeId]?.color }}
-                                  >
-                                    {leg.routeId.replace('Linea', '')}
+                                <div key={`transfer-${legIdx}`} className="flex items-start gap-sm py-sm">
+                                  <div className="flex flex-col items-center">
+                                    <div className="w-3 h-3 rounded-full bg-amber-400 border-2 border-amber-400/30" />
+                                    <div className="w-0.5 flex-1 min-h-[24px] bg-gradient-to-b from-amber-400/40 to-outline-variant/20" />
                                   </div>
-                                </React.Fragment>
+                                  <div className="flex-1 bg-amber-500/5 border border-amber-500/15 rounded-lg px-sm py-xs">
+                                    <div className="flex items-center gap-xs text-label-caps font-label-caps text-amber-400">
+                                      <span className="material-symbols-outlined text-[14px]">transfer_within_a_station</span>
+                                      Trasbordo
+                                    </div>
+                                    <p className="text-body-sm font-body-sm text-on-surface-variant">
+                                      {leg.stops[0]} → {leg.stops[leg.stops.length - 1]}
+                                    </p>
+                                  </div>
+                                </div>
                               );
-                            })}
+                            }
+
+                            const lineColor = LINE_DETAILS[leg.routeId]?.color || '#475569';
+                            const lineLabel = leg.routeId.replace('Linea', '');
+                            const stationCount = leg.stops.length;
+
+                            return (
+                              <div key={`leg-${leg.routeId}-${legIdx}`} className="flex items-start gap-sm">
+                                <div className="flex flex-col items-center pt-1.5">
+                                  {legIdx === 0 ? (
+                                    <div className="w-3.5 h-3.5 rounded-full border-2" style={{ borderColor: lineColor, backgroundColor: lineColor + '33' }} />
+                                  ) : (
+                                    <div className="w-3 h-3 rounded-full border-2" style={{ borderColor: lineColor, backgroundColor: lineColor + '33' }} />
+                                  )}
+                                  <div className="w-0.5 flex-1 min-h-[28px]" style={{ backgroundColor: lineColor + '44' }} />
+                                </div>
+                                <div className="flex-1 pb-sm">
+                                  <div className="flex items-center gap-xs mb-xs">
+                                    <span
+                                      className="inline-flex items-center justify-center w-5 h-5 rounded text-[9px] font-bold text-white uppercase"
+                                      style={{ backgroundColor: lineColor }}
+                                    >
+                                      {lineLabel}
+                                    </span>
+                                    <span className="text-label-caps font-label-caps font-bold" style={{ color: lineColor }}>
+                                      {LINE_DETAILS[leg.routeId]?.name || leg.routeId}
+                                    </span>
+                                    <span className="text-label-caps font-label-caps text-on-surface-variant ml-auto">
+                                      {(stationCount - 1) * 2} min
+                                    </span>
+                                  </div>
+                                  {/* Station list for this leg */}
+                                  <div className="flex flex-col gap-0.5">
+                                    {leg.stops.map((stopName: string, stopIdx: number) => {
+                                      const isFirst = stopIdx === 0;
+                                      const isLast = stopIdx === stationCount - 1;
+                                      return (
+                                        <div key={`stop-${legIdx}-${stopIdx}`} className="flex items-center gap-xs">
+                                          {isFirst ? (
+                                            <span className="material-symbols-outlined text-secondary text-[14px]">trip_origin</span>
+                                          ) : isLast ? (
+                                            <span className="material-symbols-outlined text-error text-[14px]">location_on</span>
+                                          ) : (
+                                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: lineColor + '66' }} />
+                                          )}
+                                          <span className={`text-body-sm font-body-sm ${isFirst || isLast ? 'font-bold text-on-background' : 'text-on-surface-variant'}`}>
+                                            {stopName}
+                                          </span>
+                                          {stopIdx < stationCount - 1 && (
+                                            <span className="text-label-caps font-label-caps text-outline ml-auto">
+                                              {stopIdx === 0 ? 'Salida' : ''}
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {/* Route summary footer */}
+                          <div className="mt-sm pt-sm border-t border-outline-variant/10 flex items-center justify-between px-xs">
+                            <div className="flex items-center gap-md text-label-caps font-label-caps text-on-surface-variant">
+                              <span className="flex items-center gap-xs">
+                                <span className="material-symbols-outlined text-[14px]">transfer_within_a_station</span>
+                                {routeSummaryMetrics.transfers} trasbordos
+                              </span>
+                              <span className="flex items-center gap-xs">
+                                <span className="material-symbols-outlined text-[14px]">station</span>
+                                {routeSummaryMetrics.stops} estaciones
+                              </span>
+                            </div>
+                            <div className="text-data-md font-data-md font-black font-mono text-secondary">
+                              {routeSummaryMetrics.time}
+                              <span className="text-label-caps font-label-caps text-on-surface-variant ml-0.5">min</span>
+                            </div>
                           </div>
                         </div>
                       ) : (
-                        <p className="text-xs text-slate-550 italic text-center py-10">Ninguna ruta seleccionada. Use los campos del planificador para calcular el camino.</p>
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                          <div className="w-14 h-14 rounded-2xl bg-surface-container border border-outline-variant/20 flex items-center justify-center mb-sm">
+                            <span className="material-symbols-outlined text-outline text-3xl">signpost</span>
+                          </div>
+                          <p className="text-body-sm font-body-sm text-on-surface-variant max-w-xs leading-relaxed">
+                            Seleccioná origen y destino para calcular la mejor ruta
+                          </p>
+                          <p className="text-label-caps font-label-caps text-outline mt-xs">
+                            Incluye combinaciones entre líneas
+                          </p>
+                        </div>
                       )}
                     </div>
                   </section>
                 </div>
 
-                {/* Right Column: Departure Board & Charts */}
-                <div className="lg:col-span-8 flex flex-col gap-lg text-left">
+                {/* ── RIGHT COLUMN: Live Departure Board ── */}
+                <div className="lg:col-span-7 flex flex-col gap-lg">
+
                   {/* Live Departure Board */}
-                  <section className="glass-panel rounded-xl flex flex-col overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
-                    <div className="bg-surface-container-lowest p-md border-b border-outline-variant/20 flex justify-between items-end">
-                      <div>
-                        <h2 className="text-headline-md font-headline-md font-bold text-on-background tracking-tight">PRÓXIMAS PARTIDAS</h2>
-                        <p className="text-body-sm font-body-sm text-on-surface-variant flex items-center gap-xs mt-xs">
-                          <span className="material-symbols-outlined text-[16px] text-secondary">my_location</span>
-                          {plannerOrigin ? `Estación ${plannerOrigin}` : 'Seleccione Estación de Origen'}
-                        </p>
-                      </div>
-                      <div className="text-data-lg font-data-lg text-secondary font-mono" id="live-clock">
-                        --:--:--
+                  <section className="rounded-2xl border border-outline-variant/15 bg-gradient-to-b from-surface-container/80 to-surface/60 backdrop-blur-xl shadow-2xl overflow-hidden">
+                    {/* Header */}
+                    <div className="relative px-md py-md md:px-lg md:py-lg border-b border-outline-variant/10 bg-gradient-to-r from-surface-container-lowest/80 via-surface-container-lowest/60 to-transparent">
+                      <div className="absolute top-0 right-0 w-40 h-40 bg-secondary/3 rounded-full blur-2xl pointer-events-none" />
+                      <div className="relative flex justify-between items-end">
+                        <div>
+                          <h2 className="text-headline-sm font-headline-sm font-black text-on-background tracking-tight flex items-center gap-xs">
+                            <span className="material-symbols-outlined text-secondary text-2xl">departure_board</span>
+                            Partidas
+                          </h2>
+                          <p className="text-body-sm font-body-sm text-on-surface-variant flex items-center gap-xs mt-0.5">
+                            <span className="material-symbols-outlined text-[14px] text-secondary">my_location</span>
+                            {plannerOrigin || 'Seleccioná una estación'}
+                          </p>
+                        </div>
+                        <div className="text-data-lg font-data-lg text-secondary font-mono tabular-nums" id="live-clock">
+                          --:--:--
+                        </div>
                       </div>
                     </div>
 
+                    {/* Table */}
                     <div className="flex flex-col">
-                      {/* Table Header */}
-                      <div className="grid grid-cols-12 gap-sm px-md py-sm border-b border-outline-variant/10 text-label-caps font-label-caps text-on-surface-variant bg-surface-dim/50">
-                        <div className="col-span-2">LÍNEA</div>
-                        <div className="col-span-6">DESTINO</div>
-                        <div className="col-span-2 text-right">ESTADO</div>
-                        <div className="col-span-2 text-right">ARRIBO</div>
+                      {/* Header row */}
+                      <div className="grid grid-cols-[40px_1fr_80px_80px] gap-xs px-md py-xs border-b border-outline-variant/10 text-label-caps font-label-caps text-on-surface-variant bg-surface-dim/40">
+                        <div className="text-center">LÍNEA</div>
+                        <div>DESTINO</div>
+                        <div className="text-right">ESTADO</div>
+                        <div className="text-right">ARRIBO</div>
                       </div>
 
-                      {/* Board Rows */}
-                      <div className="flex flex-col">
+                      {/* Body */}
+                      <div className="flex flex-col divide-y divide-outline-variant/5">
                         {(() => {
                           if (!plannerOrigin) {
                             return (
-                              <p className="text-xs text-slate-550 italic p-6 text-center">Por favor seleccione una estación en el planificador de rutas para ver las partidas.</p>
+                              <div className="flex flex-col items-center justify-center py-10 text-center">
+                                <div className="w-10 h-10 rounded-xl bg-surface-container border border-outline-variant/20 flex items-center justify-center mb-sm">
+                                  <span className="material-symbols-outlined text-outline text-xl">trip_origin</span>
+                                </div>
+                                <p className="text-body-sm font-body-sm text-on-surface-variant">Elegí un origen para ver las próximas partidas</p>
+                              </div>
                             );
                           }
 
@@ -1555,7 +1684,12 @@ export default function SubteDashboard({
 
                           if (departures.length === 0) {
                             return (
-                              <p className="text-xs text-slate-550 italic p-6 text-center">No hay trenes programados en esta estación actualmente.</p>
+                              <div className="flex flex-col items-center justify-center py-10 text-center">
+                                <div className="w-10 h-10 rounded-xl bg-surface-container border border-outline-variant/20 flex items-center justify-center mb-sm">
+                                  <span className="material-symbols-outlined text-outline text-xl">hourglass_empty</span>
+                                </div>
+                                <p className="text-body-sm font-body-sm text-on-surface-variant">No hay trenes programados en esta estación</p>
+                              </div>
                             );
                           }
 
@@ -1566,37 +1700,52 @@ export default function SubteDashboard({
 
                             return (
                               <div
-                                key={`dep-row-${dep.id}-${idx}`}
-                                className={`grid grid-cols-12 gap-sm px-md py-md border-b border-outline-variant/5 hover:bg-surface-container/30 transition-colors items-center relative overflow-hidden ${
-                                  isDelayed ? 'bg-tertiary-container/10' : ''
+                                key={`dep-${dep.id}-${idx}`}
+                                className={`grid grid-cols-[40px_1fr_80px_80px] gap-xs px-md py-sm items-center relative transition-all duration-200 hover:bg-surface-container/40 ${
+                                  isDelayed ? 'bg-error/5' : ''
                                 }`}
                               >
-                                {isDelayed && <div className="absolute top-0 left-0 w-1 h-full bg-error" />}
-                                
-                                <div className="col-span-2">
+                                {isDelayed && <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-error" />}
+
+                                {/* Line badge */}
+                                <div className="flex justify-center">
                                   <span
-                                    className="inline-flex items-center justify-center w-8 h-8 rounded text-body-md font-bold text-white uppercase border border-slate-900/10"
+                                    className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold text-white uppercase shadow-sm"
                                     style={{ backgroundColor: details?.color || '#475569' }}
                                   >
                                     {dep.routeId.replace('Linea', '')}
                                   </span>
                                 </div>
-                                
-                                <div className="col-span-6 text-title-sm font-title-sm text-on-background uppercase tracking-wide">
-                                  Hacia {getTrainDestination(dep.routeId, dep.directionId)}
-                                  <span className="text-[10px] text-slate-500 normal-case block">Próxima: {dep.nextStopName}</span>
+
+                                {/* Destination */}
+                                <div>
+                                  <div className="text-body-sm font-body-sm font-bold text-on-background uppercase tracking-wide truncate">
+                                    {getTrainDestination(dep.routeId, dep.directionId)}
+                                  </div>
+                                  <div className="text-label-caps font-label-caps text-on-surface-variant truncate">
+                                    {dep.nextStopName}
+                                  </div>
                                 </div>
-                                
-                                <div className={`col-span-2 text-right text-label-caps font-label-caps ${
-                                  isDelayed ? 'text-error' : (isNow ? 'text-secondary animate-pulse' : 'text-on-surface-variant')
+
+                                {/* Status */}
+                                <div className={`text-right text-label-caps font-label-caps font-bold ${
+                                  isDelayed ? 'text-error' : (isNow ? 'text-secondary' : 'text-on-surface-variant')
                                 }`}>
                                   {isDelayed ? 'DEMORADO' : (isNow ? 'EN ANDÉN' : 'A TIEMPO')}
                                 </div>
-                                
-                                <div className={`col-span-2 text-right font-black leading-none ${
-                                  isDelayed ? 'text-error text-headline-md' : (isNow ? 'text-display-lg text-secondary font-black' : 'text-headline-md font-bold')
+
+                                {/* ETA */}
+                                <div className={`text-right font-black leading-none ${
+                                  isDelayed ? 'text-error text-body-md' : (isNow ? 'text-secondary text-headline-sm' : 'text-headline-sm font-bold text-on-background')
                                 }`}>
-                                  {isNow ? 'AHORA' : `${Math.floor(dep.etaSeconds / 60)} min`}
+                                  {isNow ? (
+                                    <span className="inline-flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse inline-block" />
+                                      AHORA
+                                    </span>
+                                  ) : (
+                                    `${Math.floor(dep.etaSeconds / 60)}m`
+                                  )}
                                 </div>
                               </div>
                             );
@@ -1604,9 +1753,40 @@ export default function SubteDashboard({
                         })()}
                       </div>
                     </div>
+
+                    {/* Footer */}
+                    {plannerOrigin && (
+                      <div className="px-md py-xs border-t border-outline-variant/5 bg-surface-dim/20">
+                        <p className="text-label-caps font-label-caps text-outline text-center">
+                          Datos en tiempo real · Actualización cada 2s
+                        </p>
+                      </div>
+                    )}
                   </section>
 
-
+                  {/* Quick station suggestions grid */}
+                  {!plannerOrigin && !plannerDestination && (
+                    <section className="rounded-2xl border border-outline-variant/10 bg-gradient-to-b from-surface-container/40 to-surface/30 backdrop-blur-sm shadow-lg p-md">
+                      <h3 className="text-label-caps font-label-caps font-bold text-on-surface-variant mb-sm flex items-center gap-xs">
+                        <span className="material-symbols-outlined text-[14px]">star</span>
+                        Estaciones frecuentes
+                      </h3>
+                      <div className="flex flex-wrap gap-xs">
+                        {['Catedral', '9 de Julio', 'Once', 'Pacifico', 'Juramento', 'Congreso', 'Tribunales', 'Facultad de Medicina', 'Retiro', 'Belgrano'].map(station => (
+                          <button
+                            key={`quick-${station}`}
+                            onClick={() => {
+                              if (!plannerOrigin) setPlannerOrigin(station);
+                              else if (!plannerDestination && station !== plannerOrigin) setPlannerDestination(station);
+                            }}
+                            className="px-sm py-xs rounded-lg border border-outline-variant/15 bg-surface-container/50 hover:bg-surface-container hover:border-outline-variant/30 transition-all text-label-caps font-label-caps text-on-surface-variant hover:text-on-background active:scale-95"
+                          >
+                            {station}
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  )}
                 </div>
               </div>
             </div>
@@ -1618,7 +1798,7 @@ export default function SubteDashboard({
           {currentTab === 'stations' && (
             <div className="flex-1 flex flex-col md:flex-row relative z-10 overflow-hidden h-full animate-fade-in text-left">
               {/* Left Pane: Station List & Filters */}
-              <div className={`w-full md:w-[400px] lg:w-[450px] flex flex-col h-full glass-panel border-r border-outline-variant/10 z-20 ${
+              <div className={`w-full md:w-[400px] lg:w-[450px] flex flex-col h-full bg-surface-container border-r border-outline-variant/10 z-20 ${
                 directorySelectedStationId && !showMobileList ? 'hidden md:flex' : 'flex'
               }`}>
                 {/* Filters Header */}
@@ -1718,7 +1898,7 @@ export default function SubteDashboard({
                             {uniquePassingLines.map(lineId => (
                               <span
                                 key={`badge-${s.stopId}-${lineId}`}
-                                className="w-5 h-5 rounded-full text-[10px] flex items-center justify-center font-bold text-white border border-slate-900/10"
+                                className="w-5 h-5 rounded-full text-[10px] flex items-center justify-center font-bold text-white border border-outline-variant/10"
                                 style={{ backgroundColor: LINE_DETAILS[lineId]?.color }}
                               >
                                 {lineId.replace('Linea', '')}
@@ -1738,7 +1918,7 @@ export default function SubteDashboard({
               </div>
 
               {/* Right Pane: Station Detail */}
-              <div className={`flex-1 overflow-y-auto p-4 md:p-8 h-full bg-surface-container-lowest/50 ${
+              <div className={`flex-1 overflow-y-auto p-4 md:p-8 h-full bg-surface ${
                 !directorySelectedStationId || showMobileList ? 'hidden md:block' : 'block'
               }`}>
                 {directorySelectedStation ? (
@@ -1758,7 +1938,7 @@ export default function SubteDashboard({
                       <div>
                         <div className="flex items-center gap-3 mb-2">
                           <span
-                            className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg text-white border border-slate-900/20 shadow-md"
+                            className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg text-white border border-outline-variant/10 shadow-md"
                             style={{ backgroundColor: LINE_DETAILS[stationLineFilter]?.color || '#475569' }}
                           >
                             {stationLineFilter.replace('Linea', '')}
@@ -1774,14 +1954,14 @@ export default function SubteDashboard({
                           const access = ACCESSIBILITY_METADATA[accessKey];
                           if (!access) return null;
                           return (
-                            <div className="flex gap-4 mt-4 text-xs text-slate-350">
+                            <div className="flex gap-4 mt-4 text-xs text-on-surface-variant">
                               <span className="flex items-center gap-1.5 bg-surface-container-low px-3 py-1.5 rounded-xl border border-outline-variant/10">
-                                <span className="material-symbols-outlined text-[16px] text-indigo-400">elevator</span>
-                                <span className="font-bold text-white">{access.ascensores}</span> {access.ascensores === 1 ? 'Ascensor' : 'Ascensores'}
+                                <span className="material-symbols-outlined text-[16px] text-secondary">elevator</span>
+                                <span className="font-bold text-on-surface">{access.ascensores}</span> {access.ascensores === 1 ? 'Ascensor' : 'Ascensores'}
                               </span>
                               <span className="flex items-center gap-1.5 bg-surface-container-low px-3 py-1.5 rounded-xl border border-outline-variant/10">
-                                <span className="material-symbols-outlined text-[16px] text-indigo-400">stairs</span>
-                                <span className="font-bold text-white">{access.escaleras}</span> {access.escaleras === 1 ? 'Escalera Mecánica' : 'Escaleras Mecánicas'}
+                                <span className="material-symbols-outlined text-[16px] text-secondary">stairs</span>
+                                <span className="font-bold text-on-surface">{access.escaleras}</span> {access.escaleras === 1 ? 'Escalera Mecánica' : 'Escaleras Mecánicas'}
                               </span>
                             </div>
                           );
@@ -1792,7 +1972,7 @@ export default function SubteDashboard({
                     {/* Bento Grid Layout */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                       {/* Connections */}
-                      <div className="lg:col-span-1 glass-panel rounded-2xl p-6 flex flex-col">
+                      <div className="lg:col-span-1 card-base p-6 flex flex-col">
                         <h3 className="text-title-sm font-headline-md text-outline mb-4 flex items-center gap-2 font-mono">
                           <span className="material-symbols-outlined">transit_enterexit</span>
                           Conexiones
@@ -1811,7 +1991,7 @@ export default function SubteDashboard({
                             });
 
                             if (connections.length === 0) {
-                              return <p className="text-xs text-slate-550 italic py-4">No hay líneas de combinación en esta plataforma.</p>;
+                              return <p className="text-xs text-outline italic py-4">No hay líneas de combinación en esta plataforma.</p>;
                             }
 
                             return connections.map(conn => {
@@ -1821,7 +2001,7 @@ export default function SubteDashboard({
                               return (
                                 <div key={conn.stopId} className="flex items-center gap-4 bg-surface-container-low p-3 rounded-lg border border-outline-variant/10 text-left">
                                   <span
-                                    className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg text-white border border-slate-900/10"
+                                    className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg text-white border border-outline-variant/10"
                                     style={{ backgroundColor: details?.color }}
                                   >
                                     {seq?.routeId.replace('Linea', '')}
@@ -1838,7 +2018,7 @@ export default function SubteDashboard({
                       </div>
 
                       {/* Live Arrivals departure board */}
-                      <div className="lg:col-span-2 glass-panel rounded-2xl p-6 flex flex-col">
+                      <div className="lg:col-span-2 card-base p-6 flex flex-col">
                         <h3 className="text-title-sm font-headline-md text-outline mb-4 flex items-center gap-2 font-mono">
                           <span className="material-symbols-outlined">my_location</span>
                           Arribos en Vivo
@@ -1853,7 +2033,7 @@ export default function SubteDashboard({
 
                             if (arrivals.length === 0) {
                               return (
-                                <p className="text-xs text-slate-550 italic py-6 text-center bg-slate-950/20 border border-slate-900 rounded-xl">
+                                <p className="text-xs text-outline italic py-6 text-center inner-card">
                                   No hay arribos programados próximamente.
                                 </p>
                               );
@@ -1877,8 +2057,8 @@ export default function SubteDashboard({
                                        >
                                          {arr.routeId.replace('Linea', '')}
                                        </span>
-                                       <span className="font-bold text-slate-350">{arr.id}</span>
-                                       <span className="text-[10px] text-slate-500">→ {arr.nextStopName}</span>
+                                       <span className="font-bold text-on-surface">{arr.id}</span>
+                                       <span className="text-[10px] text-outline">→ {arr.nextStopName}</span>
                                      </div>
                                      <span className="text-[9px] text-amber-500 font-bold">Sentido: Hacia {destinationName}</span>
                                    </div>
@@ -1892,7 +2072,6 @@ export default function SubteDashboard({
                         </div>
                       </div>
 
-
                       {/* Premetro Station details card */}
                       {(() => {
                         const accessKey = directorySelectedStation.stopName.toLowerCase()
@@ -1901,23 +2080,23 @@ export default function SubteDashboard({
                         const pmDetail = PREMETRO_STATION_DETAILS[accessKey];
                         if (!pmDetail) return null;
                         return (
-                          <div className="lg:col-span-3 glass-panel rounded-2xl p-6 flex flex-col text-left animate-fade-in">
+                          <div className="lg:col-span-3 card-base p-6 flex-col animate-fade-in">
                             <h3 className="text-title-sm font-headline-md text-outline mb-4 flex items-center gap-2 font-mono">
                               <span className="material-symbols-outlined text-orange-400">info</span>
                               Detalles de Estación Premetro
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                              <div className="bg-slate-950/40 border border-slate-900 rounded-xl p-4">
-                                <span className="text-slate-500 block font-bold mb-1 font-mono uppercase tracking-widest text-[9px]">Dirección / Ubicación</span>
-                                <span className="text-slate-200 font-bold">{pmDetail.address || 'No disponible'}</span>
+                              <div className="inner-card p-4">
+                                <span className="text-outline block font-bold mb-1 font-mono uppercase tracking-widest text-[9px]">Dirección / Ubicación</span>
+                                <span className="text-on-surface font-bold">{pmDetail.address || 'No disponible'}</span>
                               </div>
-                              <div className="bg-slate-950/40 border border-slate-900 rounded-xl p-4">
-                                <span className="text-slate-500 block font-bold mb-1 font-mono uppercase tracking-widest text-[9px]">Barrio</span>
-                                <span className="text-slate-200 font-bold">{pmDetail.barrio || 'No disponible'}</span>
+                              <div className="inner-card p-4">
+                                <span className="text-outline block font-bold mb-1 font-mono uppercase tracking-widest text-[9px]">Barrio</span>
+                                <span className="text-on-surface font-bold">{pmDetail.barrio || 'No disponible'}</span>
                               </div>
-                              <div className="bg-slate-950/40 border border-slate-900 rounded-xl p-4">
-                                <span className="text-slate-500 block font-bold mb-1 font-mono uppercase tracking-widest text-[9px]">Comuna</span>
-                                <span className="text-slate-200 font-bold">{pmDetail.comuna || 'No disponible'}</span>
+                              <div className="inner-card p-4">
+                                <span className="text-outline block font-bold mb-1 font-mono uppercase tracking-widest text-[9px]">Comuna</span>
+                                <span className="text-on-surface font-bold">{pmDetail.comuna || 'No disponible'}</span>
                               </div>
                             </div>
                           </div>
@@ -1940,30 +2119,30 @@ export default function SubteDashboard({
                         }
                         if (!artworks || artworks.length === 0) return null;
                         return (
-                          <div className="lg:col-span-3 glass-panel rounded-2xl p-6 flex flex-col text-left animate-fade-in">
+                          <div className="lg:col-span-3 card-base p-6 flex-col animate-fade-in">
                             <h3 className="text-title-sm font-headline-md text-outline mb-4 flex items-center gap-2 font-mono">
-                              <span className="material-symbols-outlined text-indigo-400 font-bold">palette</span>
+                              <span className="material-symbols-outlined text-secondary font-bold">palette</span>
                               Patrimonio Artístico y Obras de Arte ({artworks.length})
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {artworks.map((art, idx) => (
-                                <div key={idx} className="bg-slate-950/40 border border-slate-900 rounded-xl p-4 flex flex-col gap-2 hover:border-slate-800 transition-colors">
+                                <div key={idx} className="inner-card p-4 flex flex-col gap-2 hover:bg-surface-container transition-colors">
                                   <div className="flex justify-between items-start gap-2">
-                                    <h4 className="font-bold text-slate-200 text-sm leading-snug">{art.nombre || 'Sin Título'}</h4>
+                                    <h4 className="font-bold text-on-surface text-sm leading-snug">{art.nombre || 'Sin Título'}</h4>
                                     {art.periodo && (
-                                      <span className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 text-[10px] font-bold font-mono shrink-0">
+                                      <span className="px-2 py-0.5 rounded bg-secondary/10 text-secondary text-[10px] font-bold font-mono shrink-0">
                                         {art.periodo}
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-xs text-indigo-400 font-bold font-mono">{art.artistas}</p>
+                                  <p className="text-xs text-secondary font-bold font-mono">{art.artistas}</p>
                                   {art.tecnica && (
-                                    <p className="text-[11px] text-slate-400 leading-normal">
-                                      <span className="text-slate-500 font-bold">Técnica:</span> {art.tecnica}
+                                    <p className="text-[11px] text-on-surface-variant leading-normal">
+                                      <span className="text-outline font-bold">Técnica:</span> {art.tecnica}
                                     </p>
                                   )}
                                   {art.observaciones && (
-                                    <p className="text-[11px] text-slate-500 italic mt-1 leading-relaxed border-l border-slate-800 pl-2">
+                                    <p className="text-[11px] text-on-surface-variant italic mt-1 leading-relaxed border-l border-outline-variant/20 pl-2">
                                       {art.observaciones}
                                     </p>
                                   )}
@@ -1984,7 +2163,7 @@ export default function SubteDashboard({
                           {!showReportForm && (
                             <button
                               onClick={() => setShowReportForm(true)}
-                              className="text-xs font-bold text-indigo-400 hover:text-indigo-300"
+                              className="text-xs font-bold text-secondary hover:text-secondary-container"
                             >
                               + Añadir Reporte
                             </button>
@@ -1994,40 +2173,40 @@ export default function SubteDashboard({
                         {!showReportForm ? (
                           <div className="space-y-3 max-h-48 overflow-y-auto">
                             {reports.filter(r => r.station === directorySelectedStation.stopName).length === 0 ? (
-                              <p className="text-xs text-slate-550 italic py-4 text-center">No hay reportes activos en esta estación.</p>
+                              <p className="text-xs text-outline italic py-4 text-center">No hay reportes activos en esta estación.</p>
                             ) : (
                               reports
                                 .filter(r => r.station === directorySelectedStation.stopName)
                                 .map(r => (
                                   <div key={r.id} className="p-3 bg-surface-container-low border border-outline-variant/10 rounded-lg text-xs text-left">
                                     <div className="flex justify-between items-center">
-                                      <span className="px-2 py-0.5 rounded text-[8px] font-bold uppercase bg-slate-950 text-indigo-400 border border-slate-900">
+                                      <span className="px-2 py-0.5 rounded text-[8px] font-bold uppercase inner-card text-secondary">
                                         {r.category}
                                       </span>
-                                      <span className="text-[9px] text-slate-500 font-mono">
+                                      <span className="text-[9px] text-outline font-mono">
                                         {new Date(r.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
                                       </span>
                                     </div>
-                                    <p className="text-slate-350 leading-relaxed mt-2">&ldquo;{r.comment}&rdquo;</p>
+                                    <p className="text-on-surface-variant leading-relaxed mt-2">&ldquo;{r.comment}&rdquo;</p>
                                   </div>
                                 ))
                             )}
                           </div>
                         ) : (
-                          <form onSubmit={(e) => handleSubmitReport(e, directorySelectedStation.stopId)} className="bg-slate-950/60 border border-outline-variant/20 p-4 rounded-xl flex flex-col gap-3">
+                          <form onSubmit={(e) => handleSubmitReport(e, directorySelectedStation.stopId)} className="inner-card p-4 flex flex-col gap-3">
                             {reportSuccess ? (
                               <div className="text-center py-4 flex flex-col items-center gap-1">
-                                <span className="h-8 w-8 rounded-full bg-emerald-500/20 text-emerald-450 flex items-center justify-center font-bold text-sm">✓</span>
-                                <p className="text-xs text-emerald-400 font-bold">Reporte enviado.</p>
+                                <span className="h-8 w-8 rounded-full bg-secondary/10 text-secondary flex items-center justify-center font-bold text-sm">✓</span>
+                                <p className="text-xs text-secondary font-bold">Reporte enviado.</p>
                               </div>
                             ) : (
                               <>
                                 <div>
-                                  <label className="text-[9px] font-bold uppercase text-slate-500 block mb-1">Categoría</label>
+                                  <label className="text-[9px] font-bold uppercase text-outline block mb-1">Categoría</label>
                                   <select
                                     value={reportCategory}
                                     onChange={(e) => setReportCategory(e.target.value)}
-                                    className="w-full bg-slate-900 border border-slate-800 text-slate-200 text-xs p-2 rounded-lg outline-none"
+                                    className="w-full bg-surface-container border border-outline-variant/20 text-on-surface text-xs p-2 rounded-lg outline-none"
                                   >
                                     <option>Congestión</option>
                                     <option>Demoras</option>
@@ -2037,7 +2216,7 @@ export default function SubteDashboard({
                                   </select>
                                 </div>
                                 <div>
-                                  <label className="text-[9px] font-bold uppercase text-slate-500 block mb-1">Detalles</label>
+                                  <label className="text-[9px] font-bold uppercase text-outline block mb-1">Detalles</label>
                                   <textarea
                                     value={reportComment}
                                     onChange={(e) => setReportComment(e.target.value)}
@@ -2045,21 +2224,21 @@ export default function SubteDashboard({
                                     maxLength={100}
                                     required
                                     rows={2}
-                                    className="w-full bg-slate-900 border border-slate-800 text-slate-200 text-xs p-2 rounded-lg outline-none resize-none"
+                                    className="w-full bg-surface-container border border-outline-variant/20 text-on-surface text-xs p-2 rounded-lg outline-none resize-none"
                                   />
                                 </div>
                                 <div className="flex gap-2 justify-end">
                                   <button
                                     type="button"
                                     onClick={() => setShowReportForm(false)}
-                                    className="text-xs text-slate-400 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800"
+                                    className="text-xs text-on-surface-variant px-3 py-1.5 rounded-lg inner-card"
                                   >
                                     Cancelar
                                   </button>
                                   <button
                                     type="submit"
                                     disabled={isSubmittingReport}
-                                    className="text-xs text-white bg-indigo-600 hover:bg-indigo-500 px-4 py-1.5 rounded-lg font-bold disabled:opacity-50"
+                                    className="text-xs text-background bg-secondary hover:bg-secondary-container hover:text-on-secondary-container px-4 py-1.5 rounded-lg font-bold disabled:opacity-50"
                                   >
                                     {isSubmittingReport ? 'Enviando...' : 'Enviar'}
                                   </button>
@@ -2072,7 +2251,7 @@ export default function SubteDashboard({
                     </div>
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-500 italic p-6">Select a station in the list to view detailed data.</p>
+                  <p className="text-body-sm text-outline italic p-6">Seleccioná una estación para ver datos detallados.</p>
                 )}
               </div>
             </div>
@@ -2082,127 +2261,185 @@ export default function SubteDashboard({
           {/* SCREEN 5: RAW ARRIVALS (DIRECT API DATA)                */}
           {/* ======================================================= */}
           {currentTab === 'arrivals' && (
-            <div className="flex-1 p-gutter md:p-margin-desktop overflow-x-hidden overflow-y-auto animate-fade-in text-left">
-              <div className="max-w-4xl mx-auto flex flex-col gap-6">
-                
-                {/* Header card */}
-                <div className="glass-panel rounded-2xl p-6 flex flex-col gap-4">
-                  <div className="flex justify-between items-center flex-wrap gap-4">
-                    <div>
-                      <h2 className="text-xl font-black text-white flex items-center gap-2">
-                        <span className="material-symbols-outlined text-secondary">schedule</span>
-                        Arribos en Vivo (GCBA RT API)
-                      </h2>
-                      <p className="text-xs text-slate-400 mt-1">
-                        Tiempos de arribo directos desde el feed oficial, ordenados por estación y sentido de circulación.
-                      </p>
-                    </div>
-                    
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-[10px] font-mono tracking-widest text-slate-400 uppercase">
+            <div className="flex-1 h-full flex flex-col overflow-hidden animate-fade-in">
+              {/* Sticky header */}
+              <div className="shrink-0 p-4 md:p-6 bg-surface-container/80 backdrop-blur-xl border-b border-outline-variant/20">
+                <div className="max-w-6xl mx-auto flex flex-col gap-4">
+                  {/* Title + badge row */}
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg md:text-xl font-black text-on-surface flex items-center gap-2">
+                      <span className="material-symbols-outlined text-secondary">schedule</span>
+                      Arribos en Vivo
+                    </h2>
+                    <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full inner-card text-[10px] font-mono text-outline">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-                      Actualización Directa
-                    </div>
+                      RAW
+                    </span>
                   </div>
 
-                  {/* Line Selector Badges */}
-                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none flex-nowrap border-t border-outline-variant/10 pt-4">
+                  {/* Line selector pills */}
+                  <div className="flex gap-2 overflow-x-auto scrollbar-none flex-nowrap">
                     {visibleLines.map(lineId => {
                       const isActive = arrivalsLineFilter === lineId;
                       const details = LINE_DETAILS[lineId];
                       return (
                         <button
-                          key={`arrivals-filter-${lineId}`}
+                          key={`arr-line-${lineId}`}
                           onClick={() => setArrivalsLineFilter(lineId)}
-                          className={`px-4 py-2 rounded-xl border border-outline-variant/30 text-xs font-bold transition-all shrink-0 flex items-center gap-2 ${
+                          className={`px-4 py-2 rounded-xl border text-xs md:text-sm font-bold transition-all shrink-0 ${
                             isActive
-                              ? 'text-white border-transparent'
-                              : 'text-outline hover:border-outline bg-surface-container-low/40'
+                              ? 'text-white border-transparent shadow-md'
+                              : 'text-outline border-outline-variant/20 hover:border-outline/40 bg-surface-container-low/30'
                           }`}
                           style={{ backgroundColor: isActive ? details.color : 'transparent' }}
                         >
-                          <span className="material-symbols-outlined text-[16px]">subway</span>
                           {details.name}
                         </button>
                       );
                     })}
                   </div>
-                </div>
 
-                {/* Stations list with direct arrivals */}
-                <div className="flex flex-col gap-4">
-                  {arrivalsStations.map(stationGroup => {
-                    const stationPredictions = (telemetry.predictions || [])
-                      .filter(p => p.routeId === arrivalsLineFilter && p.stationName === stationGroup.stopName)
+                  {/* Destination filter — shows actual terminal names, not "Ida/Vuelta" */}
+                  {arrivalsDestinations.length > 1 && (
+                    <div className="flex gap-2 overflow-x-auto scrollbar-none flex-nowrap">
+                      <button
+                        onClick={() => setArrivalsDestFilter('all')}
+                        className={`px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all shrink-0 ${
+                          arrivalsDestFilter === 'all'
+                            ? 'bg-secondary/20 text-secondary border-secondary/40'
+                            : 'text-outline border-outline-variant/20 hover:border-outline/40 bg-surface-container-low/30'
+                        }`}
+                      >
+                        Todos los sentidos
+                      </button>
+                      {arrivalsDestinations.map(dest => (
+                        <button
+                          key={`arr-dest-${dest}`}
+                          onClick={() => setArrivalsDestFilter(dest)}
+                          className={`px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all shrink-0 ${
+                            arrivalsDestFilter === dest
+                              ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                              : 'text-outline border-outline-variant/20 hover:border-outline/40 bg-surface-container-low/30'
+                          }`}
+                        >
+                          Hacia {dest}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Scrollable results */}
+              <div className="flex-1 overflow-y-auto p-4 md:p-6">
+                <div className="max-w-6xl mx-auto">
+                  {(() => {
+                    const raw = (telemetry.predictions || [])
+                      .filter(p =>
+                        p.routeId === arrivalsLineFilter &&
+                        (arrivalsDestFilter === 'all' || p.destinationName === arrivalsDestFilter)
+                      )
                       .sort((a, b) => a.etaSeconds - b.etaSeconds);
 
-                    return (
-                      <div
-                        key={`arrivals-station-${stationGroup.stopName}`}
-                        className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-secondary/20 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span
-                            className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm text-white shadow-md shrink-0"
-                            style={{ backgroundColor: LINE_DETAILS[arrivalsLineFilter]?.color || '#475569' }}
-                          >
-                            {arrivalsLineFilter.replace('Linea', '').replace('-', '')}
-                          </span>
-                          <div>
-                            <h3 className="text-base font-extrabold text-slate-100">{stationGroup.stopName}</h3>
-                            <p className="text-[10px] text-slate-500 uppercase font-mono tracking-wider">Estación</p>
-                          </div>
+                    if (raw.length === 0) {
+                      return (
+                        <div className="text-center py-20 text-sm text-outline italic">
+                          Sin datos de arribos para {LINE_DETAILS[arrivalsLineFilter]?.name}
+                          {arrivalsDestFilter !== 'all' && ` hacia ${arrivalsDestFilter}`}
                         </div>
+                      );
+                    }
 
-                        <div className="flex-1 w-full md:w-auto flex flex-col gap-2">
-                          {stationPredictions.length === 0 ? (
-                            <div className="text-right text-xs text-slate-500 italic py-1">
-                              Sin arribos programados en este momento
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full justify-items-end">
-                              {stationPredictions.map((pred, pIdx) => {
-                                const min = Math.floor(pred.etaSeconds / 60);
-                                const sec = pred.etaSeconds % 60;
-                                let timeText = '';
-                                if (pred.etaSeconds <= 15) {
-                                  timeText = 'En andén';
-                                } else if (min === 0) {
-                                  timeText = `${sec} seg`;
-                                } else {
-                                  timeText = `${min} min ${sec}s`;
-                                }
-
+                    return (
+                      <>
+                        {/* Desktop: compact data table */}
+                        <div className="hidden md:block overflow-x-auto rounded-xl border border-outline-variant/10">
+                          <table className="w-full text-xs font-mono">
+                            <thead>
+                              <tr className="bg-surface-dim/60 text-[9px] text-outline uppercase tracking-widest">
+                                <th className="text-left py-3 px-4 font-bold">Estación</th>
+                                <th className="text-left py-3 px-4 font-bold">Destino</th>
+                                <th className="text-left py-3 px-4 font-bold">Andén</th>
+                                <th className="text-right py-3 px-4 font-bold">Arribo</th>
+                                <th className="text-right py-3 px-4 font-bold">Demora</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {raw.map((p, i) => {
+                                const isArriving = p.etaSeconds <= 15;
                                 return (
-                                  <div
-                                    key={`pred-${stationGroup.stopName}-${pIdx}`}
-                                    className="flex items-center justify-between w-full max-w-sm bg-surface-container-low/60 border border-outline-variant/10 rounded-xl px-4 py-2.5"
+                                  <tr
+                                    key={`arr-d-${i}`}
+                                    className={`border-t border-outline-variant/5 hover:bg-surface-container-low/40 transition-colors ${
+                                      isArriving ? 'bg-secondary/5' : ''
+                                    }`}
                                   >
-                                    <div className="text-left mr-2">
-                                      <span className="text-[8px] font-bold text-slate-500 uppercase tracking-widest block font-mono">Sentido</span>
-                                      <span className="text-xs font-bold text-slate-200">Hacia {pred.destinationName}</span>
-                                    </div>
-                                    <div className="text-right flex flex-col items-end shrink-0">
-                                      <span className={`text-sm font-black font-mono ${pred.etaSeconds <= 15 ? 'text-emerald-400 animate-pulse' : 'text-secondary'}`}>
-                                        {timeText}
-                                      </span>
-                                      {pred.delay > 0 && (
-                                        <span className="text-[8px] text-amber-500 font-bold bg-amber-500/10 px-1 rounded border border-amber-500/20">
-                                          +{Math.round(pred.delay / 60)}m demora
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
+                                    <td className="py-3 px-4">
+                                      <span className="text-on-surface font-bold text-xs">{p.stationName}</span>
+                                    </td>
+                                    <td className="py-3 px-4 text-on-surface-variant">{(p.destinationName || '').substring(0, 24)}</td>
+                                    <td className="py-3 px-4 text-outline text-[10px]">{p.stopId}</td>
+                                    <td className={`py-3 px-4 text-right font-black ${
+                                      isArriving ? 'text-secondary animate-pulse' : 'text-secondary'
+                                    }`}>
+                                      {isArriving ? 'AHORA' : `${Math.floor(p.etaSeconds / 60)}m ${p.etaSeconds % 60}s`}
+                                    </td>
+                                    <td className={`py-3 px-4 text-right font-bold ${
+                                      p.delay > 60 ? 'text-amber-400' : 'text-outline'
+                                    }`}>
+                                      {p.delay > 0 ? `+${Math.round(p.delay / 60)}m` : '—'}
+                                    </td>
+                                  </tr>
                                 );
                               })}
-                            </div>
-                          )}
+                            </tbody>
+                          </table>
                         </div>
 
-                      </div>
-                    );
-                  })}
-                </div>
+                        {/* Mobile: compact card list */}
+                        <div className="md:hidden flex flex-col gap-2">
+                          {raw.map((p, i) => {
+                            const isArriving = p.etaSeconds <= 15;
+                            return (
+                              <div
+                                key={`arr-m-${i}`}
+                                className={`rounded-xl px-4 py-3 flex items-center justify-between border ${
+                                  isArriving
+                                    ? 'inner-card border-secondary/20'
+                                    : 'inner-card'
+                                }`}
+                              >
+                                <div className="min-w-0 mr-2">
+                                  <div className="text-sm font-extrabold text-on-surface truncate">{p.stationName}</div>
+                                  <div className="text-[10px] text-on-surface-variant truncate">
+                                    → {(p.destinationName || '').substring(0, 28)}
+                                  </div>
+                                  {p.delay > 0 && (
+                                    <span className="text-[9px] text-amber-400 font-bold">
+                                      +{Math.round(p.delay / 60)}m demora
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="shrink-0 text-right">
+                                  <span className={`text-sm font-black font-mono ${
+                                    isArriving ? 'text-secondary animate-pulse' : 'text-secondary'
+                                  }`}>
+                                    {isArriving ? 'AHORA' : `${Math.floor(p.etaSeconds / 60)}m`}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
 
+                        {/* Summary row */}
+                        <div className="mt-4 text-[10px] text-outline font-mono text-center">
+                          {raw.length} arribo{raw.length !== 1 ? 's' : ''} · Actualización cada 2s
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
               </div>
             </div>
           )}
@@ -2211,20 +2448,20 @@ export default function SubteDashboard({
           {/* SCREEN 4: SERVICE STATUS                                */}
           {/* ======================================================= */}
           {currentTab === 'status' && (
-            <div className="flex-1 p-gutter md:p-margin-desktop overflow-x-hidden overflow-y-auto animate-fade-in text-left">
+            <div className="flex-1 p-gutter md:p-margin-desktop overflow-x-hidden overflow-y-auto animate-fade-in">
               <div className="max-w-4xl mx-auto flex flex-col gap-6">
-                <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-2xl p-6 shadow-2xl flex flex-col gap-4">
-                  <h2 className="text-lg font-black text-white">Alertas del Servicio de Red</h2>
-                  <p className="text-xs text-slate-400">Alertas oficiales y advertencias activas de la red de transporte.</p>
+                <div className="card-base p-6 flex flex-col gap-4">
+                  <h2 className="text-lg font-black text-on-surface">Alertas del Servicio de Red</h2>
+                  <p className="text-body-sm text-on-surface-variant">Alertas oficiales y advertencias activas de la red de transporte.</p>
                   
-                  <hr className="border-slate-800" />
+                  <hr className="border-outline-variant/10" />
 
                   <div className="flex flex-col gap-3">
                     {globalAlerts.length === 0 ? (
-                      <div className="p-6 text-center bg-emerald-500/5 rounded-2xl border border-emerald-500/10 flex flex-col items-center gap-3">
-                        <span className="h-10 w-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm">✓</span>
-                        <h4 className="text-sm font-bold text-slate-200">Todas las Líneas Operan Normalmente</h4>
-                        <p className="text-xs text-slate-400 text-center max-w-sm leading-relaxed">No se registran demoras, interrupciones de servicio ni problemas de infraestructura en la red.</p>
+                      <div className="p-6 text-center inner-card flex flex-col items-center gap-3">
+                        <span className="h-10 w-10 rounded-full bg-secondary/10 text-secondary flex items-center justify-center font-bold text-sm">✓</span>
+                        <h4 className="text-sm font-bold text-on-surface">Todas las Líneas Operan Normalmente</h4>
+                        <p className="text-body-sm text-on-surface-variant text-center max-w-sm leading-relaxed">No se registran demoras, interrupciones de servicio ni problemas de infraestructura en la red.</p>
                       </div>
                     ) : (
                       globalAlerts.map(alert => {
@@ -2232,8 +2469,8 @@ export default function SubteDashboard({
                         const details = LINE_DETAILS[alert.routeId];
 
                         return (
-                          <div key={alert.id} className="p-4 bg-amber-500/5 border border-amber-500/15 rounded-xl flex gap-3 items-start">
-                            <span className="text-amber-500 text-lg shrink-0">⚠</span>
+                          <div key={alert.id} className="p-4 inner-card flex gap-3 items-start">
+                            <span className="text-amber-400 text-lg shrink-0">⚠</span>
                             <div>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-[9px] font-bold text-amber-400 uppercase tracking-widest font-mono">
@@ -2245,84 +2482,13 @@ export default function SubteDashboard({
                                   </span>
                                 )}
                               </div>
-                              <h4 className="font-bold text-slate-200 mt-1.5 leading-snug">{alert.headerText}</h4>
-                              <p className="text-xs text-slate-400 mt-1 leading-relaxed">{alert.descriptionText}</p>
+                              <h4 className="font-bold text-on-surface mt-1.5 leading-snug">{alert.headerText}</h4>
+                              <p className="text-body-sm text-on-surface-variant mt-1 leading-relaxed">{alert.descriptionText}</p>
                             </div>
                           </div>
                         );
                       })
                     )}
-                  </div>
-                </div>
-
-                {/* Historical Passenger Flow Stats Card */}
-                <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-2xl p-6 shadow-2xl flex flex-col gap-4">
-                  <div>
-                    <h3 className="text-lg font-black text-white flex items-center gap-2">
-                      <span className="material-symbols-outlined text-secondary">analytics</span>
-                      Historial Anual de Viajes (2013 - 2020)
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-1">
-                      Flujo total de pasajeros transportados al año por cada línea de subterráneo.
-                    </p>
-                  </div>
-                  
-                  <hr className="border-slate-850" />
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {Object.entries(ANNUAL_TRIPS_METADATA).map(([lineLetter, dataPoints]) => {
-                      const lineId = `Linea${lineLetter}`;
-                      const details = LINE_DETAILS[lineId];
-                      if (!details) return null;
-                      
-                      const latestPoint = dataPoints[dataPoints.length - 1];
-                      const maxVal = Math.max(...dataPoints.map(d => d.total));
-                      
-                      return (
-                        <div key={`annual-card-${lineLetter}`} className="bg-slate-950/45 border border-slate-900 rounded-xl p-4 flex flex-col gap-3">
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs text-white shadow-sm"
-                                style={{ backgroundColor: details.color }}
-                              >
-                                {lineLetter}
-                              </span>
-                              <span className="text-sm font-bold text-slate-200">{details.name}</span>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-[10px] text-slate-500 font-mono block font-bold">Último Reporte ({latestPoint.year})</span>
-                              <span className="text-xs font-bold text-indigo-400 font-mono">{latestPoint.total.toLocaleString('es-AR')} viajes</span>
-                            </div>
-                          </div>
-                          
-                          {/* Sparkline chart */}
-                          <div className="flex items-end justify-between h-14 pt-2 border-b border-slate-900/50">
-                            {dataPoints.map(dp => {
-                              const heightPct = Math.round((dp.total / maxVal) * 105); // slightly scale to fit height nicely
-                              return (
-                                <div key={`${lineLetter}-${dp.year}`} className="flex flex-col items-center flex-1 group relative">
-                                  <div className="absolute opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 border border-slate-800 text-[8px] px-2 py-0.5 rounded shadow-xl text-center pointer-events-none -translate-y-8 z-10 whitespace-nowrap font-mono text-slate-200">
-                                    {dp.year}: {Math.round(dp.total / 1000000)}M
-                                  </div>
-                                  <div
-                                    className="w-2 rounded-t-sm transition-colors duration-200 shadow-md cursor-pointer"
-                                    style={{ height: `${heightPct}%`, minHeight: '3px', backgroundColor: details.color + '4D' }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.backgroundColor = details.color;
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.backgroundColor = details.color + '4D';
-                                    }}
-                                  />
-                                  <span className="text-[7px] text-slate-600 font-mono mt-1">{String(dp.year).substring(2)}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
                   </div>
                 </div>
 
@@ -2334,37 +2500,37 @@ export default function SubteDashboard({
           {/* SCREEN 6: AOM & SYSTEM STATISTICS                       */}
           {/* ======================================================= */}
           {currentTab === 'aom' && (
-            <div className="flex-1 p-gutter md:p-margin-desktop overflow-x-hidden overflow-y-auto animate-fade-in text-left">
+            <div className="flex-1 p-gutter md:p-margin-desktop overflow-x-hidden overflow-y-auto animate-fade-in">
               <div className="max-w-4xl mx-auto flex flex-col gap-6">
-                
+
                 {/* AOM Summary Card */}
-                <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-2xl p-6 shadow-2xl flex flex-col gap-4">
+                <div className="card-base p-6 flex flex-col gap-4">
                   <div>
-                    <h2 className="text-xl font-black text-white flex items-center gap-2">
-                      <span className="material-symbols-outlined text-indigo-400">description</span>
+                    <h2 className="text-xl font-black text-on-surface flex items-center gap-2">
+                      <span className="material-symbols-outlined text-secondary">description</span>
                       {AOM_SUMMARY.title}
                     </h2>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-body-sm text-on-surface-variant mt-1">
                       Detalles regulatorios y contractuales de la concesión del servicio público.
                     </p>
                   </div>
-                  
-                  <hr className="border-slate-800" />
+
+                  <hr className="border-outline-variant/10" />
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                    <div className="bg-slate-950/40 p-4 border border-slate-900 rounded-xl">
-                      <span className="text-indigo-400 font-bold block mb-1 font-mono uppercase tracking-widest text-[9px]">Fecha de Suscripción</span>
-                      <span className="text-slate-200">{AOM_SUMMARY.date}</span>
+                    <div className="inner-card p-4">
+                      <span className="text-secondary font-bold block mb-1 font-mono uppercase tracking-widest text-[9px]">Fecha de Suscripción</span>
+                      <span className="text-on-surface">{AOM_SUMMARY.date}</span>
                     </div>
-                    <div className="bg-slate-950/40 p-4 border border-slate-900 rounded-xl">
-                      <span className="text-indigo-400 font-bold block mb-1 font-mono uppercase tracking-widest text-[9px]">Partes Involucradas</span>
-                      <span className="text-slate-200">{AOM_SUMMARY.parties}</span>
+                    <div className="inner-card p-4">
+                      <span className="text-secondary font-bold block mb-1 font-mono uppercase tracking-widest text-[9px]">Partes Involucradas</span>
+                      <span className="text-on-surface">{AOM_SUMMARY.parties}</span>
                     </div>
                   </div>
 
                   <div className="flex flex-col gap-3 mt-2">
-                    <h3 className="text-sm font-bold text-slate-200">Obligaciones Principales del Operador</h3>
-                    <ul className="list-disc list-inside text-xs text-slate-350 space-y-2 pl-2">
+                    <h3 className="text-sm font-bold text-on-surface">Obligaciones Principales del Operador</h3>
+                    <ul className="list-disc list-inside text-body-sm text-on-surface-variant space-y-2 pl-2">
                       {AOM_SUMMARY.key_obligations.map((ob, idx) => (
                         <li key={idx} className="leading-relaxed">{ob}</li>
                       ))}
@@ -2372,63 +2538,63 @@ export default function SubteDashboard({
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                    <div className="bg-slate-950/20 p-4 border border-slate-900 rounded-xl">
-                      <h4 className="text-xs font-bold text-indigo-300 mb-1 flex items-center gap-1">
+                    <div className="inner-card p-4">
+                      <h4 className="text-xs font-bold text-secondary mb-1 flex items-center gap-1">
                         <span className="material-symbols-outlined text-[16px]">train</span>
                         Material Rodante
                       </h4>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">{AOM_SUMMARY.material_rodante}</p>
+                      <p className="text-body-sm text-on-surface-variant leading-relaxed">{AOM_SUMMARY.material_rodante}</p>
                     </div>
-                    <div className="bg-slate-950/20 p-4 border border-slate-900 rounded-xl">
-                      <h4 className="text-xs font-bold text-indigo-300 mb-1 flex items-center gap-1">
+                    <div className="inner-card p-4">
+                      <h4 className="text-xs font-bold text-secondary mb-1 flex items-center gap-1">
                         <span className="material-symbols-outlined text-[16px]">engineering</span>
                         Infraestructura
                       </h4>
-                      <p className="text-[11px] text-slate-400 leading-relaxed">{AOM_SUMMARY.infrastructure}</p>
+                      <p className="text-body-sm text-on-surface-variant leading-relaxed">{AOM_SUMMARY.infrastructure}</p>
                     </div>
                   </div>
 
-                  <div className="bg-red-500/5 p-4 border border-red-500/10 rounded-xl">
-                    <h4 className="text-xs font-bold text-rose-400 mb-1 flex items-center gap-1">
+                  <div className="inner-card p-4 border-error/20">
+                    <h4 className="text-xs font-bold text-error mb-1 flex items-center gap-1">
                       <span className="material-symbols-outlined text-[16px]">gavel</span>
                       Régimen de Penalidades y Sanciones
                     </h4>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">{AOM_SUMMARY.penalties}</p>
+                    <p className="text-body-sm text-on-surface-variant leading-relaxed">{AOM_SUMMARY.penalties}</p>
                   </div>
 
-                  <div className="bg-slate-950/50 p-4 border border-slate-900 rounded-xl font-mono text-[10px] text-slate-400 leading-relaxed">
-                    <span className="text-slate-500 font-bold block mb-1 text-[9px] uppercase tracking-wider">Detalles de Operación (Extracto)</span>
+                  <div className="inner-card p-4 font-mono text-[10px] text-on-surface-variant leading-relaxed">
+                    <span className="text-outline font-bold block mb-1 text-[9px] uppercase tracking-wider">Detalles de Operación (Extracto)</span>
                     <p className="whitespace-pre-line">{AOM_SUMMARY.details_operation}</p>
                   </div>
                 </div>
 
                 {/* Premetro Stations List Card */}
-                <div className="bg-slate-900/60 border border-slate-800/80 backdrop-blur-md rounded-2xl p-6 shadow-2xl flex flex-col gap-4">
+                <div className="card-base p-6 flex flex-col gap-4">
                   <div>
-                    <h3 className="text-lg font-black text-white flex items-center gap-2">
+                    <h3 className="text-lg font-black text-on-surface flex items-center gap-2">
                       <span className="material-symbols-outlined text-orange-400">explore</span>
                       Catastro e Información del Premetro (NUEVADATA 2026)
                     </h3>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-body-sm text-on-surface-variant mt-1">
                       Detalle geográfico, catastral y de ubicación de las paradas activas del Premetro de Buenos Aires.
                     </p>
                   </div>
 
-                  <hr className="border-slate-800" />
+                  <hr className="border-outline-variant/10" />
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {Object.entries(PREMETRO_STATION_DETAILS).map(([normName, st]) => (
-                      <div key={normName} className="bg-slate-950/45 border border-slate-900 rounded-xl p-4 flex flex-col gap-2">
+                      <div key={normName} className="inner-card p-4 flex flex-col gap-2">
                         <div className="flex justify-between items-start">
-                          <h4 className="font-bold text-slate-200 text-sm">{st.fullName.replace('Estación de premetro ', '')}</h4>
+                          <h4 className="font-bold text-on-surface text-sm">{st.fullName.replace('Estación de premetro ', '')}</h4>
                           <span className="px-2 py-0.5 rounded bg-orange-500/10 text-orange-400 text-[9px] font-bold uppercase tracking-widest font-mono">
                             Premetro
                           </span>
                         </div>
-                        <div className="text-xs text-slate-400 space-y-1 mt-1 leading-normal">
-                          <p><span className="text-slate-500 font-bold">Dirección:</span> {st.address}</p>
-                          <p><span className="text-slate-500 font-bold">Barrio:</span> {st.barrio}</p>
-                          <p><span className="text-slate-500 font-bold">Comuna:</span> {st.comuna}</p>
+                        <div className="text-body-sm text-on-surface-variant space-y-1 mt-1 leading-normal">
+                          <p><span className="text-outline font-bold">Dirección:</span> {st.address}</p>
+                          <p><span className="text-outline font-bold">Barrio:</span> {st.barrio}</p>
+                          <p><span className="text-outline font-bold">Comuna:</span> {st.comuna}</p>
                         </div>
                       </div>
                     ))}
@@ -2442,56 +2608,30 @@ export default function SubteDashboard({
         </div>
       </div>
 
-      {/* Mobile Bottom Navigation Bar (Mobile Only) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-surface-container/95 backdrop-blur-xl border-t border-outline-variant/20 z-50 flex justify-around items-center px-2">
-        <button
-          onClick={() => setCurrentTab('map')}
-          className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
-            currentTab === 'map' ? 'text-secondary' : 'text-outline hover:text-on-surface'
-          }`}
-        >
-          <span className="material-symbols-outlined text-xl">map</span>
-          <span className="text-[10px] font-bold mt-1">Mapa</span>
-        </button>
-        <button
-          onClick={() => setCurrentTab('planner')}
-          className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
-            currentTab === 'planner' ? 'text-secondary' : 'text-outline hover:text-on-surface'
-          }`}
-        >
-          <span className="material-symbols-outlined text-xl">route</span>
-          <span className="text-[10px] font-bold mt-1">Planificador</span>
-        </button>
-        <button
-          onClick={() => {
-            setCurrentTab('stations');
-            setShowMobileList(true);
-          }}
-          className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
-            currentTab === 'stations' ? 'text-secondary' : 'text-outline hover:text-on-surface'
-          }`}
-        >
-          <span className="material-symbols-outlined text-xl">subway</span>
-          <span className="text-[10px] font-bold mt-1">Estaciones</span>
-        </button>
-        <button
-          onClick={() => setCurrentTab('arrivals')}
-          className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
-            currentTab === 'arrivals' ? 'text-secondary' : 'text-outline hover:text-on-surface'
-          }`}
-        >
-          <span className="material-symbols-outlined text-xl">schedule</span>
-          <span className="text-[10px] font-bold mt-1">Arribos</span>
-        </button>
-        <button
-          onClick={() => setCurrentTab('status')}
-          className={`flex flex-col items-center justify-center flex-1 py-1 transition-colors ${
-            currentTab === 'status' ? 'text-secondary' : 'text-outline hover:text-on-surface'
-          }`}
-        >
-          <span className="material-symbols-outlined text-xl">warning</span>
-          <span className="text-[10px] font-bold mt-1">Alertas</span>
-        </button>
+      {/* Mobile Bottom Navigation Bar (Mobile Only) — 6 tabs covering all screens */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-14 bg-surface-container/95 backdrop-blur-xl border-t border-outline-variant/20 z-50 flex justify-around items-center px-1 safe-area-bottom">
+        {[
+          { id: 'map' as const, icon: 'map', label: 'Mapa' },
+          { id: 'planner' as const, icon: 'route', label: 'Ruta' },
+          { id: 'stations' as const, icon: 'subway', label: 'Estac.' },
+          { id: 'arrivals' as const, icon: 'schedule', label: 'Arribos' },
+          { id: 'status' as const, icon: 'warning', label: 'Alertas' },
+          { id: 'aom' as const, icon: 'description', label: 'Datos' },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => {
+              setCurrentTab(tab.id);
+              if (tab.id === 'stations') setShowMobileList(true);
+            }}
+            className={`flex flex-col items-center justify-center flex-1 py-0.5 transition-colors min-w-0 ${
+              currentTab === tab.id ? 'text-secondary' : 'text-outline hover:text-on-surface'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[20px]">{tab.icon}</span>
+            <span className="text-[9px] font-bold mt-0.5 leading-tight">{tab.label}</span>
+          </button>
+        ))}
       </nav>
 
       {/* Footer - Positioned relative to layout columns to avoid overlaps */}

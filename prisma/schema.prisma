@@ -4,7 +4,8 @@ datasource db {
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 model Station {
@@ -25,17 +26,6 @@ model RouteSequence {
 
   @@unique([routeId, directionId, stopSequence])
   @@unique([routeId, directionId, stopId])
-}
-
-model HistoricalFlow {
-  id              String @id @default(uuid())
-  line            String
-  station         String
-  hour            Int
-  congestionLevel String // Verde, Amarillo, Rojo
-  passengerFlow   Int
-
-  @@unique([line, station, hour], name: "line_station_hour")
 }
 
 model Report {

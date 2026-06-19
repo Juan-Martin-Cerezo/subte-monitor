@@ -1,9 +1,12 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaNeonHTTP } from '@prisma/adapter-neon';
+import 'dotenv/config';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const prisma = new PrismaClient();
+const adapter = new PrismaNeonHTTP(process.env.DATABASE_URL!, {});
+const prisma = new PrismaClient({ adapter });
 
 function parseCSV(content: string): Record<string, string>[] {
   if (content.startsWith('\uFEFF')) {
@@ -174,8 +177,11 @@ async function main() {
 
   // Insert Route Sequences
   console.log('Seeding Route Sequences...');
-  // Delete existing sequences to prevent unique constraint conflicts on reload
-  await prisma.routeSequence.deleteMany({});
+  // Delete existing sequences individually (HTTP mode)
+  const existingSeqs = await prisma.routeSequence.findMany({ select: { id: true } });
+  for (const s of existingSeqs) {
+    await prisma.routeSequence.delete({ where: { id: s.id } }).catch(() => {});
+  }
 
   for (const cs of canonicalSequences) {
     for (const s of cs.stops) {
@@ -190,88 +196,6 @@ async function main() {
     }
   }
 
-  // Seed Historical Flow Data
-  console.log('Seeding Historical Flow...');
-  await prisma.historicalFlow.deleteMany({});
-
-  const stations = await prisma.station.findMany();
-
-  // Helper to estimate if a station is a major transit hub
-  const hubNames = [
-    'retiro', 'constitucion', 'catedral', 'diagonal norte', 'carlos pellegrini',
-    'plaza de mayo', 'peru', 'once', 'corrientes', 'pueyrredon', 'independencia',
-    'congreso de tucuman', 'san pedrito', 'juan manuel de rosas', 'federico lacroze',
-    'bolivar', 'humberto 1', 'jujuy'
-  ];
-
-  const isHub = (name: string) => {
-    const lower = name.toLowerCase();
-    return hubNames.some(hn => lower.includes(hn));
-  };
-
-  const getLineFromStopId = (stopId: string) => {
-    // Determine the line based on the canonical sequences
-    // (Defaulting based on ID prefixes if we want, or just general categories)
-    if (stopId.startsWith('10') || stopId.startsWith('A')) return 'LineaA';
-    if (stopId.startsWith('20') || stopId.startsWith('B')) return 'LineaB';
-    if (stopId.startsWith('30') || stopId.startsWith('C')) return 'LineaC';
-    if (stopId.startsWith('40') || stopId.startsWith('D')) return 'LineaD';
-    if (stopId.startsWith('50') || stopId.startsWith('E')) return 'LineaE';
-    if (stopId.startsWith('60') || stopId.startsWith('H')) return 'LineaH';
-    return 'LineaA';
-  };
-
-  const flowRecords: { line: string; station: string; hour: number; congestionLevel: string; passengerFlow: number }[] = [];
-
-  for (const station of stations) {
-    const line = getLineFromStopId(station.stopId);
-    const isStationHub = isHub(station.stopName);
-
-    for (let hour = 5; hour <= 23; hour++) {
-      let congestionLevel = 'Verde';
-      let flowMultiplier = 1.0;
-
-      // Determine peak periods
-      if ((hour >= 8 && hour < 9) || (hour >= 18 && hour < 19)) {
-        congestionLevel = 'Rojo';
-        flowMultiplier = 5.0;
-      } else if (
-        (hour >= 7 && hour < 8) ||
-        (hour >= 9 && hour < 10) ||
-        (hour >= 12 && hour < 14) ||
-        (hour >= 17 && hour < 18) ||
-        (hour >= 19 && hour < 20)
-      ) {
-        congestionLevel = 'Amarillo';
-        flowMultiplier = 2.5;
-      } else {
-        congestionLevel = 'Verde';
-        flowMultiplier = 0.8;
-      }
-
-      // Base passengers flow per hour
-      const baseFlow = isStationHub ? 800 : 200;
-      // Add some randomness but keep it structured
-      const randomFactor = 0.8 + Math.random() * 0.4;
-      const passengerFlow = Math.round(baseFlow * flowMultiplier * randomFactor);
-
-      flowRecords.push({
-        line,
-        station: station.stopName,
-        hour,
-        congestionLevel,
-        passengerFlow,
-      });
-    }
-  }
-
-  // Insert HistoricalFlow in bulk using createMany
-  await prisma.historicalFlow.createMany({
-    data: flowRecords,
-    skipDuplicates: true,
-  });
-
-  console.log(`Seeded ${flowRecords.length} historical flow records.`);
   console.log('GTFS Seeding completed successfully!');
 }
 
