@@ -140,8 +140,11 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
         }).addTo(tracksGroupRef.current!);
       });
 
-      // Always render ALL lines — map never hides tracks/trains per line
-      ALL_LINE_IDS.forEach((lineId: LineId) => {
+      // Render only selected line's track
+      const drawLineIds: LineId[] = activeLine === 'All'
+        ? ALL_LINE_IDS
+        : ([activeLine] as LineId[]);
+      drawLineIds.forEach((lineId: LineId) => {
         const points = LINE_SHAPES[lineId];
         if (points && points.length > 1) {
           L.polyline(points, {
@@ -154,9 +157,12 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
         }
       });
 
-      // Stations of the active line
-      // Always show ALL stations on map
-      const activeStations = stations;
+      // Stations of the selected line only (or all if 'All')
+      const activeStations = activeLine === 'All'
+        ? stations
+        : stations.filter(s =>
+            sequences.some(seq => seq.stopId === s.stopId && seq.routeId === activeLine)
+          );
 
       // Group by name to show one marker per name, with line badges
       const byName = new Map<string, Station[]>();
@@ -211,7 +217,10 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
         }
       }
 
-      telemetry.trains.forEach(train => {
+      const filteredTrains = activeLine === 'All'
+        ? telemetry.trains
+        : telemetry.trains.filter(t => t.routeId === activeLine);
+      filteredTrains.forEach(train => {
         const color = LINE_META[train.routeId as LineId]?.color || '#82cfff';
         const isSelected = selectedTrain?.id === train.id;
         const isPinned = pinnedTrainId === train.id;
