@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import type { Map as LeafletMap, Marker, Polyline, LayerGroup, DivIcon } from 'leaflet';
+// Leaflet JS is safe to statically import here — the entire component is
+// loaded via next/dynamic({ssr:false}) which excludes it from SSR.
+import L from 'leaflet';
 import { LINE_META, type LineId } from '../lines';
 import { classNames, formatEta, lineShort } from '../utils';
 import { Icon } from '../Icon';
@@ -49,7 +52,6 @@ function trainSvgIcon(color: string, size = 26): string {
 export function MapScreen({ stations, sequences, telemetry, activeLine, setActiveLine, visibleLines, trainsByLine }: Props) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<LeafletMap | null>(null);
-  const mapReadyRef = useRef(false);
   const mapUserMovedRef = useRef(false);
   const isProgrammaticMoveRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
@@ -71,88 +73,66 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
   }, [activeLine]);
 
   // ----- Init map -----
-  // Holds Leaflet's `L` after first import so other effects don't re-import.
-  const LRef = useRef<any>(null);
-  const initTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   useEffect(() => {
-    if (!mapContainerRef.current) return;
+    // Ensure Leaflet CSS is loaded (for Vercel production, @import in globals.css may not resolve)
+    if (!document.getElementById('leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
     if (mapInstanceRef.current) return;
     const container = mapContainerRef.current;
+    if (!container) return;
     if ((container as unknown as { _leaflet_id?: number })._leaflet_id) return;
 
-    let isMounted = true;
+    const map = L.map(container, {
+      center: [-34.6037, -58.3816],
+      zoom: 13,
+      zoomControl: false,
+      attributionControl: true,
+      preferCanvas: true,
+    });
+    mapInstanceRef.current = map;
 
-    // Safety timeout — if leaflet takes >12s, show error
-    initTimeoutRef.current = setTimeout(() => {
-      if (isMounted && !mapInstanceRef.current) {
-        setMapError(true);
-        console.error('[MapScreen] Init timed out — leaflet failed to load');
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      attribution: '© OSM · © CARTO',
+      subdomains: 'abcd',
+    }).addTo(map);
+
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
+    const handleUserInteraction = () => {
+      if (isProgrammaticMoveRef.current) return;
+      if (!mapUserMovedRef.current) {
+        mapUserMovedRef.current = true;
+        setMapUserMoved(true);
       }
-    }, 12000);
+    };
+    map.on('dragend zoomend movestart', handleUserInteraction);
+    map.on('zoomstart movestart', () => container.classList.add('map-zooming'));
+    map.on('zoomend moveend', () => container.classList.remove('map-zooming'));
 
-    import('leaflet').then(L => {
-      if (!isMounted) return;
-      if (mapInstanceRef.current) return;
-      clearTimeout(initTimeoutRef.current!);
-      setMapError(false);
-      LRef.current = L;
-      if ((container as unknown as { _leaflet_id?: number })._leaflet_id) return;
+    stationsGroupRef.current = L.layerGroup().addTo(map);
+    tracksGroupRef.current = L.layerGroup().addTo(map);
+    trainsGroupRef.current = L.layerGroup().addTo(map);
 
-      const map = L.map(container, {
-        center: [-34.6037, -58.3816],
-        zoom: 13,
-        zoomControl: false,
-        attributionControl: true,
-        preferCanvas: true,
-      });
-      mapInstanceRef.current = map;
-
-      // Carto dark tiles — they pair perfectly with the dark theme.
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19,
-        attribution: '© OSM · © CARTO',
-        subdomains: 'abcd',
-      }).addTo(map);
-
-      L.control.zoom({ position: 'topright' }).addTo(map);
-
-      const handleUserInteraction = () => {
-        if (isProgrammaticMoveRef.current) return;
-        if (!mapUserMovedRef.current) {
-          mapUserMovedRef.current = true;
-          setMapUserMoved(true);
-        }
-      };
-      map.on('dragend zoomend movestart', handleUserInteraction);
-      map.on('zoomstart movestart', () => container.classList.add('map-zooming'));
-      map.on('zoomend moveend', () => container.classList.remove('map-zooming'));
-
-      stationsGroupRef.current = L.layerGroup().addTo(map);
-      tracksGroupRef.current = L.layerGroup().addTo(map);
-      trainsGroupRef.current = L.layerGroup().addTo(map);
-
-      setMapReady(true);
-
-      // Fit bounds on first ready
-      map.whenReady(() => {
-        const latlngs: [number, number][] = stations.map(s => [s.latitude, s.longitude]);
-        if (latlngs.length) {
-          isProgrammaticMoveRef.current = true;
-          map.fitBounds(L.latLngBounds(latlngs), { padding: [40, 40], animate: false });
-          setTimeout(() => { isProgrammaticMoveRef.current = false; }, 600);
-        }
-      });
-    }).catch(err => {
-      if (isMounted) {
-        console.error('[MapScreen] Leaflet init error:', err);
-        setMapError(true);
+    // Fit bounds on first ready
+    map.whenReady(() => {
+      const latlngs: [number, number][] = stations.map(s => [s.latitude, s.longitude]);
+      if (latlngs.length) {
+        isProgrammaticMoveRef.current = true;
+        map.fitBounds(L.latLngBounds(latlngs), { padding: [40, 40], animate: false });
+        setTimeout(() => { isProgrammaticMoveRef.current = false; }, 600);
       }
     });
 
+    setMapReady(true);
+
     return () => {
-      isMounted = false;
-      if (initTimeoutRef.current) clearTimeout(initTimeoutRef.current);
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -164,9 +144,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
   // ----- Draw lines + stations -----
   useEffect(() => {
     const map = mapInstanceRef.current;
-    const L = LRef.current;
-    if (!map || !tracksGroupRef.current || !stationsGroupRef.current || !L) return;
-    let isMounted = true;
+    if (!map || !tracksGroupRef.current || !stationsGroupRef.current) return;
     function draw() {
       tracksGroupRef.current!.clearLayers();
       stationsGroupRef.current!.clearLayers();
@@ -237,18 +215,13 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
       });
     }
     draw();
-
-    return () => { isMounted = false; };
   }, [activeLine, activeLines, sequences, stations, selectedStation?.stopId]);
 
   // ----- Draw trains -----
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !trainsGroupRef.current) return;
-    let isMounted = true;
-    import('leaflet').then(L => {
-      if (!isMounted) return;
-      const activeTrainIds = new Set(telemetry.trains.map(t => t.id));
+    const activeTrainIds = new Set(telemetry.trains.map(t => t.id));
 
       // Remove gone
       for (const [id, marker] of trainMarkersRef.current.entries()) {
@@ -327,8 +300,6 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
           trainMarkersRef.current.set(train.id, marker);
         }
       });
-    });
-    return () => { isMounted = false; };
   }, [telemetry.trains, selectedTrain?.id, pinnedTrainId, stations]);
 
   // Track pinned train
@@ -345,13 +316,14 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
 
   // Invalidate size on tab swap (CLAUDE.md mandate)
   useEffect(() => {
+    if (!mapReady) return;
     const t = setTimeout(() => {
       if (mapInstanceRef.current) {
         mapInstanceRef.current.invalidateSize({ animate: false });
       }
     }, 120);
     return () => clearTimeout(t);
-  }, []);
+  }, [mapReady]);
 
   const handleResetMap = useCallback(() => {
     if (!mapInstanceRef.current) return;
@@ -359,7 +331,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
     setMapUserMoved(false);
     const latlngs: [number, number][] = stations.map(s => [s.latitude, s.longitude]);
     isProgrammaticMoveRef.current = true;
-    mapInstanceRef.current.fitBounds((window as any).L.latLngBounds(latlngs), {
+    mapInstanceRef.current.fitBounds(L.latLngBounds(latlngs), {
       padding: [40, 40],
       animate: true,
     });
@@ -458,20 +430,25 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
             </div>
             <p className="text-body-sm text-outline/60">Telemetría en vivo de la red Subte</p>
           </div>
-        ) : visibleTrains.length === 0 ? (
-          <div className="absolute inset-0 z-0 flex flex-col items-center justify-center gap-3 text-center p-8">
-            <Icon.Train size={36} className="text-outline" />
-            <div>
-              <p className="text-title-md font-bold text-on-surface-variant">Sin formaciones activas</p>
-              <p className="text-body-sm text-outline mt-1">
-                {activeLine === 'All'
-                  ? 'No hay trenes en circulación en este momento.'
-                  : `No hay trenes activos en ${LINE_META[activeLine]?.name ?? activeLine}.`}
-              </p>
-            </div>
-          </div>
         ) : (
-          <div ref={mapContainerRef} className="absolute inset-0 z-0" />
+          <>
+            {/* Map container — ALWAYS rendered once mapReady, even if 0 trains */}
+            <div ref={mapContainerRef} className="absolute inset-0 z-0" />
+            {/* Empty state overlay when no active trains */}
+            {visibleTrains.length === 0 && (
+              <div className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-3 text-center p-8 pointer-events-none">
+                <Icon.Train size={36} className="text-outline" />
+                <div>
+                  <p className="text-title-md font-bold text-on-surface-variant">Sin formaciones activas</p>
+                  <p className="text-body-sm text-outline mt-1">
+                    {activeLine === 'All'
+                      ? 'No hay trenes en circulación en este momento.'
+                      : `No hay trenes activos en ${LINE_META[activeLine]?.name ?? activeLine}.`}
+                  </p>
+                </div>
+              </div>
+            )}
+          </>
         )}
         <div className="map-vignette" />
 
