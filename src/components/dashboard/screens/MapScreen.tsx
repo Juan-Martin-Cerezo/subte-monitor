@@ -207,7 +207,10 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !trainsGroupRef.current) return;
-    const activeTrainIds = new Set(telemetry.trains.map(t => t.id));
+    const filteredTrains = activeLine === 'All'
+      ? telemetry.trains
+      : telemetry.trains.filter(t => t.routeId === activeLine);
+    const activeTrainIds = new Set(filteredTrains.map(t => t.id));
 
       // Remove gone
       for (const [id, marker] of trainMarkersRef.current.entries()) {
@@ -217,9 +220,6 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
         }
       }
 
-      const filteredTrains = activeLine === 'All'
-        ? telemetry.trains
-        : telemetry.trains.filter(t => t.routeId === activeLine);
       filteredTrains.forEach(train => {
         const color = LINE_META[train.routeId as LineId]?.color || '#82cfff';
         const isSelected = selectedTrain?.id === train.id;
@@ -289,7 +289,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
           trainMarkersRef.current.set(train.id, marker);
         }
       });
-  }, [telemetry.trains, selectedTrain?.id, pinnedTrainId, stations]);
+  }, [activeLine, telemetry.trains, selectedTrain?.id, pinnedTrainId, stations]);
 
   // Track pinned train
   useEffect(() => {
