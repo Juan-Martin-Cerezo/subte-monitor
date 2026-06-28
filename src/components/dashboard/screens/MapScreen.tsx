@@ -20,21 +20,29 @@ interface Props {
   trainsByLine: Record<string, TrainTelemetry[]>;
 }
 
-function trainSvgIcon(color: string, size = 22): string {
-  const s = size;
-  const w = Math.round(s * 0.85);
-  const h = s;
-  const bodyColor = color;
-  const windowColor = 'rgba(255,255,255,0.65)';
+function trainSvgIcon(color: string, size = 26): string {
+  const w = size;
+  const h = size;
+  const body = color;
+  const light = 'rgba(255,255,255,0.7)';
+  const dark = 'rgba(0,0,0,0.25)';
+  // Nose is a sharp wedge (top), body with 3 windows, bumper at rear (bottom)
   return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
-    <rect x="2" y="${Math.round(h * 0.35)}" width="${w - 4}" height="${Math.round(h * 0.6)}" rx="3" fill="${bodyColor}" />
-    <path d="M${Math.round(w * 0.25)} ${Math.round(h * 0.48)} L${Math.round(w * 0.25)} ${Math.round(h * 0.72)}" stroke="${windowColor}" stroke-width="2" stroke-linecap="round" />
-    <path d="M${Math.round(w * 0.5)} ${Math.round(h * 0.48)} L${Math.round(w * 0.5)} ${Math.round(h * 0.72)}" stroke="${windowColor}" stroke-width="2" stroke-linecap="round" />
-    <path d="M${Math.round(w * 0.75)} ${Math.round(h * 0.48)} L${Math.round(w * 0.75)} ${Math.round(h * 0.72)}" stroke="${windowColor}" stroke-width="2" stroke-linecap="round" />
-    <rect x="${Math.round(w * 0.08)}" y="${Math.round(h * 0.82)}" width="${Math.round(w * 0.22)}" height="${Math.round(h * 0.1)}" rx="1" fill="${windowColor}" opacity="0.4" />
-    <rect x="${Math.round(w * 0.7)}" y="${Math.round(h * 0.82)}" width="${Math.round(w * 0.22)}" height="${Math.round(h * 0.1)}" rx="1" fill="${windowColor}" opacity="0.4" />
-    <path d="M${Math.round(w * 0.42)} 0 L${Math.round(w * 0.58)} 0 L${Math.round(w * 0.75)} ${Math.round(h * 0.25)} L${Math.round(w * 0.25)} ${Math.round(h * 0.25)} Z" fill="${bodyColor}" />
-    <circle cx="${Math.round(w * 0.5)}" cy="${Math.round(h * 0.14)}" r="${Math.round(s * 0.07)}" fill="#fff" opacity="0.9" />
+    <!-- body -->
+    <rect x="3" y="${Math.round(h * 0.3)}" width="${w - 6}" height="${Math.round(h * 0.55)}" rx="3" fill="${body}" />
+    <!-- 3 windows -->
+    <rect x="${Math.round(w * 0.2)}" y="${Math.round(h * 0.38)}" width="${Math.round(w * 0.16)}" height="${Math.round(h * 0.28)}" rx="1.5" fill="${light}" />
+    <rect x="${Math.round(w * 0.42)}" y="${Math.round(h * 0.38)}" width="${Math.round(w * 0.16)}" height="${Math.round(h * 0.28)}" rx="1.5" fill="${light}" />
+    <rect x="${Math.round(w * 0.64)}" y="${Math.round(h * 0.38)}" width="${Math.round(w * 0.16)}" height="${Math.round(h * 0.28)}" rx="1.5" fill="${light}" />
+    <!-- headlight -->
+    <circle cx="${Math.round(w * 0.32)}" cy="${Math.round(h * 0.16)}" r="1.5" fill="${light}" />
+    <circle cx="${Math.round(w * 0.68)}" cy="${Math.round(h * 0.16)}" r="1.5" fill="${light}" />
+    <!-- sharp nose pointing forward (top) -->
+    <path d="M${Math.round(w * 0.38)} ${Math.round(h * 0.3)} L${Math.round(w * 0.5)} ${Math.round(h * 0.08)} L${Math.round(w * 0.62)} ${Math.round(h * 0.3)} Z" fill="${body}" />
+    <!-- bumper at rear (bottom) -->
+    <rect x="${Math.round(w * 0.25)}" y="${Math.round(h * 0.85)}" width="${Math.round(w * 0.5)}" height="${Math.round(h * 0.08)}" rx="1.5" fill="${dark}" />
+    <!-- rear dot -->
+    <circle cx="${Math.round(w * 0.5)}" cy="${Math.round(h * 0.92)}" r="1.5" fill="${dark}" />
   </svg>`;
 }
 
@@ -250,14 +258,15 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
         const glow = isSelected ? `box-shadow:0 0 0 4px ${color}55;` : '';
 
         const isStopped = train.status === 'STOPPED';
-        const opacity = isStopped ? 0.7 : 1;
+        const opacity = isStopped ? 0.75 : 1;
+        const trainW = isStopped ? 20 : 26;
         const html = `
           <div style="position:relative;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;transform:rotate(${heading}deg);opacity:${opacity};transition:opacity 300ms;">
             ${ring}
             <div style="position:relative;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 0 4px rgba(0,0,0,0.7)) ${isSelected ? `drop-shadow(0 0 8px ${color}88)` : ''};">
-              ${trainSvgIcon(color)}
+              ${trainSvgIcon(color, trainW)}
             </div>
-            ${isStopped ? `<span style="position:absolute;top:-2px;right:-2px;width:10px;height:10px;background:#00f0ff;border-radius:50%;box-shadow:0 0 0 2px #131313, 0 0 10px #00f0ff;animation:pulse 1.4s ease-in-out infinite;"></span>` : ''}
+            ${isStopped ? `<span style="position:absolute;bottom:-1px;left:50%;margin-left:-5px;width:10px;height:10px;background:#00f0ff;border-radius:50%;box-shadow:0 0 0 2px #131313, 0 0 10px #00f0ff;animation:pulse 1.4s ease-in-out infinite;"></span>` : ''}
           </div>
         `;
         const icon: DivIcon = L.divIcon({
@@ -491,9 +500,12 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
                   {selectedTrain.id} <span className="text-on-surface-variant text-body-md">·</span> {LINE_META[selectedTrain.routeId as LineId]?.name}
                 </h3>
                 <p className="text-body-sm text-on-surface-variant mt-1">
-                  <span className="inline-flex items-center gap-1">
-                    <Icon.Arrow size={12} className="text-outline" style={{ transform: selectedTrain.directionId === 1 ? 'rotate(180deg)' : '' }} />
-                    {selectedTrain.directionId === 0 ? 'Hacia' : 'Desde'} <strong className="text-on-background">{selectedTrain.nextStopName}</strong>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span style={{ color: LINE_META[selectedTrain.routeId as LineId]?.color }} className="text-[13px] font-bold">
+                      {selectedTrain.directionId === 0 ? '▶' : '◀'}
+                    </span>
+                    <strong className="text-on-background">{selectedTrain.nextStopName}</strong>
+                    {selectedTrain.status !== 'STOPPED' && <span className="text-outline">· llegada {formatEta(selectedTrain.etaSeconds)}</span>}
                   </span>
                 </p>
                 <div className="mt-2 flex items-center gap-3 text-body-sm">
