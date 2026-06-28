@@ -311,10 +311,14 @@ export async function getTelemetryData() {
     // Fetch fresh
     let rawAlerts: GCBAAlertsResponse | null = null;
     try {
+      const ac = new AbortController();
+      const to = setTimeout(() => ac.abort(), 4000);
+      const fo = { cache: 'no-store' as const, signal: ac.signal };
       const [forecastRes, alertsRes] = await Promise.all([
-        fetch(forecastUrl, { cache: 'no-store' }).then(res => res.ok ? res.json() : null),
-        fetch(alertsUrl, { cache: 'no-store' }).then(res => res.ok ? res.json() : null)
+        fetch(forecastUrl, fo).then(res => res.ok ? res.json() : null),
+        fetch(alertsUrl, fo).then(res => res.ok ? res.json() : null)
       ]);
+      clearTimeout(to);
       rawForecast = forecastRes as GCBAForecastResponse | null;
       rawAlerts = alertsRes as GCBAAlertsResponse | null;
     } catch (error) {

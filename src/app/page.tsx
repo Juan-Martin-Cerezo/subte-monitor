@@ -1,4 +1,3 @@
-import { getTelemetryData } from '@/lib/telemetry';
 import ClientDashboard from '@/components/ClientDashboard';
 
 // Force dynamic rendering — we serve live telemetry.
@@ -12,11 +11,5 @@ export const metadata = {
 };
 
 export default async function Home() {
-  // Warm the telemetry cache on the server so the first client poll is instant.
-  try {
-    await getTelemetryData();
-  } catch {
-    // Non-fatal: client will retry on first poll.
-  }
   return <ClientDashboard />;
 }

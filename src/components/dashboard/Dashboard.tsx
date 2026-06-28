@@ -1,16 +1,21 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import type { TabId } from './types';
 import { useDashboardData } from './useDashboardData';
 import { Header } from './layout/Header';
 import { Sidebar } from './layout/Sidebar';
 import { MobileBottomNav } from './layout/MobileBottomNav';
-import { MapScreen } from './screens/MapScreen';
 import { PlannerScreen } from './screens/PlannerScreen';
 import { StationsScreen } from './screens/StationsScreen';
 import { StatusScreen } from './screens/StatusScreen';
 import { ArrivalsScreen } from './screens/ArrivalsScreen';
+
+const MapScreen = dynamic(() => import('./screens/MapScreen').then(m => ({ default: m.MapScreen })), {
+  ssr: false,
+  loading: () => <div className="flex-1 flex items-center justify-center bg-background"><div className="skeleton-pulse w-11/12 h-5/6 rounded-2xl" /></div>,
+});
 
 export default function Dashboard() {
   const [tab, setTab] = useState<TabId>('map');
