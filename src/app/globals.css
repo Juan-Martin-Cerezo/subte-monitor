@@ -350,7 +350,12 @@ body {
 .animate-train-blink { animation: trainBlink 1.4s ease-in-out infinite; }
 
 /* Skeleton shimmer */
-.skeleton {
+.skeleton-pulse {
+  background: linear-gradient(90deg, var(--color-surface-container-high) 25%, var(--color-surface-container-highest) 50%, var(--color-surface-container-high) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }.skeleton {
   background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 100%);
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
