@@ -71,6 +71,10 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
   }, [activeLine]);
 
   // ----- Init map -----
+  // Holds Leaflet's `L` after first import so other effects don't re-import.
+  const LRef = useRef<any>(null);
+  const initTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (!mapContainerRef.current) return;
     if (mapInstanceRef.current) return;
@@ -79,10 +83,20 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
 
     let isMounted = true;
 
+    // Safety timeout — if leaflet takes >12s, show error
+    initTimeoutRef.current = setTimeout(() => {
+      if (isMounted && !mapInstanceRef.current) {
+        setMapError(true);
+        console.error('[MapScreen] Init timed out — leaflet failed to load');
+      }
+    }, 12000);
+
     import('leaflet').then(L => {
       if (!isMounted) return;
       if (mapInstanceRef.current) return;
+      clearTimeout(initTimeoutRef.current!);
       setMapError(false);
+      LRef.current = L;
       if ((container as unknown as { _leaflet_id?: number })._leaflet_id) return;
 
       const map = L.map(container, {
@@ -138,6 +152,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
 
     return () => {
       isMounted = false;
+      if (initTimeoutRef.current) clearTimeout(initTimeoutRef.current);
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -149,10 +164,10 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
   // ----- Draw lines + stations -----
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map || !tracksGroupRef.current || !stationsGroupRef.current) return;
+    const L = LRef.current;
+    if (!map || !tracksGroupRef.current || !stationsGroupRef.current || !L) return;
     let isMounted = true;
-    import('leaflet').then(L => {
-      if (!isMounted) return;
+    function draw() {
       tracksGroupRef.current!.clearLayers();
       stationsGroupRef.current!.clearLayers();
 
@@ -220,7 +235,9 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
         });
         marker.addTo(stationsGroupRef.current!);
       });
-    });
+    }
+    draw();
+
     return () => { isMounted = false; };
   }, [activeLine, activeLines, sequences, stations, selectedStation?.stopId]);
 
