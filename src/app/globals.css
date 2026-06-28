@@ -367,6 +367,24 @@ body {
 .safe-area-top { padding-top: env(safe-area-inset-top); }
 
 /* Reduced motion */
+/* Map skeleton placeholder — subtle grid with dark surface */
+.map-skeleton-placeholder {
+  background-color: #0e0e0e;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+@keyframes shimmerBar {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(200%); }
+  100% { transform: translateX(400%); }
+}
+.animate-shimmer-bar {
+  animation: shimmerBar 1.8s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

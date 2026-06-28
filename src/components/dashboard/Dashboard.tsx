@@ -7,6 +7,7 @@ import { useDashboardData } from './useDashboardData';
 import { Header } from './layout/Header';
 import { Sidebar } from './layout/Sidebar';
 import { MobileBottomNav } from './layout/MobileBottomNav';
+import { ErrorBoundary } from './ErrorBoundary';
 import { PlannerScreen } from './screens/PlannerScreen';
 import { StationsScreen } from './screens/StationsScreen';
 import { StatusScreen } from './screens/StatusScreen';
@@ -82,15 +83,17 @@ export default function Dashboard() {
 
           <div className={tab !== 'map' ? 'max-w-6xl mx-auto w-full' : 'h-full'}>
             {tab === 'map' && (
-              <MapScreen
-                stations={stations}
-                sequences={sequences}
-                telemetry={telemetry}
-                activeLine={activeLine}
-                setActiveLine={setActiveLine}
-                visibleLines={visibleLines}
-                trainsByLine={trainsByLine}
-              />
+              <ErrorBoundary>
+                <MapScreen
+                  stations={stations}
+                  sequences={sequences}
+                  telemetry={telemetry}
+                  activeLine={activeLine}
+                  setActiveLine={setActiveLine}
+                  visibleLines={visibleLines}
+                  trainsByLine={trainsByLine}
+                />
+              </ErrorBoundary>
             )}
             {tab === 'planner' && (
               <PlannerScreen stations={stations} sequences={sequences} predictions={telemetry.predictions} />

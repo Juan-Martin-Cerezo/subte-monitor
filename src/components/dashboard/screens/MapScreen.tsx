@@ -53,6 +53,8 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
   const mapUserMovedRef = useRef(false);
   const isProgrammaticMoveRef = useRef(false);
   const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [mapUserMoved, setMapUserMoved] = useState(false);
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
   const [selectedTrain, setSelectedTrain] = useState<TrainTelemetry | null>(null);
@@ -80,6 +82,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
     import('leaflet').then(L => {
       if (!isMounted) return;
       if (mapInstanceRef.current) return;
+      setMapError(false);
       if ((container as unknown as { _leaflet_id?: number })._leaflet_id) return;
 
       const map = L.map(container, {
@@ -126,6 +129,11 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
           setTimeout(() => { isProgrammaticMoveRef.current = false; }, 600);
         }
       });
+    }).catch(err => {
+      if (isMounted) {
+        console.error('[MapScreen] Leaflet init error:', err);
+        setMapError(true);
+      }
     });
 
     return () => {
@@ -136,7 +144,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [retryCount]);
 
   // ----- Draw lines + stations -----
   useEffect(() => {
@@ -390,10 +398,48 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
 
       {/* Map */}
       <div className="relative flex-1 min-h-[280px]">
-        {!mapReady ? (
-          <div className="absolute inset-0 z-0 flex flex-col gap-3 p-4">
-            <div className="skeleton-pulse h-8 w-40 rounded-lg" />
-            <div className="skeleton-pulse flex-1 rounded-2xl" />
+        {mapError ? (
+          <div className="absolute inset-0 z-0 flex flex-col items-center justify-center gap-4 bg-surface-container-lowest p-6">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-error-container/20">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-error">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <p className="text-title-sm text-on-surface mb-1">Error al cargar el mapa</p>
+              <p className="text-body-sm text-outline mb-4 max-w-xs">
+                No se pudo inicializar Leaflet. Verifica tu conexión o intenta recargar.
+              </p>
+              <button
+                onClick={() => { setMapError(false); setRetryCount(c => c + 1); }}
+                className="btn-primary text-sm"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="1 4 1 10 7 10" />
+                  <path d="M3.51 15a9 9 0 102.13-9.36L1 10" />
+                </svg>
+                Reintentar
+              </button>
+            </div>
+          </div>
+        ) : !mapReady ? (
+          <div className="absolute inset-0 z-0 flex flex-col items-center justify-center gap-4 map-skeleton-placeholder">
+            {/* Subtle grid background handled by CSS class */}
+            <div className="flex items-center gap-2">
+              <svg className="animate-spin-slow opacity-30" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M2 12h4" /><path d="M18 12h4" /><path d="M12 2v4" /><path d="M12 18v4" />
+                <path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" />
+                <path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
+              </svg>
+              <span className="text-label-caps text-outline tracking-widest">CARGANDO MAPA</span>
+            </div>
+            <div className="w-48 h-[2px] rounded-full bg-surface-container-highest overflow-hidden">
+              <div className="h-full w-1/3 rounded-full bg-primary/40 animate-shimmer-bar" />
+            </div>
+            <p className="text-body-sm text-outline/60">Telemetría en vivo de la red Subte</p>
           </div>
         ) : visibleTrains.length === 0 ? (
           <div className="absolute inset-0 z-0 flex flex-col items-center justify-center gap-3 text-center p-8">
