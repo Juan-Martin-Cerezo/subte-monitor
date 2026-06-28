@@ -338,14 +338,17 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
 
   return (
     <div className="flex h-full flex-col">
-      {/* Map header — line filter chips, scrollable on mobile */}
-      <div className="px-3 md:px-5 py-3 border-b border-outline-variant/10 bg-surface-container-lowest/60 backdrop-blur-md">
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none -mx-1 px-1">
+      {/* Map header — line filter chips, scrollable, touch-friendly */}
+      <div className="px-2 md:px-5 py-2 md:py-3 border-b border-outline-variant/10 bg-surface-container-lowest/80 backdrop-blur-2xl">
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none -mx-1 px-1">
           <button
             onClick={() => setActiveLine('All')}
             className={classNames(
-              'pill-chip shrink-0',
-              activeLine === 'All' && 'pill-chip-active'
+              'shrink-0 flex items-center gap-1.5 px-3 py-2 md:py-1.5 rounded-full text-[11px] md:text-body-sm font-semibold transition-all active:scale-90',
+              'border',
+              activeLine === 'All'
+                ? 'bg-primary-container text-on-primary-container border-primary-container shadow-[0_0_0_1px_var(--color-primary-container)]'
+                : 'bg-surface-container/80 text-on-surface-variant border-outline-variant/20'
             )}
           >
             <Icon.Eye size={14} />
@@ -353,21 +356,28 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
           </button>
           {Object.values(LINE_META).map(line => {
             const count = trainsByLine[line.id]?.length ?? 0;
+            const isActive = activeLine === line.id;
             return (
               <button
                 key={line.id}
                 onClick={() => setActiveLine(line.id)}
                 className={classNames(
-                  'pill-chip shrink-0',
-                  activeLine === line.id && 'pill-chip-active'
+                  'shrink-0 flex items-center gap-1.5 px-3 py-2 md:py-1.5 rounded-full text-[11px] md:text-body-sm font-semibold transition-all active:scale-90',
+                  'border',
+                  isActive
+                    ? 'text-white border-transparent shadow-sm'
+                    : 'bg-surface-container/80 text-on-surface-variant border-outline-variant/20'
                 )}
-                style={activeLine === line.id ? { background: line.color, color: '#fff', borderColor: line.color } : {}}
+                style={isActive ? { background: line.color } : {}}
               >
-                <span className="line-badge" style={{ background: line.color, width: 18, height: 18, fontSize: 9 }}>
+                <span
+                  className="flex items-center justify-center rounded-full text-[9px] font-black text-white shrink-0"
+                  style={{ background: line.color, width: 18, height: 18 }}
+                >
                   {lineShort(line.id)}
                 </span>
                 {line.short}
-                <span className="text-[9px] font-mono opacity-80">{count}</span>
+                <span className="text-[9px] font-mono opacity-70">{count}</span>
               </button>
             );
           })}
@@ -406,29 +416,35 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
             </div>
           </div>
         ) : !mapReady || telemetry.trains.length === 0 ? (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 map-skeleton-placeholder">
-              <div className="flex items-center gap-2">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 md:gap-4 map-skeleton-placeholder px-6">
+              <div className="flex flex-col items-center gap-3 text-center">
                 {mapReady ? (
-                  <svg className="animate-spin-slow opacity-40" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 6v6l4 2" />
-                  </svg>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface-container/60 ring-1 ring-outline-variant/10">
+                    <svg className="animate-spin-slow text-primary/60" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M12 6v6l4 2" />
+                    </svg>
+                  </div>
                 ) : (
-                  <svg className="animate-spin-slow opacity-30" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M2 12h4" /><path d="M18 12h4" /><path d="M12 2v4" /><path d="M12 18v4" />
-                    <path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" />
-                    <path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
-                  </svg>
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-container/60 ring-1 ring-outline-variant/10">
+                    <svg className="animate-spin-slow text-primary/50" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M2 12h4" /><path d="M18 12h4" /><path d="M12 2v4" /><path d="M12 18v4" />
+                      <path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" />
+                      <path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
+                    </svg>
+                  </div>
                 )}
-                <span className="text-label-caps text-outline tracking-widest">{mapReady ? 'CARGANDO FORMACIONES' : 'CARGANDO MAPA'}</span>
+                <div>
+                  <p className="text-title-sm md:text-title-md text-on-surface mb-0.5">{mapReady ? 'Cargando formaciones' : 'Cargando mapa'}</p>
+                  <p className="text-body-sm text-outline/60 max-w-[200px] mx-auto">{mapReady ? 'Esperando datos de los trenes en vivo' : 'Conectando con la red de Subte'}</p>
+                </div>
               </div>
               {!mapReady && (
-                <div className="w-48 h-[2px] rounded-full bg-surface-container-highest overflow-hidden">
-                  <div className="h-full w-1/3 rounded-full bg-primary/40 animate-shimmer-bar" />
+                <div className="w-40 md:w-48 h-[3px] rounded-full bg-surface-container-highest overflow-hidden">
+                  <div className="h-full w-1/3 rounded-full bg-primary/50 animate-shimmer-bar" />
                 </div>
               )}
-              <p className="text-body-sm text-outline/60">{mapReady ? 'Esperando datos de telemetría' : 'Telemetría en vivo de la red Subte'}</p>
             </div>
         ) : null}
         <div className="map-vignette" />

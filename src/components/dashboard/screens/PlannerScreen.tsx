@@ -210,7 +210,7 @@ export function PlannerScreen({ stations, sequences, predictions }: Props) {
                 id="planner-origin"
                 value={origin}
                 onChange={e => setOrigin(e.target.value)}
-                className="w-full appearance-none bg-surface-container-low border border-outline-variant/15 rounded-md pl-10 pr-9 py-2.5 text-body-md text-on-background focus-ring focus:border-primary-container"
+                className="w-full appearance-none bg-surface-container-low border border-outline-variant/15 rounded-md pl-10 pr-9 py-3 md:py-2.5 text-body-md text-on-background focus-ring focus:border-primary-container"
               >
                 <option value="">Elegí una estación</option>
                 {stationNames.map(n => <option key={`o-${n}`} value={n}>{n}</option>)}
@@ -239,7 +239,7 @@ export function PlannerScreen({ stations, sequences, predictions }: Props) {
                 id="planner-dest"
                 value={destination}
                 onChange={e => setDestination(e.target.value)}
-                className="w-full appearance-none bg-surface-container-low border border-outline-variant/15 rounded-md pl-10 pr-9 py-2.5 text-body-md text-on-background focus-ring focus:border-primary-container"
+                className="w-full appearance-none bg-surface-container-low border border-outline-variant/15 rounded-md pl-10 pr-9 py-3 md:py-2.5 text-body-md text-on-background focus-ring focus:border-primary-container"
               >
                 <option value="">Elegí una estación</option>
                 {stationNames.map(n => <option key={`d-${n}`} value={n}>{n}</option>)}

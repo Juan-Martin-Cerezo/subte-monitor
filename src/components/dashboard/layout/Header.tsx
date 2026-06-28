@@ -2,7 +2,9 @@
 
 import type { TabId } from '../types';
 import { Icon, type IconName } from '../Icon';
-import { classNames } from '../utils';
+import { LINE_META } from '../lines';
+import { classNames, lineShort } from '../utils';
+import type { TrainTelemetry } from '@/lib/telemetry';
 
 interface HeaderProps {
   tab: TabId;
@@ -11,6 +13,8 @@ interface HeaderProps {
   isRefreshing: boolean;
   onRefresh: () => void;
   lastUpdate?: number;
+  activeLine?: string;
+  trainsByLine?: Record<string, TrainTelemetry[]>;
 }
 
 const NAV: { id: TabId; label: string; icon: IconName }[] = [
@@ -21,7 +25,7 @@ const NAV: { id: TabId; label: string; icon: IconName }[] = [
   { id: 'status', label: 'Estado', icon: 'Alert' },
 ];
 
-export function Header({ tab, onTabChange, onMenuToggle, isRefreshing, onRefresh }: HeaderProps) {
+export function Header({ tab, onTabChange, onMenuToggle, isRefreshing, onRefresh, activeLine, trainsByLine }: HeaderProps) {
   return (
     <>
       {/* Desktop header — full nav */}
@@ -84,34 +88,53 @@ export function Header({ tab, onTabChange, onMenuToggle, isRefreshing, onRefresh
         </div>
       </header>
 
-      {/* Mobile header — compact, hamburger + live indicator */}
-      <header className="md:hidden flex h-12 shrink-0 items-center justify-between border-b border-outline-variant/10 bg-surface-container-lowest/90 px-3 backdrop-blur-xl z-30 safe-area-top">
-        <div className="flex items-center gap-2">
+      {/* Mobile header — compact, hamburger + line context + live indicator */}
+      <header className="md:hidden flex h-12 shrink-0 items-center justify-between border-b border-outline-variant/10 bg-surface-container-lowest/95 px-2 backdrop-blur-2xl z-30 thumb-safe-top">
+        <div className="flex items-center gap-1">
           <button
             onClick={onMenuToggle}
             aria-label="Menú"
-            className="icon-btn focus-ring !w-9 !h-9"
+            className="touch-target !w-10 !h-10 active:scale-90 transition-transform"
           >
             <Icon.Menu size={20} />
           </button>
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary-container/15 ring-1 ring-primary-container/40">
-            <Icon.Subway size={16} className="text-primary" />
-          </div>
-          <div className="flex flex-col leading-none">
-            <span className="text-sm font-bold tracking-tight text-on-background">SUBTE</span>
-            <span className="text-[8px] font-mono tracking-widest text-outline">LIVE · BA</span>
-          </div>
+          {activeLine && activeLine !== 'All' ? (
+            <div className="flex items-center gap-1.5">
+              <span
+                className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-black text-white shrink-0"
+                style={{ background: LINE_META[activeLine as keyof typeof LINE_META]?.color || '#82cfff' }}
+              >
+                {lineShort(activeLine as keyof typeof LINE_META)}
+              </span>
+              <span className="text-xs font-bold tracking-tight text-on-background leading-none">{LINE_META[activeLine as keyof typeof LINE_META]?.short || activeLine}</span>
+              {trainsByLine && (
+                <span className="text-[9px] font-mono text-outline ml-0.5">
+                  {trainsByLine[activeLine]?.length ?? 0}
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary-container/15 ring-1 ring-primary-container/40">
+                <Icon.Subway size={14} className="text-primary" />
+              </div>
+              <div className="flex flex-col leading-none">
+                <span className="text-sm font-bold tracking-tight text-on-background">SUBTE</span>
+                <span className="text-[8px] font-mono tracking-widest text-outline">LIVE · BA</span>
+              </div>
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-1">
-          <span className="flex items-center gap-1.5 rounded-md bg-surface-container px-2 py-1 text-[9px] font-mono text-on-surface-variant">
-            <span className="live-dot" />
+        <div className="flex items-center gap-0.5">
+          <span className="flex items-center gap-1 rounded-md bg-surface-container px-1.5 py-1 text-[8px] font-mono text-on-surface-variant">
+            <span className="live-dot !h-1.5 !w-1.5" />
             EN VIVO
           </span>
           <button
             onClick={onRefresh}
             disabled={isRefreshing}
             aria-label="Actualizar"
-            className="icon-btn !w-9 !h-9 focus-ring"
+            className="touch-target !w-10 !h-10 active:scale-90 transition-transform"
           >
             <Icon.Refresh size={18} className={isRefreshing ? 'animate-spin' : ''} />
           </button>

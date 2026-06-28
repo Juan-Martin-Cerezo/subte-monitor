@@ -81,7 +81,12 @@ export function ArrivalsScreen({ stations, predictions, trainsByLine }: Props) {
           <div className="flex gap-1.5 flex-wrap">
             <button
               onClick={() => setLineFilter('All')}
-              className={classNames('pill-chip', lineFilter === 'All' && 'pill-chip-active')}
+              className={classNames(
+                'flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all active:scale-90 border touch-target',
+                lineFilter === 'All'
+                  ? 'bg-primary-container text-on-primary-container border-primary-container'
+                  : 'bg-surface-container/80 text-on-surface-variant border-outline-variant/20'
+              )}
             >
               Todas
             </button>
@@ -89,10 +94,13 @@ export function ArrivalsScreen({ stations, predictions, trainsByLine }: Props) {
               <button
                 key={l.id}
                 onClick={() => setLineFilter(l.id)}
-                className={classNames('pill-chip', lineFilter === l.id && 'pill-chip-active')}
-                style={lineFilter === l.id ? { background: l.color, color: '#fff', borderColor: l.color } : {}}
+                className={classNames(
+                  'flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all active:scale-90 border',
+                  lineFilter === l.id ? 'text-white border-transparent' : 'bg-surface-container/80 text-on-surface-variant border-outline-variant/20'
+                )}
+                style={lineFilter === l.id ? { background: l.color } : {}}
               >
-                <span className="line-badge" style={{ background: l.color, width: 16, height: 16, fontSize: 9 }}>
+                <span className="flex items-center justify-center rounded-full text-[9px] font-black text-white shrink-0" style={{ background: l.color, width: 18, height: 18 }}>
                   {lineShort(l.id)}
                 </span>
                 {l.short}
@@ -153,7 +161,7 @@ export function ArrivalsScreen({ stations, predictions, trainsByLine }: Props) {
                       <li
                         key={`a-${routeId}-${i}`}
                         className={classNames(
-                          'inner-card p-2.5 flex items-center gap-2',
+                          'inner-card p-3 md:p-2.5 flex items-center gap-2 touch-target',
                           isNow && 'border-primary-container/40'
                         )}
                       >

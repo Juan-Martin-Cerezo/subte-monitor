@@ -51,6 +51,8 @@ export default function Dashboard() {
         isRefreshing={isRefreshing}
         onRefresh={fetchTelemetry}
         lastUpdate={now}
+        activeLine={activeLine}
+        trainsByLine={trainsByLine}
       />
 
       {/* Main area: sidebar + content */}

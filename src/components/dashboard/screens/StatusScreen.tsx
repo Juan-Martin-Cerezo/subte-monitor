@@ -146,7 +146,7 @@ function ReportForm({ stations }: { stations: Station[] }) {
               type="button"
               onClick={() => setCategory(c)}
               className={classNames(
-                'px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors',
+                'px-3 py-2 md:py-1.5 rounded-lg text-[11px] font-medium transition-colors active:scale-95 touch-target',
                 category === c
                   ? 'bg-primary text-on-primary'
                   : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'

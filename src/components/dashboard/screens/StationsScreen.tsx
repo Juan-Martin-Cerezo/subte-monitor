@@ -73,7 +73,12 @@ export function StationsScreen({ stations, sequences, predictions }: Props) {
           <div className="flex gap-1.5 overflow-x-auto scrollbar-none -mx-1 px-1">
             <button
               onClick={() => setLineFilter('All')}
-              className={classNames('pill-chip shrink-0', lineFilter === 'All' && 'pill-chip-active')}
+              className={classNames(
+                'shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all active:scale-90 border',
+                lineFilter === 'All'
+                  ? 'bg-primary-container text-on-primary-container border-primary-container'
+                  : 'bg-surface-container/80 text-on-surface-variant border-outline-variant/20'
+              )}
             >
               Todas
             </button>
@@ -81,10 +86,13 @@ export function StationsScreen({ stations, sequences, predictions }: Props) {
               <button
                 key={l.id}
                 onClick={() => setLineFilter(l.id)}
-                className={classNames('pill-chip shrink-0', lineFilter === l.id && 'pill-chip-active')}
-                style={lineFilter === l.id ? { background: l.color, color: '#fff', borderColor: l.color } : {}}
+                className={classNames(
+                  'shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all active:scale-90 border',
+                  lineFilter === l.id ? 'text-white border-transparent' : 'bg-surface-container/80 text-on-surface-variant border-outline-variant/20'
+                )}
+                style={lineFilter === l.id ? { background: l.color } : {}}
               >
-                <span className="line-badge" style={{ background: l.color, width: 16, height: 16, fontSize: 9 }}>
+                <span className="flex items-center justify-center rounded-full text-[9px] font-black text-white shrink-0" style={{ background: l.color, width: 18, height: 18 }}>
                   {lineShort(l.id)}
                 </span>
                 {l.short}
@@ -105,7 +113,7 @@ export function StationsScreen({ stations, sequences, predictions }: Props) {
                 <button
                   onClick={() => { setSelectedId(s.stopId); setShowDetailMobile(true); }}
                   className={classNames(
-                    'w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-md transition focus-ring',
+                    'w-full text-left flex items-center gap-3 px-3 py-3 md:py-2.5 rounded-md transition focus-ring touch-target',
                     isSel ? 'bg-surface-container-high ring-1 ring-primary-container/30' : 'hover:bg-surface-container'
                   )}
                 >
@@ -202,10 +210,10 @@ function StationDetail({
       <div className="flex items-start gap-3">
         <button
           onClick={onBack}
-          className="md:hidden icon-btn focus-ring"
+          className="md:hidden flex items-center justify-center !w-10 !h-10 active:scale-90 transition-transform focus-ring"
           aria-label="Volver"
         >
-          <Icon.Arrow size={18} className="rotate-180" />
+          <Icon.Arrow size={20} className="rotate-180" />
         </button>
         <div className="flex-1">
           <p className="text-label-caps text-outline tracking-widest">Estación</p>
