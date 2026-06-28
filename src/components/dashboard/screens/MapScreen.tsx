@@ -5,7 +5,7 @@ import type { Map as LeafletMap, Marker, Polyline, LayerGroup, DivIcon } from 'l
 // Leaflet JS is safe to statically import here — the entire component is
 // loaded via next/dynamic({ssr:false}) which excludes it from SSR.
 import L from 'leaflet';
-import { LINE_META, type LineId } from '../lines';
+import { LINE_META, ALL_LINE_IDS, type LineId } from '../lines';
 import { classNames, formatEta, lineShort } from '../utils';
 import { Icon } from '../Icon';
 import type { Station, RouteSequence } from '../types';
@@ -31,7 +31,7 @@ function arrowSvgIcon(color: string, directionId: number, size = 28): string {
   </svg>`;
 }
 
-export function MapScreen({ stations, sequences, telemetry, activeLine, setActiveLine, visibleLines, trainsByLine }: Props) {
+export function MapScreen({ stations, sequences, telemetry, activeLine, setActiveLine, trainsByLine }: Props) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<LeafletMap | null>(null);
   const mapUserMovedRef = useRef(false);
@@ -47,12 +47,6 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
   const stationsGroupRef = useRef<LayerGroup | null>(null);
   const tracksGroupRef = useRef<LayerGroup | null>(null);
   const trainsGroupRef = useRef<LayerGroup | null>(null);
-
-  // Active lines for the map — always ALL rendered but emphasized by activeLine.
-  const activeLines = useMemo(() => {
-    if (activeLine === 'All') return Object.keys(LINE_META);
-    return [activeLine];
-  }, [activeLine]);
 
   // ----- Init map -----
   useEffect(() => {
@@ -146,8 +140,8 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
         }).addTo(tracksGroupRef.current!);
       });
 
-      // Render active lines
-      activeLines.forEach(lineId => {
+      // Always render ALL lines — map never hides tracks/trains per line
+      ALL_LINE_IDS.forEach((lineId: LineId) => {
         const points = LINE_SHAPES[lineId];
         if (points && points.length > 1) {
           L.polyline(points, {
@@ -161,9 +155,8 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
       });
 
       // Stations of the active line
-      const activeSeqs = sequences.filter(s => activeLines.includes(s.routeId));
-      const activeStopIds = new Set(activeSeqs.map(s => s.stopId));
-      const activeStations = stations.filter(s => activeStopIds.has(s.stopId));
+      // Always show ALL stations on map
+      const activeStations = stations;
 
       // Group by name to show one marker per name, with line badges
       const byName = new Map<string, Station[]>();
@@ -325,7 +318,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
     setTimeout(() => { isProgrammaticMoveRef.current = false; }, 500);
   }, [stations]);
 
-  const visibleTrains = telemetry.trains.filter(t => activeLines.includes(t.routeId));
+  const visibleTrains = telemetry.trains;
   const upcomingForStation = useMemo(() => {
     if (!selectedStation) return [];
     return telemetry.trains
@@ -403,40 +396,32 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
               </button>
             </div>
           </div>
-        ) : !mapReady ? (
+        ) : !mapReady || telemetry.trains.length === 0 ? (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 map-skeleton-placeholder">
-              {/* Subtle grid background handled by CSS class */}
               <div className="flex items-center gap-2">
-                <svg className="animate-spin-slow opacity-30" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M2 12h4" /><path d="M18 12h4" /><path d="M12 2v4" /><path d="M12 18v4" />
-                  <path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" />
-                  <path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
-                </svg>
-                <span className="text-label-caps text-outline tracking-widest">CARGANDO MAPA</span>
+                {mapReady ? (
+                  <svg className="animate-spin-slow opacity-40" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 6v6l4 2" />
+                  </svg>
+                ) : (
+                  <svg className="animate-spin-slow opacity-30" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M2 12h4" /><path d="M18 12h4" /><path d="M12 2v4" /><path d="M12 18v4" />
+                    <path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" />
+                    <path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
+                  </svg>
+                )}
+                <span className="text-label-caps text-outline tracking-widest">{mapReady ? 'CARGANDO FORMACIONES' : 'CARGANDO MAPA'}</span>
               </div>
-              <div className="w-48 h-[2px] rounded-full bg-surface-container-highest overflow-hidden">
-                <div className="h-full w-1/3 rounded-full bg-primary/40 animate-shimmer-bar" />
-              </div>
-              <p className="text-body-sm text-outline/60">Telemetría en vivo de la red Subte</p>
-            </div>
-        ) : (
-          <>
-            {visibleTrains.length === 0 && (
-              <div className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-3 text-center p-8 pointer-events-none">
-                <Icon.Train size={36} className="text-outline" />
-                <div>
-                  <p className="text-title-md font-bold text-on-surface-variant">Sin formaciones activas</p>
-                  <p className="text-body-sm text-outline mt-1">
-                    {activeLine === 'All'
-                      ? 'No hay trenes en circulación en este momento.'
-                      : `No hay trenes activos en ${LINE_META[activeLine]?.name ?? activeLine}.`}
-                  </p>
+              {!mapReady && (
+                <div className="w-48 h-[2px] rounded-full bg-surface-container-highest overflow-hidden">
+                  <div className="h-full w-1/3 rounded-full bg-primary/40 animate-shimmer-bar" />
                 </div>
-              </div>
-            )}
-          </>
-        )}
+              )}
+              <p className="text-body-sm text-outline/60">{mapReady ? 'Esperando datos de telemetría' : 'Telemetría en vivo de la red Subte'}</p>
+            </div>
+        ) : null}
         <div className="map-vignette" />
 
         {/* Recenter button — appears when user has moved the map */}
