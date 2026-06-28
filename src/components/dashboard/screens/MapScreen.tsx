@@ -392,8 +392,11 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
 
       {/* Map */}
       <div className="relative flex-1 min-h-[280px]">
+        {/* Container div — ALWAYS mounted, never unmounts. Leaflet attaches here. */}
+        <div ref={mapContainerRef} className="absolute inset-0 z-0" />
+
         {mapError ? (
-          <div className="absolute inset-0 z-0 flex flex-col items-center justify-center gap-4 bg-surface-container-lowest p-6">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-surface-container-lowest p-6">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-error-container/20">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-error">
                 <circle cx="12" cy="12" r="10" />
@@ -419,10 +422,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
             </div>
           </div>
         ) : !mapReady ? (
-          <div className="absolute inset-0 z-0">
-            {/* Render container div hidden behind skeleton so mapContainerRef attaches */}
-            <div ref={mapContainerRef} className="absolute inset-0 z-0 opacity-0 pointer-events-none" />
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 map-skeleton-placeholder">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 map-skeleton-placeholder">
               {/* Subtle grid background handled by CSS class */}
               <div className="flex items-center gap-2">
                 <svg className="animate-spin-slow opacity-30" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -438,12 +438,8 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
               </div>
               <p className="text-body-sm text-outline/60">Telemetría en vivo de la red Subte</p>
             </div>
-          </div>
         ) : (
           <>
-            {/* Map container — ALWAYS rendered once mapReady, even if 0 trains */}
-            <div ref={mapContainerRef} className="absolute inset-0 z-0" />
-            {/* Empty state overlay when no active trains */}
             {visibleTrains.length === 0 && (
               <div className="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-3 text-center p-8 pointer-events-none">
                 <Icon.Train size={36} className="text-outline" />
