@@ -91,6 +91,16 @@ export interface RawArrival {
   delay: number;
 }
 
+export interface Prediction {
+  routeId: string;
+  directionId: number;
+  stopId: string;
+  stationName: string;
+  destinationName: string;
+  etaSeconds: number;
+  delay: number;
+}
+
 // Haversine formula to compute distance between coordinates in meters
 function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000; // Earth radius in meters
