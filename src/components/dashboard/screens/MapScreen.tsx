@@ -195,7 +195,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
       });
     }
     draw();
-  }, [activeLine, activeLines, sequences, stations, selectedStation?.stopId]);
+  }, [activeLine, sequences, stations, selectedStation?.stopId]);
 
   // ----- Draw trains -----
   useEffect(() => {
