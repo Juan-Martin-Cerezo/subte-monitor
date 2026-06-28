@@ -1,0 +1,8 @@
+.codegraph/
+.git/
+.gitignore
+*.md
+docs/
+scratch/
+NUEVADATA/
+prompt.md
