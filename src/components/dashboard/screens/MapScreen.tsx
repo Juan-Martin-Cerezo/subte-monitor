@@ -88,6 +88,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
     if (!container) return;
     if ((container as unknown as { _leaflet_id?: number })._leaflet_id) return;
 
+    try {
     const map = L.map(container, {
       center: [-34.6037, -58.3816],
       zoom: 13,
@@ -131,6 +132,10 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
     });
 
     setMapReady(true);
+    } catch (err) {
+      console.error('[MapScreen] Map init threw:', err);
+      setMapError(true);
+    }
 
     return () => {
       if (mapInstanceRef.current) {
@@ -414,21 +419,25 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
             </div>
           </div>
         ) : !mapReady ? (
-          <div className="absolute inset-0 z-0 flex flex-col items-center justify-center gap-4 map-skeleton-placeholder">
-            {/* Subtle grid background handled by CSS class */}
-            <div className="flex items-center gap-2">
-              <svg className="animate-spin-slow opacity-30" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M2 12h4" /><path d="M18 12h4" /><path d="M12 2v4" /><path d="M12 18v4" />
-                <path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" />
-                <path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
-              </svg>
-              <span className="text-label-caps text-outline tracking-widest">CARGANDO MAPA</span>
+          <div className="absolute inset-0 z-0">
+            {/* Render container div hidden behind skeleton so mapContainerRef attaches */}
+            <div ref={mapContainerRef} className="absolute inset-0 z-0 opacity-0 pointer-events-none" />
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 map-skeleton-placeholder">
+              {/* Subtle grid background handled by CSS class */}
+              <div className="flex items-center gap-2">
+                <svg className="animate-spin-slow opacity-30" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M2 12h4" /><path d="M18 12h4" /><path d="M12 2v4" /><path d="M12 18v4" />
+                  <path d="M4.93 4.93l2.83 2.83" /><path d="M16.24 16.24l2.83 2.83" />
+                  <path d="M4.93 19.07l2.83-2.83" /><path d="M16.24 7.76l2.83-2.83" />
+                </svg>
+                <span className="text-label-caps text-outline tracking-widest">CARGANDO MAPA</span>
+              </div>
+              <div className="w-48 h-[2px] rounded-full bg-surface-container-highest overflow-hidden">
+                <div className="h-full w-1/3 rounded-full bg-primary/40 animate-shimmer-bar" />
+              </div>
+              <p className="text-body-sm text-outline/60">Telemetría en vivo de la red Subte</p>
             </div>
-            <div className="w-48 h-[2px] rounded-full bg-surface-container-highest overflow-hidden">
-              <div className="h-full w-1/3 rounded-full bg-primary/40 animate-shimmer-bar" />
-            </div>
-            <p className="text-body-sm text-outline/60">Telemetría en vivo de la red Subte</p>
           </div>
         ) : (
           <>
