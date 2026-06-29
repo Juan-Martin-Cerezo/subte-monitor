@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { AlertData, TrainTelemetry } from '@/lib/telemetry';
 import { LINE_META, type LineId } from '../lines';
-import type { Station } from '../types';
+import type { Station, ReportItem } from '../types';
 import { Icon } from '../Icon';
 import { classNames, lineShort } from '../utils';
 
@@ -197,6 +197,22 @@ export function StatusScreen({ alerts, trainsByLine, stations }: Props) {
   const totalTrains = Object.values(trainsByLine).reduce((s, t) => s + t.length, 0);
   const lineIds = Object.keys(LINE_META) as LineId[];
 
+  // User-submitted reports — fetch every 60s, expire after 2h
+  const [userReports, setUserReports] = useState<ReportItem[]>([]);
+  const TWO_HOURS = 2 * 60 * 60 * 1000;
+  const fetchReports = useCallback(async () => {
+    try {
+      const res = await fetch('/api/reports');
+      if (!res.ok) return;
+      const data: ReportItem[] = await res.json();
+      const now = Date.now();
+      setUserReports(data.filter(r => now - new Date(r.createdAt).getTime() < TWO_HOURS));
+    } catch { /* silent — polls keep retrying */ }
+  }, []);
+  useEffect(() => { fetchReports(); const id = setInterval(fetchReports, 60_000); return () => clearInterval(id); }, [fetchReports]);
+
+  const totalAlerts = alerts.length + userReports.length;
+
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6 max-w-6xl mx-auto w-full">
       <header>
@@ -218,10 +234,10 @@ export function StatusScreen({ alerts, trainsByLine, stations }: Props) {
             'text-data-lg font-bold mt-1',
             alerts.length === 0 ? 'text-primary' : 'text-error'
           )}>
-            {alerts.length}
+            {totalAlerts}
           </p>
           <p className="text-[10px] text-on-surface-variant mt-0.5">
-            {alerts.length === 0 ? 'sin alertas activas' : 'incidencias reportadas'}
+            {totalAlerts === 0 ? 'sin alertas activas' : 'incidencias reportadas'}
           </p>
         </div>
         <div className="bento-card p-4 col-span-2 sm:col-span-1 lg:col-span-1">
@@ -246,7 +262,7 @@ export function StatusScreen({ alerts, trainsByLine, stations }: Props) {
           {lineIds.map(lineId => {
             const line = LINE_META[lineId];
             const trains = trainsByLine[lineId] ?? [];
-            const hasAlert = alerts.some(a => a.routeId === lineId);
+            const hasAlert = alerts.some(a => a.routeId === lineId) || userReports.some(r => r.line === lineId);
             return (
               <article
                 key={lineId}
@@ -279,7 +295,7 @@ export function StatusScreen({ alerts, trainsByLine, stations }: Props) {
       {/* Alerts list */}
       <section>
         <h2 className="text-title-md font-bold text-on-background mb-3">Alertas de servicio</h2>
-        {alerts.length === 0 ? (
+        {totalAlerts === 0 ? (
           <div className="bento-card p-8 text-center">
             <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary-container/15 mb-3">
               <Icon.Check size={24} className="text-primary" />
@@ -288,8 +304,10 @@ export function StatusScreen({ alerts, trainsByLine, stations }: Props) {
             <p className="text-body-sm text-on-surface-variant mt-1">No hay alertas activas en este momento.</p>
           </div>
         ) : (
-          <ul className="flex flex-col gap-2">
-            {alerts.map(alert => {
+          <div className="flex flex-col gap-3">
+            {alerts.length > 0 && (
+              <ul className="flex flex-col gap-2">
+                {alerts.map(alert => {
               const severity = EFFECT_SEVERITY[alert.effect] ?? 'info';
               const line = alert.routeId && alert.routeId in LINE_META ? LINE_META[alert.routeId as LineId] : null;
               return (
@@ -342,6 +360,47 @@ export function StatusScreen({ alerts, trainsByLine, stations }: Props) {
               );
             })}
           </ul>
+            )}
+            {userReports.length > 0 && (
+              <div>
+                <p className="text-label-caps text-outline tracking-widest mb-2 flex items-center gap-1.5">
+                  <Icon.Alert size={12} />
+                  Reportes de la comunidad ({userReports.length})
+                </p>
+                <ul className="flex flex-col gap-2">
+                  {userReports.map(r => {
+                    const line = r.line && r.line in LINE_META ? LINE_META[r.line as LineId] : null;
+                    const minutesAgo = Math.floor((Date.now() - new Date(r.createdAt).getTime()) / 60000);
+                    const timeLabel = minutesAgo < 1 ? 'Ahora' : minutesAgo < 60 ? `hace ${minutesAgo} min` : `hace ${Math.floor(minutesAgo / 60)}h`;
+                    return (
+                      <li key={r.id} className="bento-card p-4 flex items-start gap-3 border-amber-500/30">
+                        <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md shrink-0 bg-amber-500/15 text-amber-300">
+                          <Icon.Alert size={16} />
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-bold uppercase tracking-widest font-mono px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">
+                              {r.category}
+                            </span>
+                            {line && (
+                              <span className="line-badge" style={{ background: line.color }}>
+                                {lineShort(r.line as LineId)}
+                              </span>
+                            )}
+                            <span className="text-[10px] text-outline">{timeLabel}</span>
+                          </div>
+                          <p className="text-body-sm font-semibold text-on-background mt-1.5">{r.station}</p>
+                          {r.comment && (
+                            <p className="text-body-sm text-on-surface-variant mt-0.5 leading-relaxed">{r.comment}</p>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </div>
         )}
       </section>
 
