@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { Station, RouteSequence } from '../types';
+import type { Station, RouteSequence, ReportItem } from '../types';
 import { LINE_META, MANUAL_CONNECTIONS as MANUAL_TRANSFERS, type LineId, normalizeStationKey } from '../lines';
 import { Icon } from '../Icon';
 import { classNames, formatEta, lineShort } from '../utils';
@@ -13,9 +13,10 @@ interface Props {
   stations: Station[];
   sequences: RouteSequence[];
   predictions: Prediction[];
+  userReports: ReportItem[];
 }
 
-export function StationsScreen({ stations, sequences, predictions }: Props) {
+export function StationsScreen({ stations, sequences, predictions, userReports }: Props) {
   const [search, setSearch] = useState('');
   const [lineFilter, setLineFilter] = useState<LineId | 'All'>('All');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -41,6 +42,16 @@ export function StationsScreen({ stations, sequences, predictions }: Props) {
     () => stations.find(s => s.stopId === selectedId) ?? filteredStations[0] ?? null,
     [selectedId, stations, filteredStations]
   );
+
+  // Reports by station name
+  const reportsByStation = useMemo(() => {
+    const m = new Map<string, ReportItem[]>();
+    userReports.forEach(r => {
+      if (!m.has(r.station)) m.set(r.station, []);
+      m.get(r.station)!.push(r);
+    });
+    return m;
+  }, [userReports]);
 
   return (
     <div className="flex h-full min-h-0 flex-col md:flex-row">
@@ -128,12 +139,17 @@ export function StationsScreen({ stations, sequences, predictions }: Props) {
                       {s.stopId}
                     </p>
                   </span>
-                  <div className="flex gap-0.5">
+                  <div className="flex gap-0.5 items-center">
                     {lines.slice(0, 3).map(l => (
                       <span key={`l-${s.stopId}-${l}`} className="line-badge" style={{ background: LINE_META[l].color }}>
                         {lineShort(l)}
                       </span>
                     ))}
+                    {reportsByStation.has(s.stopName) && (
+                      <span className="text-[11px] ml-1" title={`${reportsByStation.get(s.stopName)!.length} reporte(s)`}>
+                        ⚠
+                      </span>
+                    )}
                   </div>
                 </button>
               </li>
@@ -155,6 +171,7 @@ export function StationsScreen({ stations, sequences, predictions }: Props) {
             sequences={sequences}
             stations={stations}
             predictions={predictions}
+            stationReports={reportsByStation.get(selected.stopName) ?? []}
             onBack={() => setShowDetailMobile(false)}
           />
         ) : (
@@ -166,12 +183,13 @@ export function StationsScreen({ stations, sequences, predictions }: Props) {
 }
 
 function StationDetail({
-  station, sequences, stations, predictions, onBack,
+  station, sequences, stations, predictions, stationReports, onBack,
 }: {
   station: Station;
   sequences: RouteSequence[];
   stations: Station[];
   predictions: Prediction[];
+  stationReports: ReportItem[];
   onBack: () => void;
 }) {
   const passingLines = Array.from(new Set(
@@ -286,6 +304,37 @@ function StationDetail({
           ) : (
             <p className="text-body-sm text-on-surface-variant">Sin datos de accesibilidad registrados.</p>
           )}
+        </div>
+
+        {/* User reports */}
+        <div className="bento-card p-4 border-amber-500/30">
+          <h3 className="text-title-sm font-bold text-on-background flex items-center gap-2 mb-3">
+            <Icon.Alert size={16} className="text-amber-400" />
+            Reportes de la comunidad
+          </h3>
+          {(() => {
+            const reports = stationReports;
+            if (!reports?.length) {
+              return <p className="text-body-sm text-on-surface-variant">Sin reportes activos.</p>;
+            }
+            return (
+              <ul className="flex flex-col gap-2">
+                {reports.map(r => (
+                  <li key={r.id} className="inner-card p-2.5 flex flex-col gap-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-bold uppercase tracking-widest font-mono px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">
+                        {r.category}
+                      </span>
+                      <span className="text-[10px] text-outline">
+                        {Math.floor((Date.now() - new Date(r.createdAt).getTime()) / 60000)} min
+                      </span>
+                    </div>
+                    {r.comment && <p className="text-body-sm text-on-surface-variant">{r.comment}</p>}
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
         </div>
 
         {/* Live arrivals */}

@@ -34,6 +34,7 @@ export default function Dashboard() {
     connectionError,
     fetchTelemetry,
     now,
+    userReports,
   } = useDashboardData();
 
   const handleTabChange = useCallback((t: TabId) => {
@@ -94,17 +95,18 @@ export default function Dashboard() {
                   setActiveLine={setActiveLine}
                   visibleLines={visibleLines}
                   trainsByLine={trainsByLine}
+                  userReports={userReports}
                 />
               </ErrorBoundary>
             )}
             {tab === 'planner' && (
-              <PlannerScreen stations={stations} sequences={sequences} predictions={telemetry.predictions} />
+              <PlannerScreen stations={stations} sequences={sequences} predictions={telemetry.predictions} userReports={userReports} />
             )}
             {tab === 'stations' && (
-              <StationsScreen stations={stations} sequences={sequences} predictions={telemetry.predictions} />
+              <StationsScreen stations={stations} sequences={sequences} predictions={telemetry.predictions} userReports={userReports} />
             )}
             {tab === 'status' && (
-              <StatusScreen alerts={telemetry.alerts} trainsByLine={trainsByLine} stations={stations} />
+              <StatusScreen alerts={telemetry.alerts} trainsByLine={trainsByLine} stations={stations} userReports={userReports} />
             )}
             {tab === 'arrivals' && (
               <ArrivalsScreen stations={stations} sequences={sequences} predictions={telemetry.predictions} trainsByLine={trainsByLine} />

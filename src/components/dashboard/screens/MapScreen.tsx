@@ -8,7 +8,7 @@ import L from 'leaflet';
 import { LINE_META, ALL_LINE_IDS, type LineId } from '../lines';
 import { classNames, formatEta, lineShort } from '../utils';
 import { Icon } from '../Icon';
-import type { Station, RouteSequence } from '../types';
+import type { Station, RouteSequence, ReportItem } from '../types';
 import type { TrainTelemetry } from '@/lib/telemetry';
 import { LINE_SHAPES } from '@/lib/shapes';
 import { SUBTE_LINES_GEOM } from '@/lib/metadata_extended';
@@ -21,6 +21,7 @@ interface Props {
   setActiveLine: (l: LineId | 'All') => void;
   visibleLines: LineId[];
   trainsByLine: Record<string, TrainTelemetry[]>;
+  userReports: ReportItem[];
 }
 
 function arrowSvgIcon(color: string, directionId: number, size = 28): string {
@@ -31,7 +32,7 @@ function arrowSvgIcon(color: string, directionId: number, size = 28): string {
   </svg>`;
 }
 
-export function MapScreen({ stations, sequences, telemetry, activeLine, setActiveLine, trainsByLine }: Props) {
+export function MapScreen({ stations, sequences, telemetry, activeLine, setActiveLine, visibleLines, trainsByLine, userReports }: Props) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<LeafletMap | null>(null);
   const mapUserMovedRef = useRef(false);
@@ -47,6 +48,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
   const stationsGroupRef = useRef<LayerGroup | null>(null);
   const tracksGroupRef = useRef<LayerGroup | null>(null);
   const trainsGroupRef = useRef<LayerGroup | null>(null);
+  const reportsGroupRef = useRef<LayerGroup | null>(null);
 
   // ----- Init map -----
   useEffect(() => {
@@ -96,6 +98,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
     stationsGroupRef.current = L.layerGroup().addTo(map);
     tracksGroupRef.current = L.layerGroup().addTo(map);
     trainsGroupRef.current = L.layerGroup().addTo(map);
+    reportsGroupRef.current = L.layerGroup().addTo(map);
 
     // Fit bounds on first ready
     map.whenReady(() => {
@@ -202,6 +205,58 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
     }
     draw();
   }, [activeLine, sequences, stations, selectedStation?.stopId]);
+
+  // ----- Draw report markers -----
+  useEffect(() => {
+    if (!mapInstanceRef.current || !reportsGroupRef.current) return;
+    const group = reportsGroupRef.current;
+    group.clearLayers();
+
+    // Filter stations for active line
+    const activeStations = activeLine === 'All'
+      ? stations
+      : stations.filter(s => sequences.some(seq => seq.stopId === s.stopId && seq.routeId === activeLine));
+
+    // Group by name (one marker per station name)
+    const reportsByName = new Map<string, ReportItem[]>();
+    userReports.forEach(r => {
+      if (!reportsByName.has(r.station)) reportsByName.set(r.station, []);
+      reportsByName.get(r.station)!.push(r);
+    });
+
+    const byName = new Map<string, Station[]>();
+    activeStations.forEach(s => {
+      if (!byName.has(s.stopName)) byName.set(s.stopName, []);
+      byName.get(s.stopName)!.push(s);
+    });
+
+    byName.forEach((groupStations, name) => {
+      const reports = reportsByName.get(name);
+      if (!reports?.length) return;
+      const first = groupStations[0];
+      if (!first) return;
+      // Offset alert icon slightly above the station marker
+      const offset = 0.0012; // ~120m
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="position:relative;width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.5));" title="${reports.map(r => r.category).join(', ')}">⚠</div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      });
+      const marker = L.marker([first.latitude + offset, first.longitude], { icon });
+      const detailHtml = reports.map(r =>
+        `<div style="margin-bottom:6px;border-bottom:1px solid #333;padding-bottom:4px;">
+          <strong style="color:#f59e0b;">${r.category}</strong>
+          <span style="color:#888;font-size:11px;margin-left:8px;">${r.line}</span>
+          <p style="margin:4px 0 0;font-size:13px;color:#ccc;">${r.comment || ''}</p>
+        </div>`
+      ).join('');
+      marker.bindPopup(`<div style="min-width:200px;color:#e0e0e0;font-family:sans-serif;"><h4 style="margin:0 0 6px;color:#fff;">${name}</h4>${detailHtml}</div>`);
+      marker.addTo(group);
+    });
+
+    return () => { group.clearLayers(); };
+  }, [userReports, stations, sequences, activeLine]);
 
   // ----- Draw trains -----
   useEffect(() => {
