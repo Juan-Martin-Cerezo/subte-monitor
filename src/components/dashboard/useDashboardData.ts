@@ -2,9 +2,20 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { TrainTelemetry, AlertData, Prediction } from '@/lib/telemetry';
-import type { Station, RouteSequence } from './types';
+import type { Station, RouteSequence, ReportItem } from './types';
 import { ALL_LINE_IDS, type LineId } from './lines';
 import { isLineId } from './utils';
+
+// Per-category expiry in milliseconds
+const REPORT_TTL: Record<string, number> = {
+  'Demora excesiva': 30 * 60 * 1000,
+  'Aglomeración / congestión': 60 * 60 * 1000,
+  'Formación fuera de servicio': 2 * 60 * 60 * 1000,
+  'Estación cerrada': 4 * 60 * 60 * 1000,
+  'Incidente de seguridad': 4 * 60 * 60 * 1000,
+  'Otro': 2 * 60 * 60 * 1000,
+};
+const DEFAULT_REPORT_TTL = 24 * 60 * 60 * 1000; // ascensor/escalera
 
 const POLL_MS = 2000;
 
@@ -100,6 +111,22 @@ export function useDashboardData() {
     }
   }, [activeLine]);
 
+  // User-submitted reports — fetch every 60s, filter by per-category TTL
+  const [userReports, setUserReports] = useState<ReportItem[]>([]);
+  const fetchUserReports = useCallback(async () => {
+    try {
+      const res = await fetch('/api/reports');
+      if (!res.ok) return;
+      const data: ReportItem[] = await res.json();
+      const now = Date.now();
+      setUserReports(data.filter(r => {
+        const ttl = REPORT_TTL[r.category] ?? DEFAULT_REPORT_TTL;
+        return now - new Date(r.createdAt).getTime() < ttl;
+      }));
+    } catch { /* silent */ }
+  }, []);
+  useEffect(() => { fetchUserReports(); const id = setInterval(fetchUserReports, 60_000); return () => clearInterval(id); }, [fetchUserReports]);
+
   return {
     stations,
     sequences,
@@ -112,5 +139,6 @@ export function useDashboardData() {
     connectionError,
     fetchTelemetry,
     now,
+    userReports,
   };
 }

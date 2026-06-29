@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import type { AlertData, TrainTelemetry } from '@/lib/telemetry';
 import { LINE_META, type LineId } from '../lines';
 import type { Station, ReportItem } from '../types';
@@ -11,6 +11,7 @@ interface Props {
   alerts: AlertData[];
   trainsByLine: Record<string, TrainTelemetry[]>;
   stations?: Station[];
+  userReports: ReportItem[];
 }
 
 const REPORT_CATEGORIES = [
@@ -193,23 +194,9 @@ function ReportForm({ stations }: { stations: Station[] }) {
   );
 }
 
-export function StatusScreen({ alerts, trainsByLine, stations }: Props) {
+export function StatusScreen({ alerts, trainsByLine, stations, userReports }: Props) {
   const totalTrains = Object.values(trainsByLine).reduce((s, t) => s + t.length, 0);
   const lineIds = Object.keys(LINE_META) as LineId[];
-
-  // User-submitted reports — fetch every 60s, expire after 2h
-  const [userReports, setUserReports] = useState<ReportItem[]>([]);
-  const TWO_HOURS = 2 * 60 * 60 * 1000;
-  const fetchReports = useCallback(async () => {
-    try {
-      const res = await fetch('/api/reports');
-      if (!res.ok) return;
-      const data: ReportItem[] = await res.json();
-      const now = Date.now();
-      setUserReports(data.filter(r => now - new Date(r.createdAt).getTime() < TWO_HOURS));
-    } catch { /* silent — polls keep retrying */ }
-  }, []);
-  useEffect(() => { fetchReports(); const id = setInterval(fetchReports, 60_000); return () => clearInterval(id); }, [fetchReports]);
 
   const totalAlerts = alerts.length + userReports.length;
 

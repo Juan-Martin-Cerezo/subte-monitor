@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import type { Station, RouteSequence } from '../types';
+import type { Station, RouteSequence, ReportItem } from '../types';
 import { LINE_META, MANUAL_CONNECTIONS, type LineId, normalizeStationKey } from '../lines';
 import { Icon } from '../Icon';
 import { classNames, formatClock, formatEta, lineShort } from '../utils';
@@ -24,9 +24,10 @@ interface Props {
   stations: Station[];
   sequences: RouteSequence[];
   predictions: Prediction[];
+  userReports: ReportItem[];
 }
 
-export function PlannerScreen({ stations, sequences, predictions }: Props) {
+export function PlannerScreen({ stations, sequences, predictions, userReports }: Props) {
   const [origin, setOrigin] = useState<string>('');
   const [destination, setDestination] = useState<string>('');
   const [stepFree, setStepFree] = useState(false);
@@ -189,6 +190,15 @@ export function PlannerScreen({ stations, sequences, predictions }: Props) {
     return true;
   }, [route]);
 
+  // Find stations with active reports
+  const stationsWithReports = useMemo(() => {
+    const s = new Set<string>();
+    userReports.forEach(r => s.add(r.station));
+    return s;
+  }, [userReports]);
+  const originHasReport = origin && stationsWithReports.has(origin);
+  const destHasReport = destination && stationsWithReports.has(destination);
+
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6 max-w-6xl mx-auto w-full">
       <header className="flex items-end justify-between gap-3">
@@ -277,6 +287,16 @@ export function PlannerScreen({ stations, sequences, predictions }: Props) {
         </div>
       </section>
 
+      {/* Report warnings */}
+      {(originHasReport || destHasReport) && (
+        <section className="bento-card border-amber-500/30 p-3 flex flex-wrap items-center gap-2 text-body-sm text-amber-300">
+          <Icon.Alert size={16} className="shrink-0" />
+          {originHasReport && <span>Reportes activos en <strong>{origin}</strong></span>}
+          {originHasReport && destHasReport && <span> · </span>}
+          {destHasReport && <span>Reportes activos en <strong>{destination}</strong></span>}
+        </section>
+      )}
+
       {/* Results grid */}
       <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         {/* Timeline */}
@@ -348,6 +368,9 @@ export function PlannerScreen({ stations, sequences, predictions }: Props) {
                             )}>
                               {s}
                             </span>
+                            {stationsWithReports.has(s) && (
+                              <span title="Reportes activos">⚠</span>
+                            )}
                           </div>
                         );
                       })}
