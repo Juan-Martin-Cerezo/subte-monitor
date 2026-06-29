@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { Station, RouteSequence } from '../types';
-import { LINE_META, MANUAL_TRANSFERS, type LineId, normalizeStationKey } from '../lines';
+import { LINE_META, MANUAL_CONNECTIONS, type LineId, normalizeStationKey } from '../lines';
 import { Icon } from '../Icon';
 import { classNames, formatClock, formatEta, lineShort } from '../utils';
 import type { Prediction } from '@/lib/telemetry';
@@ -59,21 +59,27 @@ export function PlannerScreen({ stations, sequences, predictions }: Props) {
         g[v].push({ node: u, weight: 1, routeId: seq.routeId as LineId });
       }
     });
-    // Cross-platform transfers
+    // Cross-platform connections (deduped by name pair)
+    const seen = new Set<string>();
     for (let i = 0; i < stations.length; i++) {
       for (let j = i + 1; j < stations.length; j++) {
         const a = stations[i];
         const b = stations[j];
         const sameName = a.stopName === b.stopName;
-        const manual = MANUAL_TRANSFERS[a.stopName]?.includes(b.stopName);
+        const manual = MANUAL_CONNECTIONS[a.stopName]?.includes(b.stopName);
         if (sameName || manual) {
+          const aKey = `${a.stopName}::${[...new Set(sequences.filter(s => s.stopId === a.stopId).map(s => s.routeId))].sort().join(',')}`;
+          const bKey = `${b.stopName}::${[...new Set(sequences.filter(s => s.stopId === b.stopId).map(s => s.routeId))].sort().join(',')}`;
+          const pairKey = aKey < bKey ? `${aKey}|${bKey}` : `${bKey}|${aKey}`;
+          if (seen.has(pairKey)) continue;
+          seen.add(pairKey);
           const aRoutes = new Set(sequences.filter(s => s.stopId === a.stopId).map(s => s.routeId));
           const bRoutes = new Set(sequences.filter(s => s.stopId === b.stopId).map(s => s.routeId));
           const overlap = [...aRoutes].some(r => bRoutes.has(r));
           if (!overlap) {
             if (!g[a.stopId]) g[a.stopId] = [];
             if (!g[b.stopId]) g[b.stopId] = [];
-            // If step-free required, transfers are heavy (3) to discourage them.
+            // If step-free required, connections heavy (8) to discourage.
             g[a.stopId].push({ node: b.stopId, weight: stepFree ? 8 : 3, routeId: null });
             g[b.stopId].push({ node: a.stopId, weight: stepFree ? 8 : 3, routeId: null });
           }
@@ -292,7 +298,7 @@ export function PlannerScreen({ stations, sequences, predictions }: Props) {
                 </span>
                 <span className="flex items-center gap-1 text-on-surface-variant">
                   <Icon.Transfer size={14} />
-                  {route.transfers} transbordos
+                  {route.transfers} conexiones
                 </span>
               </div>
             )}

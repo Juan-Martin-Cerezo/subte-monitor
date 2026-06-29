@@ -30,8 +30,8 @@ export function normalizeStationKey(name: string): string {
   return name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
 }
 
-// Stations sharing a name across lines, or known transfers.
-export const MANUAL_TRANSFERS: Record<string, string[]> = {
+// Same-named stations across lines, or known connections.
+export const MANUAL_CONNECTIONS: Record<string, string[]> = {
   'Perú': ['Catedral', 'Bolívar'],
   'Catedral': ['Perú', 'Bolívar'],
   'Bolívar': ['Perú', 'Catedral'],

@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import type { Station, RouteSequence } from '../types';
-import { LINE_META, MANUAL_TRANSFERS, type LineId, normalizeStationKey } from '../lines';
+import { LINE_META, MANUAL_CONNECTIONS as MANUAL_TRANSFERS, type LineId, normalizeStationKey } from '../lines';
 import { Icon } from '../Icon';
 import { classNames, formatEta, lineShort } from '../utils';
 import { ACCESSIBILITY_METADATA } from '@/lib/metadata';
@@ -187,13 +187,18 @@ function StationDetail({
   const connections = useMemo(() => {
     const here = station.stopName;
     const hereLines = new Set(passingLines);
+    const seen = new Set<string>();
     return stations.filter(s => {
       if (s.stopId === station.stopId) return false;
       const isSameName = s.stopName === here;
       const isManual = MANUAL_TRANSFERS[here]?.includes(s.stopName);
       if (!isSameName && !isManual) return false;
       const otherLines = sequences.filter(seq => seq.stopId === s.stopId).map(seq => seq.routeId);
-      return otherLines.some(l => !hereLines.has(l as LineId));
+      const hasDiffLine = otherLines.some(l => !hereLines.has(l as LineId));
+      if (!hasDiffLine) return false;
+      if (seen.has(s.stopName)) return false;
+      seen.add(s.stopName);
+      return true;
     });
   }, [station, sequences, stations, passingLines]);
 
@@ -241,10 +246,11 @@ function StationDetail({
             <p className="text-body-sm text-on-surface-variant">Sin combinaciones con otras líneas.</p>
           ) : (
             <ul className="flex flex-col gap-2">
-              {connections.map(c => {
-                const cLines = Array.from(new Set(sequences.filter(s => s.stopId === c.stopId).map(s => s.routeId))) as LineId[];
+              {connections.map((c, i) => {
+                const cStationIds = new Set(stations.filter(s => s.stopName === c.stopName).map(s => s.stopId));
+                const cLines = Array.from(new Set(sequences.filter(s => cStationIds.has(s.stopId)).map(s => s.routeId).filter(r => !passingLines.includes(r as LineId)))) as LineId[];
                 return (
-                  <li key={c.stopId} className="inner-card p-2.5 flex items-center gap-2">
+                  <li key={c.stopId || i} className="inner-card p-2.5 flex items-center gap-2">
                     <span className="text-body-sm font-semibold text-on-background truncate flex-1">{c.stopName}</span>
                     <div className="flex gap-0.5">
                       {cLines.slice(0, 3).map(l => (
@@ -268,13 +274,13 @@ function StationDetail({
           </h3>
           {access ? (
             <div className="grid grid-cols-2 gap-2">
-              <div className="inner-card p-3 text-center">
-                <p className="text-data-lg font-bold text-primary">{access.ascensores}</p>
-                <p className="text-label-caps text-outline mt-1">Ascensores</p>
+              <div className="inner-card px-4 py-5 text-center flex flex-col items-center justify-center min-h-[84px]">
+                <p className="text-data-lg font-bold text-primary leading-none">{access.ascensores}</p>
+                <p className="text-label text-outline mt-2 whitespace-nowrap overflow-hidden text-ellipsis max-w-full">Ascensores</p>
               </div>
-              <div className="inner-card p-3 text-center">
-                <p className="text-data-lg font-bold text-primary">{access.escaleras}</p>
-                <p className="text-label-caps text-outline mt-1">Escaleras mec.</p>
+              <div className="inner-card px-4 py-5 text-center flex flex-col items-center justify-center min-h-[84px]">
+                <p className="text-data-lg font-bold text-primary leading-none">{access.escaleras}</p>
+                <p className="text-label text-outline mt-2 whitespace-nowrap overflow-hidden text-ellipsis max-w-full">Escaleras mec.</p>
               </div>
             </div>
           ) : (
