@@ -91,6 +91,16 @@ export interface RawArrival {
   delay: number;
 }
 
+export interface Prediction {
+  routeId: string;
+  directionId: number;
+  stopId: string;
+  stationName: string;
+  destinationName: string;
+  etaSeconds: number;
+  delay: number;
+}
+
 // Haversine formula to compute distance between coordinates in meters
 function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000; // Earth radius in meters
@@ -301,10 +311,14 @@ export async function getTelemetryData() {
     // Fetch fresh
     let rawAlerts: GCBAAlertsResponse | null = null;
     try {
+      const ac = new AbortController();
+      const to = setTimeout(() => ac.abort(), 4000);
+      const fo = { cache: 'no-store' as const, signal: ac.signal };
       const [forecastRes, alertsRes] = await Promise.all([
-        fetch(forecastUrl, { cache: 'no-store' }).then(res => res.ok ? res.json() : null),
-        fetch(alertsUrl, { cache: 'no-store' }).then(res => res.ok ? res.json() : null)
+        fetch(forecastUrl, fo).then(res => res.ok ? res.json() : null),
+        fetch(alertsUrl, fo).then(res => res.ok ? res.json() : null)
       ]);
+      clearTimeout(to);
       rawForecast = forecastRes as GCBAForecastResponse | null;
       rawAlerts = alertsRes as GCBAAlertsResponse | null;
     } catch (error) {
