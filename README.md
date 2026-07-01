@@ -1,6 +1,6 @@
 # SUBTE Monitor — Buenos Aires Transit Live Tracking
 
-**Entrega:** Proyecto Integrador · 2026
+**Entrega:** Proyecto Informático 13/07 · 2026
 
 **URL en vivo:** [https://subte-monitor.vercel.app](https://subte-monitor.vercel.app)
 
