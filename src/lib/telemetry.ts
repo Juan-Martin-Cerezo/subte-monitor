@@ -412,6 +412,8 @@ export async function getTelemetryData() {
 
     if (isCorruptedLineD && entity.Linea.Estaciones) {
       let tripStartEpoch = feedTimestamp;
+      const stationCount = entity.Linea.Estaciones.length;
+      const tripDuration = Math.max(stationCount - 1, 1) * 88.5;
       if (entity.Linea.start_time) {
         const dateStr = entity.Linea.start_date || new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const year = parseInt(dateStr.substring(0, 4));
@@ -420,7 +422,8 @@ export async function getTelemetryData() {
         const [hh, mm, ss] = entity.Linea.start_time.split(':').map(Number);
         const localDate = new Date(year, month, day, hh, mm, ss);
         const parsedEpoch = Math.floor(localDate.getTime() / 1000);
-        if (Math.abs(nowUnix - parsedEpoch) < 7200) {
+        // Only use scheduled start_time if it's within tripDuration+300s of now
+        if (Math.abs(nowUnix - parsedEpoch) < tripDuration + 300) {
           tripStartEpoch = parsedEpoch;
         } else {
           tripStartEpoch = feedTimestamp - 600;

@@ -43,7 +43,7 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <div className="flex h-dvh w-screen flex-col bg-background text-on-background overflow-hidden">
+    <div className="flex h-dvh max-h-dvh w-full flex-col bg-background text-on-background overflow-hidden">
       {/* Header — desktop nav + mobile compact */}
       <Header
         tab={tab}
@@ -57,7 +57,7 @@ export default function Dashboard() {
       />
 
       {/* Main area: sidebar + content */}
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 min-h-0 overflow-hidden relative">
         {/* Sidebar — desktop always visible, mobile slide-over */}
         <Sidebar
           open={sidebarOpen}
@@ -70,7 +70,7 @@ export default function Dashboard() {
         />
 
         {/* Content area with tab screens */}
-        <main className="flex-1 overflow-y-auto scrollbar-thin relative">
+        <main className="flex-1 overflow-y-auto scrollbar-thin relative min-h-0">
           {connectionError && (
             <div className="sticky top-0 z-20 mx-3 mt-3 flex items-center gap-2 rounded-md bg-error-container/90 px-3 py-2 text-body-sm text-on-error-container backdrop-blur-md animate-fadeIn">
               <span className="h-2 w-2 rounded-full bg-error shrink-0" />
