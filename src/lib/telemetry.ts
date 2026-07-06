@@ -405,7 +405,7 @@ export async function getTelemetryData() {
     if (routeId === 'LineaD' && entity.Linea.Estaciones && entity.Linea.Estaciones.length > 3) {
       const times = entity.Linea.Estaciones.map(e => e.arrival?.time || e.departure?.time).filter(Boolean) as number[];
       const uniqueTimes = new Set(times);
-      if (uniqueTimes.size <= 2) {
+      if (uniqueTimes.size <= times.length * 0.4) {
         isCorruptedLineD = true;
       }
     }

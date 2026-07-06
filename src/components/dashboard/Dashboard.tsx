@@ -43,7 +43,7 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-background text-on-background overflow-hidden">
+    <div className="flex h-dvh w-screen flex-col bg-background text-on-background overflow-hidden">
       {/* Header — desktop nav + mobile compact */}
       <Header
         tab={tab}
