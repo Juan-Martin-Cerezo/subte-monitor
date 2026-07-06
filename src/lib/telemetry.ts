@@ -390,6 +390,7 @@ export async function getTelemetryData() {
   const STOP_DURATION_S = 25; // 25s stopped
 
   // Flatten and group arrivals by route + direction
+  const feedTimestamp = rawForecast.Header.timestamp;
   const rawArrivals: RawArrival[] = [];
   rawForecast.Entity.forEach((entity: GCBAEntity) => {
     if (!entity.Linea) return;
@@ -398,6 +399,45 @@ export async function getTelemetryData() {
 
     const routeId = matchDbRoute(rawRouteId);
     if (!routeId) return;
+
+    // Line D normalisation: handle duplicate placeholder timestamps
+    let isCorruptedLineD = false;
+    if (routeId === 'LineaD' && entity.Linea.Estaciones && entity.Linea.Estaciones.length > 3) {
+      const times = entity.Linea.Estaciones.map(e => e.arrival?.time || e.departure?.time).filter(Boolean) as number[];
+      const uniqueTimes = new Set(times);
+      if (uniqueTimes.size <= 2) {
+        isCorruptedLineD = true;
+      }
+    }
+
+    if (isCorruptedLineD && entity.Linea.Estaciones) {
+      let tripStartEpoch = feedTimestamp;
+      if (entity.Linea.start_time) {
+        const dateStr = entity.Linea.start_date || new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const year = parseInt(dateStr.substring(0, 4));
+        const month = parseInt(dateStr.substring(4, 6)) - 1;
+        const day = parseInt(dateStr.substring(6, 8));
+        const [hh, mm, ss] = entity.Linea.start_time.split(':').map(Number);
+        const localDate = new Date(year, month, day, hh, mm, ss);
+        const parsedEpoch = Math.floor(localDate.getTime() / 1000);
+        if (Math.abs(nowUnix - parsedEpoch) < 7200) {
+          tripStartEpoch = parsedEpoch;
+        } else {
+          tripStartEpoch = feedTimestamp - 600;
+        }
+      }
+
+      entity.Linea.Estaciones.forEach(est => {
+        const seq = sequences.find(s => s.stopId === est.stop_id);
+        const seqNum = seq ? seq.stopSequence : 1;
+        const delay = est.arrival?.delay || est.departure?.delay || 0;
+        const reconstructedArrival = tripStartEpoch + Math.round(seqNum * 88.5) + delay;
+        const reconstructedDeparture = reconstructedArrival + STOP_DURATION_S;
+
+        est.arrival = { time: reconstructedArrival, delay };
+        est.departure = { time: reconstructedDeparture, delay };
+      });
+    }
 
     entity.Linea.Estaciones?.forEach((est: GCBAStation) => {
       const arrTime = est.arrival?.time || est.departure?.time;
@@ -421,7 +461,6 @@ export async function getTelemetryData() {
   const usedIds = new Set<string>();
 
   // Calculate stable time offset of the feed to synchronize with local server time
-  const feedTimestamp = rawForecast.Header.timestamp;
   let timeDiff = syncDB.stableTimeDiff;
 
   if (feedTimestamp !== syncDB.lastFeedTimestamp || !timeDiff) {
@@ -615,6 +654,12 @@ export async function getTelemetryData() {
       let prevStopId = activeStop.stopId;
       let prevStopName = nextStopName;
 
+      const nextSeqIndex = seqList.findIndex(s => s.stopId === activeStop.stopId);
+      if (nextSeqIndex > 0) {
+        prevStopId = seqList[nextSeqIndex - 1].stopId;
+        prevStopName = stationMap.get(prevStopId)?.stopName || 'Estación';
+      }
+
       if (apiConfirmaAnden) {
         status = 'STOPPED';
         progress = 0.0;
@@ -631,12 +676,6 @@ export async function getTelemetryData() {
           }
         } else {
           progress = rawProgress;
-        }
-        
-        const nextSeqIndex = seqList.findIndex(s => s.stopId === activeStop.stopId);
-        if (nextSeqIndex > 0) {
-          prevStopId = seqList[nextSeqIndex - 1].stopId;
-          prevStopName = stationMap.get(prevStopId)?.stopName || 'Estación';
         }
       }
 
@@ -811,8 +850,122 @@ export async function getTelemetryData() {
     }
   }
 
+  // Virtual simulator dispatcher for C, H, Premetro lines
+  const simRoutes = ['LineaC', 'LineaH', 'PM-Civico', 'PM-Savio'];
+  const localDateStr = new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' });
+  const localDate = new Date(localDateStr);
+  const localDay = localDate.getDay();
+  const localHour = localDate.getHours();
+  const localMinute = localDate.getMinutes();
+  const localTimeVal = localHour * 100 + localMinute;
+
+  let isTransitActive = false;
+  if (localDay === 0) { // Sunday
+    isTransitActive = localTimeVal >= 800 && localTimeVal <= 2230;
+  } else if (localDay === 6) { // Saturday
+    isTransitActive = localTimeVal >= 600 && localTimeVal <= 2330;
+  } else { // Weekday
+    isTransitActive = localTimeVal >= 530 && localTimeVal <= 2330;
+  }
+
+  if (isTransitActive) {
+    simRoutes.forEach(routeId => {
+      let headwayModifier = 1.0;
+      let isInterrupted = false;
+      const lineAlerts = alerts.filter(a => a.routeId === routeId);
+      lineAlerts.forEach(a => {
+        if (a.effect === 'Sin Servicio') {
+          isInterrupted = true;
+        } else if (a.effect === 'Servicio Demorado' || a.effect === 'Frecuencia Reducida') {
+          headwayModifier = 1.5;
+        }
+      });
+
+      if (isInterrupted) return;
+
+      const baseHeadway = routeId.startsWith('PM-') ? 900 : 300;
+      const headway = Math.round(baseHeadway * headwayModifier);
+
+      [0, 1].forEach(directionId => {
+        const key = `${routeId}_${directionId}`;
+        const seqList = routeSequences[key] || [];
+        if (seqList.length < 2) return;
+
+        const sortedSeq = [...seqList].sort((a, b) => a.stopSequence - b.stopSequence);
+        const totalStops = sortedSeq.length;
+        const tripDuration = (totalStops - 1) * 88.5;
+        const numTrips = Math.ceil(tripDuration / headway);
+
+        for (let k = 0; k < numTrips; k++) {
+          const elapsedTime = ((nowUnix - k * headway) % headway) + k * headway;
+          if (elapsedTime >= tripDuration || elapsedTime < 0) continue;
+
+          const stopIdx = Math.floor(elapsedTime / 88.5);
+          if (stopIdx >= totalStops - 1) continue;
+
+          const activeStop = sortedSeq[stopIdx];
+          const nextStop = sortedSeq[stopIdx + 1];
+
+          const dwellTime = elapsedTime % 88.5;
+          let status: 'STOPPED' | 'IN_TRANSIT' = 'STOPPED';
+          let progress = 0.0;
+          const prevStopId = activeStop.stopId;
+          const prevStopName = stationMap.get(prevStopId)?.stopName || 'Estación';
+          const nextStopId = nextStop.stopId;
+          const nextStopName = stationMap.get(nextStopId)?.stopName || 'Estación';
+
+          if (dwellTime < STOP_DURATION_S) {
+            status = 'STOPPED';
+            progress = 0.0;
+          } else {
+            status = 'IN_TRANSIT';
+            progress = (dwellTime - STOP_DURATION_S) / (88.5 - STOP_DURATION_S);
+          }
+
+          const prevStation = stationMap.get(prevStopId);
+          const nextStation = stationMap.get(nextStopId);
+          let lat = nextStation?.latitude || 0;
+          let lon = nextStation?.longitude || 0;
+
+          if (status === 'IN_TRANSIT' && prevStation && nextStation) {
+            const shape = LINE_SHAPES[routeId];
+            const snapped = interpolateOnShape(
+              shape,
+              prevStation.latitude, prevStation.longitude,
+              nextStation.latitude, nextStation.longitude,
+              progress
+            );
+            lat = snapped.latitude;
+            lon = snapped.longitude;
+          }
+
+          const lineChar = routeId.startsWith('PM-') ? routeId.replace('-', '') : routeId.replace('Linea', '');
+          const tripId = `SIM-${lineChar}-${directionId}-${k}`;
+          const etaSeconds = Math.max(0, Math.round(((stopIdx + 1) * 88.5) - elapsedTime));
+
+          trains.push({
+            id: tripId,
+            routeId,
+            directionId,
+            status,
+            progress,
+            latitude: lat,
+            longitude: lon,
+            nextStopId,
+            nextStopName,
+            prevStopId,
+            prevStopName,
+            etaSeconds,
+            delaySeconds: 0,
+            updatedAt: nowUnix
+          });
+        }
+      });
+    });
+  }
+
   // Map raw predictions for the raw schedule tab
-  const schedulePredictions = rawArrivals.map(arr => {
+  const apiPredictions = rawArrivals.map(arr => {
     const key = `${arr.routeId}_${arr.directionId}`;
     const seqList = routeSequences[key] || [];
     
@@ -836,7 +989,29 @@ export async function getTelemetryData() {
       etaSeconds,
       delay: arr.delay
     };
-  }).filter(p => p.etaSeconds < 1800); // Filter out prediction times that are more than 30 mins away
+  }).filter(p => p.etaSeconds < 1800);
+
+  // Add predictions from sim trains for the arrivals tab
+  const simPredictions: Prediction[] = [];
+  trains.filter(t => t.id.startsWith('SIM-')).forEach(simTrain => {
+    const key = `${simTrain.routeId}_${simTrain.directionId}`;
+    const seqList = routeSequences[key] || [];
+    const terminalSeq = seqList[seqList.length - 1];
+    const destinationName = terminalSeq
+      ? (stationMap.get(terminalSeq.stopId)?.stopName || 'Terminal')
+      : 'Terminal';
+    simPredictions.push({
+      routeId: simTrain.routeId,
+      directionId: simTrain.directionId,
+      stopId: simTrain.nextStopId,
+      stationName: simTrain.nextStopName,
+      destinationName,
+      etaSeconds: simTrain.etaSeconds,
+      delay: 0
+    });
+  });
+
+  const schedulePredictions = [...apiPredictions, ...simPredictions];
 
   return {
     trains: trains.sort((a, b) => a.id.localeCompare(b.id)),
