@@ -260,6 +260,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
 
   // ----- Draw trains -----
   useEffect(() => {
+    if (!mapReady) return;
     const map = mapInstanceRef.current;
     if (!map || !trainsGroupRef.current) return;
     const filteredTrains = activeLine === 'All'
@@ -344,7 +345,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
           trainMarkersRef.current.set(train.id, marker);
         }
       });
-  }, [activeLine, telemetry.trains, selectedTrain?.id, pinnedTrainId, stations]);
+  }, [activeLine, telemetry.trains, selectedTrain?.id, pinnedTrainId, stations, mapReady]);
 
   // Track pinned train
   useEffect(() => {

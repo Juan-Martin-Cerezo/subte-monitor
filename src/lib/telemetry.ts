@@ -434,8 +434,8 @@ export async function getTelemetryData() {
         const reconstructedArrival = tripStartEpoch + Math.round(seqNum * 88.5) + delay;
         const reconstructedDeparture = reconstructedArrival + STOP_DURATION_S;
 
-        est.arrival = { time: reconstructedArrival, delay };
-        est.departure = { time: reconstructedDeparture, delay };
+        est.arrival = { time: reconstructedArrival, delay: 0 };
+        est.departure = { time: reconstructedDeparture, delay: 0 };
       });
     }
 
