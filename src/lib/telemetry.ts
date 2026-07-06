@@ -422,12 +422,14 @@ export async function getTelemetryData() {
         const [hh, mm, ss] = entity.Linea.start_time.split(':').map(Number);
         const localDate = new Date(year, month, day, hh, mm, ss);
         const parsedEpoch = Math.floor(localDate.getTime() / 1000);
-        // Only use scheduled start_time if it's within tripDuration+300s of now
         if (Math.abs(nowUnix - parsedEpoch) < tripDuration + 300) {
           tripStartEpoch = parsedEpoch;
         } else {
-          tripStartEpoch = feedTimestamp - 600;
+          // Anchor so first station seq has etaEnPaquete >= -60
+          tripStartEpoch = feedTimestamp - 60;
         }
+      } else {
+        tripStartEpoch = feedTimestamp - 60;
       }
 
       entity.Linea.Estaciones.forEach(est => {

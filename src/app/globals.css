@@ -120,10 +120,13 @@ html, body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  height: 100%;
+  height: -webkit-fill-available;
 }
 
 body {
   min-height: 100dvh;
+  min-height: -webkit-fill-available;
   overscroll-behavior: none;
 }
 
