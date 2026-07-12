@@ -399,50 +399,7 @@ export async function getTelemetryData() {
 
     const routeId = matchDbRoute(rawRouteId);
     if (!routeId) return;
-
-    // Line D normalisation: handle duplicate placeholder timestamps
-    let isCorruptedLineD = false;
-    if (routeId === 'LineaD' && entity.Linea.Estaciones && entity.Linea.Estaciones.length > 3) {
-      const times = entity.Linea.Estaciones.map(e => e.arrival?.time || e.departure?.time).filter(Boolean) as number[];
-      const uniqueTimes = new Set(times);
-      if (uniqueTimes.size <= times.length * 0.4) {
-        isCorruptedLineD = true;
-      }
-    }
-
-    if (isCorruptedLineD && entity.Linea.Estaciones) {
-      let tripStartEpoch = feedTimestamp;
-      const stationCount = entity.Linea.Estaciones.length;
-      const tripDuration = Math.max(stationCount - 1, 1) * 88.5;
-      if (entity.Linea.start_time) {
-        const dateStr = entity.Linea.start_date || new Date().toISOString().slice(0, 10).replace(/-/g, '');
-        const year = parseInt(dateStr.substring(0, 4));
-        const month = parseInt(dateStr.substring(4, 6)) - 1;
-        const day = parseInt(dateStr.substring(6, 8));
-        const [hh, mm, ss] = entity.Linea.start_time.split(':').map(Number);
-        const localDate = new Date(year, month, day, hh, mm, ss);
-        const parsedEpoch = Math.floor(localDate.getTime() / 1000);
-        if (Math.abs(nowUnix - parsedEpoch) < tripDuration + 300) {
-          tripStartEpoch = parsedEpoch;
-        } else {
-          // Anchor so first station seq has etaEnPaquete >= -60
-          tripStartEpoch = feedTimestamp - 60;
-        }
-      } else {
-        tripStartEpoch = feedTimestamp - 60;
-      }
-
-      entity.Linea.Estaciones.forEach(est => {
-        const seq = sequences.find(s => s.stopId === est.stop_id);
-        const seqNum = seq ? seq.stopSequence : 1;
-        const delay = est.arrival?.delay || est.departure?.delay || 0;
-        const reconstructedArrival = tripStartEpoch + Math.round(seqNum * 88.5) + delay;
-        const reconstructedDeparture = reconstructedArrival + STOP_DURATION_S;
-
-        est.arrival = { time: reconstructedArrival, delay: 0 };
-        est.departure = { time: reconstructedDeparture, delay: 0 };
-      });
-    }
+    if (routeId === 'LineaD') return;
 
     entity.Linea.Estaciones?.forEach((est: GCBAStation) => {
       const arrTime = est.arrival?.time || est.departure?.time;
@@ -706,18 +663,13 @@ export async function getTelemetryData() {
         lon = snapped.longitude;
       }
 
-      // Line D special: Ignore stopped trains completely
-      if (routeId === 'LineaD' && status === 'STOPPED') {
-        return;
-      }
-
-      // ALGORITMO CAZAFANTASMAS: Exempt terminals (sequence 1 or max sequence)
+      // ALGORITMO CAZAFANTASMAS: Drop phantom trains stopped mid-route for >5min
       const entryData = trackerDB.get(stableId);
       const maxSeq = Math.max(...seqList.map(s => s.stopSequence));
       const isTerminal = activeStop.stopSequence === 1 || activeStop.stopSequence === maxSeq;
       
       if (status === 'STOPPED' && entryData && (nowUnix - entryData.stationEnterTime > 300)) {
-         if (!isTerminal) return; // Drop phantom trains in mid-route only
+         if (!isTerminal) return;
       }
 
       trains.push({
@@ -856,7 +808,7 @@ export async function getTelemetryData() {
   }
 
   // Virtual simulator dispatcher for C, H, Premetro lines
-  const simRoutes = ['LineaC', 'LineaH', 'PM-Civico', 'PM-Savio'];
+  const simRoutes = ['LineaC', 'LineaD', 'LineaH', 'PM-Civico', 'PM-Savio'];
   const localDateStr = new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' });
   const localDate = new Date(localDateStr);
   const localDay = localDate.getDay();
@@ -898,33 +850,37 @@ export async function getTelemetryData() {
 
         const sortedSeq = [...seqList].sort((a, b) => a.stopSequence - b.stopSequence);
         const totalStops = sortedSeq.length;
-        const tripDuration = (totalStops - 1) * 88.5;
-        const numTrips = Math.ceil(tripDuration / headway);
+        const segDuration = 88.5;
+        const tripDuration = (totalStops - 1) * segDuration;
+        const numTrains = Math.ceil(tripDuration / headway);
 
-        for (let k = 0; k < numTrips; k++) {
-          const elapsedTime = ((nowUnix - k * headway) % headway) + k * headway;
-          if (elapsedTime >= tripDuration || elapsedTime < 0) continue;
+        for (let k = 0; k < numTrains; k++) {
+          const fullElapsed = nowUnix - k * headway;
+          if (fullElapsed < 0) continue;
 
-          const stopIdx = Math.floor(elapsedTime / 88.5);
-          if (stopIdx >= totalStops - 1) continue;
+          const cycleNum = Math.floor(fullElapsed / tripDuration);
+          const trainElapsed = fullElapsed - cycleNum * tripDuration;
 
+          const stopIdx = Math.min(Math.floor(trainElapsed / segDuration), totalStops - 2);
           const activeStop = sortedSeq[stopIdx];
           const nextStop = sortedSeq[stopIdx + 1];
 
-          const dwellTime = elapsedTime % 88.5;
+          const segElapsed = trainElapsed - stopIdx * segDuration;
+
           let status: 'STOPPED' | 'IN_TRANSIT' = 'STOPPED';
           let progress = 0.0;
+
           const prevStopId = activeStop.stopId;
           const prevStopName = stationMap.get(prevStopId)?.stopName || 'Estación';
           const nextStopId = nextStop.stopId;
           const nextStopName = stationMap.get(nextStopId)?.stopName || 'Estación';
 
-          if (dwellTime < STOP_DURATION_S) {
+          if (segElapsed < STOP_DURATION_S) {
             status = 'STOPPED';
             progress = 0.0;
           } else {
             status = 'IN_TRANSIT';
-            progress = (dwellTime - STOP_DURATION_S) / (88.5 - STOP_DURATION_S);
+            progress = Math.min((segElapsed - STOP_DURATION_S) / (segDuration - STOP_DURATION_S), 1.0);
           }
 
           const prevStation = stationMap.get(prevStopId);
@@ -945,8 +901,9 @@ export async function getTelemetryData() {
           }
 
           const lineChar = routeId.startsWith('PM-') ? routeId.replace('-', '') : routeId.replace('Linea', '');
-          const tripId = `SIM-${lineChar}-${directionId}-${k}`;
-          const etaSeconds = Math.max(0, Math.round(((stopIdx + 1) * 88.5) - elapsedTime));
+          const tripId = `SIM-${lineChar}-${directionId}-${k}-${cycleNum}`;
+          const etaToNext = segDuration - segElapsed;
+          const etaSeconds = Math.max(0, Math.round(etaToNext));
 
           trains.push({
             id: tripId,
