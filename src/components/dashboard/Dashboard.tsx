@@ -70,7 +70,7 @@ export default function Dashboard() {
         />
 
         {/* Content area with tab screens */}
-        <main className="flex-1 overflow-y-auto scrollbar-thin relative min-h-0">
+        <main className="flex-1 overflow-y-auto scrollbar-thin relative min-h-0 md:pb-0 pb-[52px]">
           {connectionError && (
             <div className="sticky top-0 z-20 mx-3 mt-3 flex items-center gap-2 rounded-md bg-error-container/90 px-3 py-2 text-body-sm text-on-error-container backdrop-blur-md animate-fadeIn">
               <span className="h-2 w-2 rounded-full bg-error shrink-0" />

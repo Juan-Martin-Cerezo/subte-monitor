@@ -17,7 +17,7 @@ const TABS: { id: TabId; label: string; icon: IconName }[] = [
 export function MobileBottomNav({ tab, onTabChange }: Props) {
   return (
     <nav
-      className="md:hidden shrink-0 z-40 grid grid-cols-5 border-t border-outline-variant/10 bg-surface-container-lowest/98 backdrop-blur-2xl thumb-safe-bottom min-h-0"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 grid grid-cols-5 border-t border-outline-variant/10 bg-surface-container-lowest/98 backdrop-blur-2xl thumb-safe-bottom"
       aria-label="Navegación principal"
     >
       {TABS.map(t => {
@@ -29,7 +29,7 @@ export function MobileBottomNav({ tab, onTabChange }: Props) {
             onClick={() => onTabChange(t.id)}
             aria-current={active ? 'page' : undefined}
             className={classNames(
-              'relative flex flex-col items-center justify-center gap-0 touch-target transition-all duration-150 active:scale-95 py-0.5',
+              'relative flex flex-col items-center justify-center gap-0 transition-all duration-150 active:scale-95 py-1',
               active ? 'text-primary' : 'text-on-surface-variant active:text-on-surface'
             )}
           >
