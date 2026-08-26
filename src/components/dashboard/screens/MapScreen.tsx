@@ -646,7 +646,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
 
       {/* Selection panel — station or train */}
       {(selectedStation || selectedTrain) && (
-        <div className="border-t border-outline-variant/10 bg-surface-container-lowest/90 backdrop-blur-xl p-3 md:p-4 z-20 animate-fade-in">
+        <div className="border-t border-outline-variant/10 bg-surface-container-lowest/95 backdrop-blur-xl p-3 md:p-4 z-20 animate-fade-in max-h-[48vh] overflow-y-auto scrollbar-thin">
           <div className="max-w-3xl mx-auto flex items-start gap-3">
             {selectedStation && (
               <div className="flex-1 min-w-0">
