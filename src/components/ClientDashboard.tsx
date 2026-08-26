@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 const Dashboard = dynamic(() => import('./dashboard/Dashboard'), {
   ssr: false,
   loading: () => (
-    <div className="flex h-screen w-screen items-center justify-center bg-background">
+    <div className="flex h-dvh w-screen items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-3">
         <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-surface-container-high">
           <span className="material-symbols-outlined text-primary text-3xl">directions_subway</span>

@@ -52,6 +52,7 @@ export const Icon = {
   Compass: make(<><circle cx="12" cy="12" r="10" /><path d="m16 8-4 4-4 4 8-2z" /></>),
   Filter: make(<path d="M3 4h18l-7 9v6l-4 2v-8z" />),
   Heart: make(<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />),
+  Shield: make(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />),
 };
 
 export type IconName = keyof typeof Icon;

@@ -39,7 +39,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body
-        className="min-h-screen bg-background text-on-background antialiased"
+        className="min-h-dvh bg-background text-on-background antialiased"
         suppressHydrationWarning
       >
         {children}

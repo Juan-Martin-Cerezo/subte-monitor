@@ -12,6 +12,7 @@ import type { Station, RouteSequence, ReportItem } from '../types';
 import type { TrainTelemetry } from '@/lib/telemetry';
 import { LINE_SHAPES } from '@/lib/shapes';
 import { SUBTE_LINES_GEOM } from '@/lib/metadata_extended';
+import { SAFETY_ZONES, type SafetyZone, getSafetyZonesForStation } from '@/lib/safety_zones';
 
 interface Props {
   stations: Station[];
@@ -41,6 +42,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
   const [mapError, setMapError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [mapUserMoved, setMapUserMoved] = useState(false);
+  const [showSafetyZones, setShowSafetyZones] = useState(true);
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
   const [selectedTrain, setSelectedTrain] = useState<TrainTelemetry | null>(null);
   const [pinnedTrainId, setPinnedTrainId] = useState<string | null>(null);
@@ -49,6 +51,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
   const tracksGroupRef = useRef<LayerGroup | null>(null);
   const trainsGroupRef = useRef<LayerGroup | null>(null);
   const reportsGroupRef = useRef<LayerGroup | null>(null);
+  const safetyGroupRef = useRef<LayerGroup | null>(null);
 
   // ----- Init map -----
   useEffect(() => {
@@ -99,6 +102,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
     tracksGroupRef.current = L.layerGroup().addTo(map);
     trainsGroupRef.current = L.layerGroup().addTo(map);
     reportsGroupRef.current = L.layerGroup().addTo(map);
+    safetyGroupRef.current = L.layerGroup().addTo(map);
 
     // Fit bounds on first ready
     map.whenReady(() => {
@@ -258,6 +262,86 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
     return () => { group.clearLayers(); };
   }, [userReports, stations, sequences, activeLine]);
 
+  // ----- Draw safety / danger zones (Urban Corridors / Street Blocks) -----
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !safetyGroupRef.current) return;
+    const group = safetyGroupRef.current;
+    group.clearLayers();
+
+    if (!showSafetyZones) return;
+
+    // Filter zones by active line if not 'All'
+    const activeZones = activeLine === 'All'
+      ? SAFETY_ZONES
+      : SAFETY_ZONES.filter(z => z.lines.includes(activeLine as LineId));
+
+    activeZones.forEach(zone => {
+      // 1. Polygon representing urban street block / corridor
+      const polygon = L.polygon(zone.polygon, {
+        color: '#ef4444',
+        fillColor: '#ef4444',
+        fillOpacity: 0.18,
+        weight: 1.8,
+        dashArray: '4 4',
+        lineJoin: 'round',
+        lineCap: 'round',
+      });
+
+      // 2. Interactive danger beacon in the zone center
+      const icon = L.divIcon({
+        className: 'custom-station-icon',
+        html: `
+          <div style="position:relative;width:26px;height:26px;display:flex;align-items:center;justify-content:center;cursor:pointer;" title="Zona de riesgo: ${zone.name}">
+            <span class="safety-zone-beacon" style="position:absolute;width:26px;height:26px;border-radius:50%;background:rgba(239,68,68,0.25);border:1.5px solid #ef4444;"></span>
+            <span style="position:relative;width:10px;height:10px;border-radius:50%;background:#ef4444;box-shadow:0 0 10px #ef4444;"></span>
+          </div>
+        `,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
+      });
+
+      const marker = L.marker(zone.center, { icon });
+
+      const popupHtml = `
+        <div style="font-family:Inter,system-ui;min-width:240px;max-width:290px;padding:4px 2px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px;">
+            <span style="background:${zone.riskLevel === 'CRITICO' ? '#991b1b' : '#7f1d1d'};color:#fecaca;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;letter-spacing:0.5px;">
+              ⚠️ ${zone.riskLevel === 'CRITICO' ? 'ZONA CRÍTICA' : 'PRECAUCIÓN'}
+            </span>
+            <span style="color:#ef4444;font-size:10px;font-weight:700;text-transform:uppercase;">Robos de Subte</span>
+          </div>
+          <h4 style="margin:0 0 3px;font-size:13px;font-weight:700;color:#fff;">${zone.name}</h4>
+          <p style="margin:0 0 6px;font-size:11px;color:#94a3b8;font-style:italic;">📍 ${zone.corridor}</p>
+          <p style="margin:0 0 8px;font-size:11px;color:#f87171;font-weight:600;line-height:1.35;">${zone.primaryRisk}</p>
+          
+          <div style="margin-bottom:8px;background:rgba(255,255,255,0.04);border-radius:6px;padding:6px;">
+            <div style="font-size:10px;font-weight:700;color:#cbd5e1;text-transform:uppercase;margin-bottom:3px;">Modalidades habituales:</div>
+            <ul style="margin:0;padding-left:14px;font-size:11px;color:#cbd5e1;line-height:1.4;">
+              ${zone.modalities.map(m => `<li>${m}</li>`).join('')}
+            </ul>
+          </div>
+
+          <div style="background:rgba(239,68,68,0.12);border-left:3px solid #ef4444;border-radius:4px;padding:5px 7px;">
+            <div style="font-size:10px;font-weight:700;color:#fca5a5;text-transform:uppercase;">Consejo de prevención:</div>
+            <p style="margin:2px 0 0;font-size:11px;color:#fecaca;line-height:1.35;">${zone.tips[0]}</p>
+          </div>
+          ${zone.hotTimes ? `<div style="margin-top:6px;font-size:10px;color:#94a3b8;text-align:right;">⏰ ${zone.hotTimes}</div>` : ''}
+        </div>
+      `;
+
+      polygon.bindPopup(popupHtml);
+      marker.bindPopup(popupHtml);
+
+      polygon.addTo(group);
+      marker.addTo(group);
+    });
+
+    return () => {
+      group.clearLayers();
+    };
+  }, [showSafetyZones, activeLine]);
+
   // ----- Draw trains -----
   useEffect(() => {
     if (!mapReady) return;
@@ -392,6 +476,11 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
       .slice(0, 4);
   }, [selectedStation, telemetry.trains]);
 
+  const stationSafetyZones = useMemo(() => {
+    if (!selectedStation) return [];
+    return getSafetyZonesForStation(selectedStation.stopName);
+  }, [selectedStation]);
+
   return (
     <div className="flex h-full flex-col">
       {/* Map header — line filter chips, scrollable, touch-friendly */}
@@ -437,6 +526,26 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
               </button>
             );
           })}
+
+          {/* Safety zones toggle button */}
+          <div className="flex items-center pl-1.5 shrink-0 border-l border-outline-variant/20 ml-1">
+            <button
+              onClick={() => setShowSafetyZones(v => !v)}
+              className={classNames(
+                'shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 md:py-1 rounded-full text-[11px] md:text-body-sm font-semibold transition-all active:scale-90 border',
+                showSafetyZones
+                  ? 'bg-error-container/40 text-error border-error/50 shadow-[0_0_8px_rgba(239,68,68,0.2)]'
+                  : 'bg-surface-container/60 text-outline border-outline-variant/20 hover:text-on-surface'
+              )}
+              title={showSafetyZones ? 'Ocultar zonas de riesgo de robos' : 'Mostrar zonas de riesgo de robos'}
+            >
+              <Icon.Shield size={14} className={showSafetyZones ? 'text-error animate-pulse' : 'text-outline'} />
+              <span>Seguridad</span>
+              {showSafetyZones && (
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -471,7 +580,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
               </button>
             </div>
           </div>
-        ) : !mapReady || telemetry.trains.length === 0 ? (
+        ) : !mapReady && !mapError ? (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 md:gap-4 map-skeleton-placeholder px-6">
               <div className="flex flex-col items-center gap-3 text-center">
                 {mapReady ? (
@@ -558,6 +667,28 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
                     </span>
                   ))}
                 </div>
+
+                {/* Safety / Insecurity Alert Card */}
+                {stationSafetyZones.length > 0 && (
+                  <div className="mt-2.5 p-2.5 rounded-lg bg-error-container/20 border border-error-container/40 flex items-start gap-2.5 animate-fade-in">
+                    <div className="p-1 rounded bg-error/20 text-error shrink-0 mt-0.5">
+                      <Icon.Shield size={16} />
+                    </div>
+                    <div className="flex-1 min-w-0 text-xs">
+                      <div className="flex items-center gap-1.5 font-bold text-error">
+                        <span>⚠️ Zona identificada de precaución / robos frecuentes</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-error-container/40 text-on-error-container font-mono">
+                          {stationSafetyZones[0].riskLevel}
+                        </span>
+                      </div>
+                      <p className="text-on-surface-variant mt-0.5 text-[11px] font-medium">{stationSafetyZones[0].primaryRisk}</p>
+                      <p className="text-error/90 mt-1 font-semibold text-[11px]">
+                        💡 Prevención: {stationSafetyZones[0].tips[0]}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {upcomingForStation.length > 0 && (
                   <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
                     {upcomingForStation.map(t => (

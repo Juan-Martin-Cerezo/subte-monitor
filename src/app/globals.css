@@ -1,6 +1,6 @@
 @import "tailwindcss";
-@import "leaflet/dist/leaflet.css";
-
+/* Leaflet CSS is loaded dynamically in MapScreen via useEffect — 
+   @import from node_modules can cause build issues with Turbopack. */
 /* ============================================================
    SUBTE NOCTURNO — Design System (Stitch "Subte Live Buenos Aires")
    Dark surface · Primary #00aeef · Secondary #ed1c24
@@ -441,9 +441,42 @@ body {
   animation: shimmerBar 1.8s ease-in-out infinite;
 }
 
+/* Safety zone pulse */
+@keyframes dangerPulse {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.35;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+}
+
+.safety-zone-beacon {
+  animation: dangerPulse 2.8s ease-in-out infinite;
+}
+
+/* Custom safety popup dark style */
+.leaflet-popup-content-wrapper {
+  background: #1c1b1b !important;
+  color: #e5e2e1 !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7) !important;
+}
+.leaflet-popup-tip {
+  background: #1c1b1b !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
 }
+

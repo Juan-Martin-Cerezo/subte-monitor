@@ -23,6 +23,7 @@ export interface TelemetryPayload {
   trains: TrainTelemetry[];
   alerts: AlertData[];
   predictions: Prediction[];
+  stale?: boolean;
 }
 
 export function useDashboardData() {
@@ -61,7 +62,8 @@ export function useDashboardData() {
       if (res.ok) {
         const data = await res.json();
         setTelemetry(data);
-        setConnectionError(false);
+        // If server says 'stale', show connection banner but keep showing previous data
+        setConnectionError(data.stale === true);
       } else {
         setConnectionError(true);
       }

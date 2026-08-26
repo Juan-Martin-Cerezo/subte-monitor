@@ -299,6 +299,7 @@ export async function getTelemetryData() {
   let rawForecast: GCBAForecastResponse | null = null;
   let alerts: AlertData[] = [];
   let fetchedAt = nowUnix;
+  let fetchFailed = false;
 
   const cacheLimitSeconds = 1.5; // cache for 1.5 seconds
   const cached = globalForCache.subteCache;
@@ -312,7 +313,7 @@ export async function getTelemetryData() {
     let rawAlerts: GCBAAlertsResponse | null = null;
     try {
       const ac = new AbortController();
-      const to = setTimeout(() => ac.abort(), 4000);
+      const to = setTimeout(() => ac.abort(), 8000);
       const fo = { cache: 'no-store' as const, signal: ac.signal };
       const [forecastRes, alertsRes] = await Promise.all([
         fetch(forecastUrl, fo).then(res => res.ok ? res.json() : null),
@@ -322,12 +323,20 @@ export async function getTelemetryData() {
       rawForecast = forecastRes as GCBAForecastResponse | null;
       rawAlerts = alertsRes as GCBAAlertsResponse | null;
     } catch (error) {
+      fetchFailed = true;
       console.error('Error fetching live Subte telemetry:', error);
     }
 
+    // If the API returned empty or failed, use the last known good data from cache
     if (!rawForecast || !rawForecast.Entity || rawForecast.Entity.length === 0) {
-      console.log('No live telemetry data available (API response empty/failed)');
-      rawForecast = { Header: { timestamp: nowUnix }, Entity: [] };
+      if (globalForCache.subteCache && globalForCache.subteCache.rawForecast) {
+        rawForecast = globalForCache.subteCache.rawForecast;
+        alerts = globalForCache.subteCache.alerts;
+        console.log('Using cached telemetry data (GCBA API unavailable)');
+      } else {
+        console.log('No live telemetry data available (API response empty/failed)');
+        rawForecast = { Header: { timestamp: nowUnix }, Entity: [] };
+      }
     }
 
     // Process alerts
@@ -365,12 +374,17 @@ export async function getTelemetryData() {
       alerts = globalForAlerts.lastAlerts;
     }
 
-    // Save to global cache
-    globalForCache.subteCache = {
-      rawForecast,
-      alerts,
-      fetchedAt: nowUnix,
-    };
+    // Only save to global cache if we actually got data (not an empty response)
+    if (rawForecast && rawForecast.Entity && rawForecast.Entity.length > 0) {
+      globalForCache.subteCache = {
+        rawForecast,
+        alerts,
+        fetchedAt: nowUnix,
+      };
+    } else if (rawForecast && rawForecast.Entity && rawForecast.Entity.length === 0) {
+      // Don't cache empty responses — next poll will try again
+      console.log('Skipping cache update — no entities in forecast');
+    }
     fetchedAt = nowUnix;
   }
 
@@ -975,10 +989,14 @@ export async function getTelemetryData() {
 
   const schedulePredictions = [...apiPredictions, ...simPredictions];
 
+  // stale flag: true si el fetch falló y estamos usando datos cacheados
+  const stale = fetchFailed && (globalForCache.subteCache?.rawForecast?.Entity?.length ?? 0) > 0;
+
   return {
     trains: trains.sort((a, b) => a.id.localeCompare(b.id)),
     alerts,
-    predictions: schedulePredictions
+    predictions: schedulePredictions,
+    stale
   };
 }
 
