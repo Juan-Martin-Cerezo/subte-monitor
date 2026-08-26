@@ -79,10 +79,16 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
     });
     mapInstanceRef.current = map;
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '© OpenStreetMap contributors',
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 16,
+      attribution: '© Esri · Subte Monitor',
       className: 'dark-tiles',
+    }).addTo(map);
+
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 16,
+      attribution: '',
+      className: 'dark-tiles-labels',
     }).addTo(map);
 
     L.control.zoom({ position: 'topright' }).addTo(map);
