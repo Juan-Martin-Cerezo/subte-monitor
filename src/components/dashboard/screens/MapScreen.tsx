@@ -79,10 +79,10 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
     });
     mapInstanceRef.current = map;
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      attribution: '© OSM · © CARTO',
-      subdomains: 'abcd',
+      attribution: '© OpenStreetMap contributors',
+      className: 'dark-tiles',
     }).addTo(map);
 
     L.control.zoom({ position: 'topright' }).addTo(map);

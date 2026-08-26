@@ -394,6 +394,11 @@ body {
 .custom-train-icon { transition: top 1.9s linear, left 1.9s linear, transform 1.9s linear !important; }
 .map-zooming .custom-train-icon { transition: none !important; }
 
+/* Dark mode tiles for OpenStreetMap without API key or watermark */
+.leaflet-tile-pane .dark-tiles {
+  filter: brightness(0.6) invert(1) contrast(2.4) hue-rotate(195deg) saturate(0.25) brightness(0.72) !important;
+}
+
 /* Subtle vignette to integrate Leaflet with the dark surface */
 .map-vignette {
   position: absolute; inset: 0; pointer-events: none; z-index: 400;
