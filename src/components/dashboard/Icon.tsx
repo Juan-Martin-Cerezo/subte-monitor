@@ -53,6 +53,8 @@ export const Icon = {
   Filter: make(<path d="M3 4h18l-7 9v6l-4 2v-8z" />),
   Heart: make(<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 1 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />),
   Shield: make(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />),
+  Bus: make(<><path d="M8 6v6M16 6v6M2 12h20M6 18h12M4 18v2M20 18v2M6 10h12a2 2 0 0 1 2 2v6H4v-6a2 2 0 0 1 2-2z" /><circle cx="7" cy="15" r="1" /><circle cx="17" cy="15" r="1" /></>),
+  Bike: make(<><circle cx="5.5" cy="17.5" r="3.5" /><circle cx="18.5" cy="17.5" r="3.5" /><path d="M15 6a1 1 0 100-2 1 1 0 000 2zM9.5 17.5l3-7M12 7.5l-2.5 4h5M12 7.5l3 4" /></>),
 };
 
 export type IconName = keyof typeof Icon;

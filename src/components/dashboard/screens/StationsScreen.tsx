@@ -8,6 +8,7 @@ import { classNames, formatEta, lineShort } from '../utils';
 import { ACCESSIBILITY_METADATA } from '@/lib/metadata';
 import { ARTWORK_METADATA, PREMETRO_STATION_DETAILS } from '@/lib/metadata_extended';
 import type { Prediction } from '@/lib/telemetry';
+import { STATION_CONNECTIONS } from '@/lib/connections';
 
 interface Props {
   stations: Station[];
@@ -58,11 +59,11 @@ export function StationsScreen({ stations, sequences, predictions, userReports }
       {/* List */}
       <aside
         className={classNames(
-          'w-full md:w-[380px] lg:w-[420px] shrink-0 flex flex-col border-r border-outline-variant/10 bg-surface-container-lowest/40',
+          'w-full md:w-[320px] lg:w-[420px] shrink-0 flex flex-col border-r border-outline-variant/10 bg-surface-container-lowest/40',
           selected && showDetailMobile ? 'hidden md:flex' : 'flex'
         )}
       >
-        <div className="p-4 border-b border-outline-variant/10 space-y-3">
+        <div className="p-2.5 md:p-4 border-b border-outline-variant/10 space-y-2 md:space-y-3">
           <div>
             <p className="text-label-caps text-outline tracking-widest">Subte Live</p>
             <h1 className="text-headline-md font-bold text-on-background mt-0.5">Estaciones</h1>
@@ -253,12 +254,12 @@ function StationDetail({
       </div>
 
       {/* Bento grid */}
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-2 md:gap-3 md:grid-cols-2 lg:grid-cols-3">
         {/* Connections */}
         <div className="bento-card p-4 lg:col-span-1">
           <h3 className="text-title-sm font-bold text-on-background flex items-center gap-2 mb-3">
             <Icon.Transfer size={16} className="text-primary" />
-            Conexiones
+            Conexiones Subte
           </h3>
           {connections.length === 0 ? (
             <p className="text-body-sm text-on-surface-variant">Sin combinaciones con otras líneas.</p>
@@ -283,6 +284,41 @@ function StationDetail({
             </ul>
           )}
         </div>
+
+        {/* Bus & Train connections */}
+        {(() => {
+          const connKey = normalizeStationKey(station.stopName);
+          const conn = STATION_CONNECTIONS[connKey];
+          if (!conn || (conn.buses.length === 0 && conn.trains.length === 0)) return null;
+          return (
+            <div className="bento-card p-4 lg:col-span-1">
+              <h3 className="text-title-sm font-bold text-on-background flex items-center gap-2 mb-3">
+                <Icon.Bus size={16} className="text-primary" />
+                Colectivos y Trenes
+              </h3>
+              <div className="space-y-2">
+                {conn.trains.map(t => (
+                  <div key={`${t.line}-${t.stationName}`} className="inner-card p-2.5 flex items-center gap-2">
+                    <Icon.Train size={14} className="text-outline shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-body-sm font-medium text-on-background">Tren {t.line}</p>
+                      <p className="text-[10px] text-on-surface-variant truncate">{t.stationName} · {t.distance}m</p>
+                    </div>
+                  </div>
+                ))}
+                {conn.buses.slice(0, 6).map(b => (
+                  <div key={b.line} className="inner-card p-2.5 flex items-center gap-2">
+                    <Icon.Bus size={14} className="text-outline shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-body-sm font-medium text-on-background">Línea {b.line}</p>
+                      <p className="text-[10px] text-on-surface-variant">{b.count} paradas cercanas · {b.nearestDistance}m</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Accessibility */}
         <div className="bento-card p-4">

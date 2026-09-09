@@ -325,9 +325,9 @@ body {
   .btn-ghost:active { transform: scale(0.98); }
   .icon-btn {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 2.5rem; height: 2.5rem;
+    width: 2.75rem; height: 2.75rem;
     border-radius: var(--radius-md);
-    color: var(--color-on-surface);
+    color: var(--color-on-surface-variant);
     transition: all 200ms ease;
     cursor: pointer;
   }

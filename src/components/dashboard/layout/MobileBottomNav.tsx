@@ -29,7 +29,7 @@ export function MobileBottomNav({ tab, onTabChange }: Props) {
             onClick={() => onTabChange(t.id)}
             aria-current={active ? 'page' : undefined}
             className={classNames(
-              'relative flex flex-col items-center justify-center gap-0 transition-all duration-150 active:scale-95 py-1',
+              'relative flex flex-col items-center justify-center gap-0.5 transition-all duration-150 active:scale-95 min-h-[52px] px-1',
               active ? 'text-primary' : 'text-on-surface-variant active:text-on-surface'
             )}
           >
@@ -39,8 +39,8 @@ export function MobileBottomNav({ tab, onTabChange }: Props) {
                 <span className="absolute inset-0 rounded-lg bg-primary/5" />
               </>
             )}
-            <Icn size={active ? 20 : 18} />
-            <span className="text-[clamp(7px,1.8vw,9px)] font-semibold leading-tight">{t.label}</span>
+            <Icn size={active ? 22 : 20} />
+            <span className="text-[clamp(9px,2.5vw,11px)] font-semibold leading-tight">{t.label}</span>
           </button>
         );
       })}

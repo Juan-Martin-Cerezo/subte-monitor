@@ -120,13 +120,13 @@ export function Header({ tab, onTabChange, onMenuToggle, isRefreshing, onRefresh
               </div>
               <div className="flex flex-col leading-none">
                 <span className="text-sm font-bold tracking-tight text-on-background">SUBTE</span>
-                <span className="text-[8px] font-mono tracking-widest text-outline">LIVE · BA</span>
+                <span className="text-[9px] font-mono tracking-widest text-outline">LIVE · BA</span>
               </div>
             </div>
           )}
         </div>
         <div className="flex items-center gap-0.5">
-          <span className="flex items-center gap-1 rounded-md bg-surface-container px-1.5 py-1 text-[8px] font-mono text-on-surface-variant">
+          <span className="flex items-center gap-1 rounded-md bg-surface-container px-1.5 py-1 text-[9px] font-mono text-on-surface-variant">
             <span className="live-dot !h-1.5 !w-1.5" />
             EN VIVO
           </span>

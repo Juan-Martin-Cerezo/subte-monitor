@@ -32,7 +32,7 @@ export function Sidebar({ open, onClose, activeLine, onActiveLineChange, trainsB
       <aside
         className={classNames(
           'fixed md:relative z-50 md:z-auto h-full md:h-auto',
-          'w-72 md:w-64 lg:w-72 shrink-0 flex flex-col',
+          'w-[85vw] max-w-[280px] md:w-64 lg:w-72 shrink-0 flex flex-col',
           'bg-surface-container-low/95 md:bg-surface-container-lowest/60 md:backdrop-blur-md',
           'border-r border-outline-variant/10',
           'transition-transform duration-200',

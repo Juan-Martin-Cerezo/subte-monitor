@@ -13,6 +13,9 @@ import type { TrainTelemetry } from '@/lib/telemetry';
 import { LINE_SHAPES } from '@/lib/shapes';
 import { SUBTE_LINES_GEOM } from '@/lib/metadata_extended';
 import { SAFETY_ZONES, type SafetyZone, getSafetyZonesForStation } from '@/lib/safety_zones';
+import { STATION_CONNECTIONS, type StationConnections } from '@/lib/connections';
+import type { EcobiciStation } from '@/lib/ecobici';
+import { normalizeStationKey } from '../lines';
 
 interface Props {
   stations: Station[];
@@ -23,6 +26,7 @@ interface Props {
   visibleLines: LineId[];
   trainsByLine: Record<string, TrainTelemetry[]>;
   userReports: ReportItem[];
+  ecobiciStations: EcobiciStation[];
 }
 
 function arrowSvgIcon(color: string, directionId: number, size = 28): string {
@@ -33,7 +37,7 @@ function arrowSvgIcon(color: string, directionId: number, size = 28): string {
   </svg>`;
 }
 
-export function MapScreen({ stations, sequences, telemetry, activeLine, setActiveLine, visibleLines, trainsByLine, userReports }: Props) {
+export function MapScreen({ stations, sequences, telemetry, activeLine, setActiveLine, visibleLines, trainsByLine, userReports, ecobiciStations }: Props) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<LeafletMap | null>(null);
   const mapUserMovedRef = useRef(false);
@@ -43,6 +47,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
   const [retryCount, setRetryCount] = useState(0);
   const [mapUserMoved, setMapUserMoved] = useState(false);
   const [showSafetyZones, setShowSafetyZones] = useState(true);
+  const [showEcobici, setShowEcobici] = useState(false);
   const [selectedStation, setSelectedStation] = useState<Station | null>(null);
   const [selectedTrain, setSelectedTrain] = useState<TrainTelemetry | null>(null);
   const [pinnedTrainId, setPinnedTrainId] = useState<string | null>(null);
@@ -52,6 +57,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
   const trainsGroupRef = useRef<LayerGroup | null>(null);
   const reportsGroupRef = useRef<LayerGroup | null>(null);
   const safetyGroupRef = useRef<LayerGroup | null>(null);
+  const ecobiciGroupRef = useRef<LayerGroup | null>(null);
 
   // ----- Init map -----
   useEffect(() => {
@@ -109,6 +115,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
     trainsGroupRef.current = L.layerGroup().addTo(map);
     reportsGroupRef.current = L.layerGroup().addTo(map);
     safetyGroupRef.current = L.layerGroup().addTo(map);
+    ecobiciGroupRef.current = L.layerGroup().addTo(map);
 
     // Fit bounds on first ready
     map.whenReady(() => {
@@ -348,6 +355,46 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
     };
   }, [showSafetyZones, activeLine]);
 
+  // ----- Draw Ecobici stations -----
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !ecobiciGroupRef.current) return;
+    const group = ecobiciGroupRef.current;
+    group.clearLayers();
+
+    if (!showEcobici) return;
+
+    ecobiciStations.forEach(station => {
+      const bikes = station.bikesAvailable;
+      const color = bikes > 5 ? '#22c55e' : bikes > 0 ? '#f59e0b' : '#ef4444';
+
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="position:relative;width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;" title="${station.name}: ${bikes} bicis disponibles">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 1px 3px rgba(0,0,0,0.5))">
+            <circle cx="5.5" cy="17.5" r="3.5"/>
+            <circle cx="18.5" cy="17.5" r="3.5"/>
+            <path d="M15 6a1 1 0 100-2 1 1 0 000 2zM9.5 17.5l3-7M12 7.5l-2.5 4h5M12 7.5l3 4"/>
+          </svg>
+        </div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      });
+
+      const marker = L.marker([station.lat, station.lng], { icon });
+      marker.bindPopup(`
+        <div style="font-family:system-ui;min-width:160px;padding:4px;">
+          <h4 style="margin:0 0 4px;font-size:13px;font-weight:700;color:#fff;">${station.name}</h4>
+          <div style="display:flex;gap:12px;font-size:12px;color:#ccc;">
+            <span style="color:${color};font-weight:600;">${bikes} bicis</span>
+            <span>${station.docksAvailable} libres</span>
+          </div>
+        </div>
+      `);
+      marker.addTo(group);
+    });
+  }, [showEcobici, ecobiciStations]);
+
   // ----- Draw trains -----
   useEffect(() => {
     if (!mapReady) return;
@@ -487,6 +534,14 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
     return getSafetyZonesForStation(selectedStation.stopName);
   }, [selectedStation]);
 
+  const stationConn = useMemo(() => {
+    if (!selectedStation) return null;
+    const key = normalizeStationKey(selectedStation.stopName);
+    const conn = STATION_CONNECTIONS[key];
+    if (!conn || (conn.buses.length === 0 && conn.trains.length === 0)) return null;
+    return conn;
+  }, [selectedStation]);
+
   return (
     <div className="flex h-full flex-col">
       {/* Map header — line filter chips, scrollable, touch-friendly */}
@@ -552,11 +607,31 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
               )}
             </button>
           </div>
+
+          {/* Ecobici toggle button */}
+          <div className="flex items-center pl-1.5 shrink-0">
+            <button
+              onClick={() => setShowEcobici(v => !v)}
+              className={classNames(
+                'shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 md:py-1 rounded-full text-[11px] md:text-body-sm font-semibold transition-all active:scale-90 border',
+                showEcobici
+                  ? 'bg-green-500/20 text-green-400 border-green-500/50'
+                  : 'bg-surface-container/60 text-outline border-outline-variant/20 hover:text-on-surface'
+              )}
+              title={showEcobici ? 'Ocultar estaciones Ecobici' : 'Mostrar estaciones Ecobici'}
+            >
+              <Icon.Bike size={14} className={showEcobici ? 'text-green-400' : 'text-outline'} />
+              <span>Ecobici</span>
+              {showEcobici && (
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Map */}
-      <div className="relative flex-1 min-h-[280px]">
+      <div className="relative flex-1 min-h-[200px] md:min-h-[280px]">
         {/* Container div — ALWAYS mounted, never unmounts. Leaflet attaches here. */}
         <div ref={mapContainerRef} className="absolute inset-0 z-0" />
 
@@ -646,7 +721,7 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
 
       {/* Selection panel — station or train */}
       {(selectedStation || selectedTrain) && (
-        <div className="border-t border-outline-variant/10 bg-surface-container-lowest/95 backdrop-blur-xl p-3 md:p-4 z-20 animate-fade-in max-h-[48vh] overflow-y-auto scrollbar-thin">
+        <div className="border-t border-outline-variant/10 bg-surface-container-lowest/95 backdrop-blur-xl p-2.5 md:p-4 z-20 animate-fade-in max-h-[35vh] md:max-h-[48vh] overflow-y-auto scrollbar-thin">
           <div className="max-w-3xl mx-auto flex items-start gap-3">
             {selectedStation && (
               <div className="flex-1 min-w-0">
@@ -692,6 +767,29 @@ export function MapScreen({ stations, sequences, telemetry, activeLine, setActiv
                         💡 Prevención: {stationSafetyZones[0].tips[0]}
                       </p>
                     </div>
+                  </div>
+                )}
+
+                {/* Connections: buses & trains */}
+                {stationConn && (
+                  <div className="mt-3 space-y-1.5">
+                    <p className="text-label-caps text-outline text-[10px] tracking-widest">Conexiones</p>
+                    {stationConn.trains.map(t => (
+                      <div key={`${t.line}-${t.stationName}`} className="flex items-center gap-2 text-body-sm">
+                        <Icon.Train size={13} className="text-outline shrink-0" />
+                        <span className="font-medium text-on-background">Tren {t.line}</span>
+                        <span className="text-on-surface-variant truncate">· {t.stationName}</span>
+                        <span className="text-outline text-[10px] ml-auto shrink-0">{t.distance}m</span>
+                      </div>
+                    ))}
+                    {stationConn.buses.slice(0, 5).map(b => (
+                      <div key={b.line} className="flex items-center gap-2 text-body-sm">
+                        <Icon.Bus size={13} className="text-outline shrink-0" />
+                        <span className="font-medium text-on-background">Línea {b.line}</span>
+                        <span className="text-on-surface-variant">· {b.count} paradas</span>
+                        <span className="text-outline text-[10px] ml-auto shrink-0">{b.nearestDistance}m</span>
+                      </div>
+                    ))}
                   </div>
                 )}
 

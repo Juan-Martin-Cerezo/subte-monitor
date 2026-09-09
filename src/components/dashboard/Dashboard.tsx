@@ -12,6 +12,8 @@ import { PlannerScreen } from './screens/PlannerScreen';
 import { StationsScreen } from './screens/StationsScreen';
 import { StatusScreen } from './screens/StatusScreen';
 import { ArrivalsScreen } from './screens/ArrivalsScreen';
+import { EcobiciWidget } from './EcobiciWidget';
+import type { EcobiciStation } from '@/lib/ecobici';
 
 const MapScreen = dynamic(() => import('./screens/MapScreen').then(m => ({ default: m.MapScreen })), {
   ssr: false,
@@ -21,6 +23,7 @@ const MapScreen = dynamic(() => import('./screens/MapScreen').then(m => ({ defau
 export default function Dashboard() {
   const [tab, setTab] = useState<TabId>('map');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [ecobiciStations, setEcobiciStations] = useState<EcobiciStation[]>([]);
 
   const {
     stations,
@@ -36,6 +39,22 @@ export default function Dashboard() {
     now,
     userReports,
   } = useDashboardData();
+
+  // Poll Ecobici data every 60s
+  useEffect(() => {
+    let active = true;
+    const fetchEcobici = async () => {
+      try {
+        const res = await fetch('/api/ecobici');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (active && data.stations) setEcobiciStations(data.stations);
+      } catch { /* silent */ }
+    };
+    fetchEcobici();
+    const interval = setInterval(fetchEcobici, 60000);
+    return () => { active = false; clearInterval(interval); };
+  }, []);
 
   const handleTabChange = useCallback((t: TabId) => {
     setTab(t);
@@ -70,7 +89,7 @@ export default function Dashboard() {
         />
 
         {/* Content area with tab screens */}
-        <main className="flex-1 overflow-y-auto scrollbar-thin relative min-h-0 md:pb-0 pb-[52px]">
+        <main className="flex-1 overflow-y-auto scrollbar-thin relative min-h-0 md:pb-0 pb-[60px]">
           {connectionError && (
             <div className="sticky top-0 z-20 mx-3 mt-3 flex items-center gap-2 rounded-md bg-error-container/90 px-3 py-2 text-body-sm text-on-error-container backdrop-blur-md animate-fadeIn">
               <span className="h-2 w-2 rounded-full bg-error shrink-0" />
@@ -84,7 +103,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          <div className={tab !== 'map' ? 'max-w-6xl mx-auto w-full' : 'h-full'}>
+          <div className={tab !== 'map' ? 'max-w-6xl mx-auto w-full px-2 md:px-4' : 'h-full'}>
             {tab === 'map' && (
               <ErrorBoundary>
                 <MapScreen
@@ -96,6 +115,7 @@ export default function Dashboard() {
                   visibleLines={visibleLines}
                   trainsByLine={trainsByLine}
                   userReports={userReports}
+                  ecobiciStations={ecobiciStations}
                 />
               </ErrorBoundary>
             )}
@@ -117,6 +137,9 @@ export default function Dashboard() {
 
       {/* Mobile bottom nav */}
       <MobileBottomNav tab={tab} onTabChange={handleTabChange} />
+
+      {/* Global Ecobici widget */}
+      {tab === 'map' && <EcobiciWidget stations={ecobiciStations} />}
     </div>
   );
 }
