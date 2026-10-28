@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import type { TrainTelemetry, AlertData, Prediction } from "@/lib/telemetry";
 import type { Station, RouteSequence, ReportItem } from "./types";
 import { ALL_LINE_IDS, type LineId } from "./lines";
@@ -37,7 +37,8 @@ export function useDashboardData() {
   const [activeLine, setActiveLine] = useState<LineId | "All">("All");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
-  const [now, setNow] = useState<number>(Date.now());
+  // Lazy initialiser: reading the wall clock is only allowed at mount time, not on every render.
+  const [now, setNow] = useState<number>(() => Date.now());
 
   // Initial bootstrap — stations + sequences come from the server in `page.tsx`,
   // but we also support fetching them lazily if absent.
@@ -81,7 +82,9 @@ export function useDashboardData() {
   }, []);
 
   useEffect(() => {
-    fetchTelemetry();
+    // Kick the first poll off in a microtask so the effect body itself never sets state
+    // synchronously (avoids a cascading render on mount).
+    queueMicrotask(fetchTelemetry);
     const id = setInterval(fetchTelemetry, POLL_MS);
     return () => clearInterval(id);
   }, [fetchTelemetry]);
@@ -112,12 +115,8 @@ export function useDashboardData() {
     return telemetry.predictions.filter((p) => p.etaSeconds >= -10 && p.etaSeconds < 1800);
   }, [telemetry.predictions]);
 
-  // If active line vanishes (e.g. empty), reset to All
-  useEffect(() => {
-    if (activeLine !== "All" && !ALL_LINE_IDS.includes(activeLine)) {
-      setActiveLine("All");
-    }
-  }, [activeLine]);
+  // `activeLine` is typed `LineId | "All"` and every setter call site passes a valid line, so no
+  // effect is needed to reset a stale/invalid selection.
 
   // User-submitted reports — fetch every 60s, filter by per-category TTL
   const [userReports, setUserReports] = useState<ReportItem[]>([]);
@@ -138,7 +137,8 @@ export function useDashboardData() {
     }
   }, []);
   useEffect(() => {
-    fetchUserReports();
+    // Same as above: defer the first fetch to a microtask, then poll.
+    queueMicrotask(fetchUserReports);
     const id = setInterval(fetchUserReports, 60_000);
     return () => clearInterval(id);
   }, [fetchUserReports]);
