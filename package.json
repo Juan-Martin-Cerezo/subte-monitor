@@ -38,8 +38,8 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
-    "@prisma/adapter-neon": "^6.19.3",
-    "@prisma/client": "6.19.3",
+    "@prisma/adapter-neon": "^7.10.1",
+    "@prisma/client": "7.10.1",
     "leaflet": "^1.9.4",
     "next": "16.2.9",
     "react": "19.2.4",
@@ -55,7 +55,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "prettier": "^3.6.2",
-    "prisma": "6.19.3",
+    "prisma": "7.10.1",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5"
