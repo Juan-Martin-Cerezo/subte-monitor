@@ -1,0 +1,42 @@
+name: Bug
+description: Something is not working as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+      description: Include the error message, console output or a screenshot.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Select line ...
+        3. See ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Map
+        - Arrivals
+        - Service status
+        - Stations
+        - Route planner
+        - Telemetry API
+        - Setup or deploy
+        - Other
+    validations:
+      required: true

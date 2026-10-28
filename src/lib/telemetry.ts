@@ -1,12 +1,12 @@
-import { db } from './db';
-import { createHash } from 'crypto';
-import { LINE_SHAPES } from './shapes';
+import { db } from "./db";
+import { createHash } from "crypto";
+import { LINE_SHAPES } from "./shapes";
 
 export interface TrainTelemetry {
   id: string;
   routeId: string;
   directionId: number;
-  status: 'STOPPED' | 'IN_TRANSIT';
+  status: "STOPPED" | "IN_TRANSIT";
   progress: number;
   latitude: number;
   longitude: number;
@@ -111,8 +111,7 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
 
   const a =
     Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-    Math.cos(phi1) * Math.cos(phi2) *
-    Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return R * c;
@@ -130,7 +129,7 @@ function interpolateOnShape(
   if (!shape || shape.length === 0) {
     return {
       latitude: prevLat + progress * (nextLat - prevLat),
-      longitude: prevLon + progress * (nextLon - prevLon)
+      longitude: prevLon + progress * (nextLon - prevLon),
     };
   }
 
@@ -160,7 +159,7 @@ function interpolateOnShape(
   if (prevIdx === nextIdx) {
     return {
       latitude: prevLat + progress * (nextLat - prevLat),
-      longitude: prevLon + progress * (nextLon - prevLon)
+      longitude: prevLon + progress * (nextLon - prevLon),
     };
   }
 
@@ -180,10 +179,7 @@ function interpolateOnShape(
   const distances: number[] = [0];
   let totalDist = 0;
   for (let i = 0; i < segment.length - 1; i++) {
-    const d = getDistanceMeters(
-      segment[i][0], segment[i][1],
-      segment[i+1][0], segment[i+1][1]
-    );
+    const d = getDistanceMeters(segment[i][0], segment[i][1], segment[i + 1][0], segment[i + 1][1]);
     totalDist += d;
     distances.push(totalDist);
   }
@@ -196,8 +192,8 @@ function interpolateOnShape(
       const segLength = distances[i + 1] - distances[i];
       const segProgress = segLength > 0 ? (targetDist - distances[i]) / segLength : 0;
       return {
-        latitude: segment[i][0] + segProgress * (segment[i+1][0] - segment[i][0]),
-        longitude: segment[i][1] + segProgress * (segment[i+1][1] - segment[i][1])
+        latitude: segment[i][0] + segProgress * (segment[i + 1][0] - segment[i][0]),
+        longitude: segment[i][1] + segProgress * (segment[i + 1][1] - segment[i][1]),
       };
     }
   }
@@ -218,11 +214,11 @@ export interface TrackerEntry {
   lastTargetSeq: number;
   lastProgress: number;
   stationEnterTime: number;
-  lastStatus: 'IN_TRANSIT' | 'STOPPED';
+  lastStatus: "IN_TRANSIT" | "STOPPED";
 }
 
-const globalForTracker = globalThis as unknown as { 
-  subteTracker: Map<string, TrackerEntry> 
+const globalForTracker = globalThis as unknown as {
+  subteTracker: Map<string, TrackerEntry>;
 };
 if (!globalForTracker.subteTracker) {
   globalForTracker.subteTracker = new Map();
@@ -230,12 +226,12 @@ if (!globalForTracker.subteTracker) {
 const trackerDB = globalForTracker.subteTracker;
 
 // Persistent memory cache for the feed
-const globalForCache = globalThis as unknown as { 
+const globalForCache = globalThis as unknown as {
   subteCache: {
     rawForecast: GCBAForecastResponse;
     alerts: AlertData[];
     fetchedAt: number;
-  } | null
+  } | null;
 };
 if (!globalForCache.subteCache) {
   globalForCache.subteCache = null;
@@ -246,12 +242,12 @@ const globalForSync = globalThis as unknown as {
   subteSync: {
     lastFeedTimestamp: number;
     stableTimeDiff: number;
-  }
+  };
 };
 if (!globalForSync.subteSync) {
   globalForSync.subteSync = {
     lastFeedTimestamp: 0,
-    stableTimeDiff: 0
+    stableTimeDiff: 0,
   };
 }
 const syncDB = globalForSync.subteSync;
@@ -267,12 +263,21 @@ if (!globalForAlerts.lastAlerts) {
 // Permissive route matching helper to handle GCBA variants (like "LineC", "linec", "LineaC", etc.)
 function matchDbRoute(rawRouteId: string | undefined): string | null {
   if (!rawRouteId) return null;
-  const cleanedRoute = rawRouteId.trim().toLowerCase().replace(/\s+/g, '').replace(/_/g, '');
-  
-  const dbRoutes = ['LineaA', 'LineaB', 'LineaC', 'LineaD', 'LineaE', 'LineaH', 'PM-Civico', 'PM-Savio'];
+  const cleanedRoute = rawRouteId.trim().toLowerCase().replace(/\s+/g, "").replace(/_/g, "");
+
+  const dbRoutes = [
+    "LineaA",
+    "LineaB",
+    "LineaC",
+    "LineaD",
+    "LineaE",
+    "LineaH",
+    "PM-Civico",
+    "PM-Savio",
+  ];
   for (const dbRoute of dbRoutes) {
-    const line = dbRoute.replace('Linea', '').replace('PM-', '').toLowerCase();
-    const routeSuffix = cleanedRoute.replace('linea', '').replace('line', '').replace('subte', '');
+    const line = dbRoute.replace("Linea", "").replace("PM-", "").toLowerCase();
+    const routeSuffix = cleanedRoute.replace("linea", "").replace("line", "").replace("subte", "");
     if (!routeSuffix.includes(line.toLowerCase())) {
       continue;
     }
@@ -282,8 +287,14 @@ function matchDbRoute(rawRouteId: string | undefined): string | null {
 }
 
 export async function getTelemetryData() {
-  const clientId = process.env.SUBTE_CLIENT_ID || '3e5e59431f5b4007a5df945007ad47e1';
-  const clientSecret = process.env.SUBTE_CLIENT_SECRET || 'c64a5F5972dA4A9C9Da51020c67d1112';
+  const clientId = process.env.SUBTE_CLIENT_ID;
+  const clientSecret = process.env.SUBTE_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      "SUBTE_CLIENT_ID and SUBTE_CLIENT_SECRET are required. Request a key at https://apitransporte.buenosaires.gob.ar/"
+    );
+  }
 
   const forecastUrl = `https://apitransporte.buenosaires.gob.ar/subtes/forecastGTFS?client_id=${clientId}&client_secret=${clientSecret}`;
   const alertsUrl = `https://apitransporte.buenosaires.gob.ar/subtes/serviceAlerts?client_id=${clientId}&client_secret=${clientSecret}&json=1`;
@@ -293,7 +304,7 @@ export async function getTelemetryData() {
   // Fetch all stations and sequences from DB first
   const stations = await db.station.findMany();
   const sequences = await db.routeSequence.findMany({
-    orderBy: { stopSequence: 'asc' }
+    orderBy: { stopSequence: "asc" },
   });
 
   let rawForecast: GCBAForecastResponse | null = null;
@@ -314,17 +325,17 @@ export async function getTelemetryData() {
     try {
       const ac = new AbortController();
       const to = setTimeout(() => ac.abort(), 8000);
-      const fo = { cache: 'no-store' as const, signal: ac.signal };
+      const fo = { cache: "no-store" as const, signal: ac.signal };
       const [forecastRes, alertsRes] = await Promise.all([
-        fetch(forecastUrl, fo).then(res => res.ok ? res.json() : null),
-        fetch(alertsUrl, fo).then(res => res.ok ? res.json() : null)
+        fetch(forecastUrl, fo).then((res) => (res.ok ? res.json() : null)),
+        fetch(alertsUrl, fo).then((res) => (res.ok ? res.json() : null)),
       ]);
       clearTimeout(to);
       rawForecast = forecastRes as GCBAForecastResponse | null;
       rawAlerts = alertsRes as GCBAAlertsResponse | null;
     } catch (error) {
       fetchFailed = true;
-      console.error('Error fetching live Subte telemetry:', error);
+      console.error("Error fetching live Subte telemetry:", error);
     }
 
     // If the API returned empty or failed, use the last known good data from cache
@@ -332,9 +343,9 @@ export async function getTelemetryData() {
       if (globalForCache.subteCache && globalForCache.subteCache.rawForecast) {
         rawForecast = globalForCache.subteCache.rawForecast;
         alerts = globalForCache.subteCache.alerts;
-        console.log('Using cached telemetry data (GCBA API unavailable)');
+        console.log("Using cached telemetry data (GCBA API unavailable)");
       } else {
-        console.log('No live telemetry data available (API response empty/failed)');
+        console.log("No live telemetry data available (API response empty/failed)");
         rawForecast = { Header: { timestamp: nowUnix }, Entity: [] };
       }
     }
@@ -343,19 +354,29 @@ export async function getTelemetryData() {
     if (rawAlerts && rawAlerts.entity && rawAlerts.entity.length > 0) {
       rawAlerts.entity.forEach((ent: GCBAAlertEntity) => {
         if (ent.alert) {
-          const routeId = ent.alert.informed_entity?.[0]?.route_id || 'Global';
-          const header = ent.alert.header_text?.translation?.[0]?.text || 'Alerta de servicio';
-          const desc = ent.alert.description_text?.translation?.[0]?.text || '';
+          const routeId = ent.alert.informed_entity?.[0]?.route_id || "Global";
+          const header = ent.alert.header_text?.translation?.[0]?.text || "Alerta de servicio";
+          const desc = ent.alert.description_text?.translation?.[0]?.text || "";
           const causeCode = ent.alert.cause || 1;
           const effectCode = ent.alert.effect || 1;
 
           const causeMap: Record<number, string> = {
-            1: 'Accidente', 2: 'Operativo Policial', 3: 'Manifestación', 4: 'Problemas Técnicos',
-            5: 'Mantenimiento', 6: 'Clima', 7: 'Huelga', 8: 'Falta de Personal'
+            1: "Accidente",
+            2: "Operativo Policial",
+            3: "Manifestación",
+            4: "Problemas Técnicos",
+            5: "Mantenimiento",
+            6: "Clima",
+            7: "Huelga",
+            8: "Falta de Personal",
           };
           const effectMap: Record<number, string> = {
-            1: 'Servicio Demorado', 2: 'Servicio Limitado', 3: 'Sin Servicio',
-            4: 'Desvíos', 5: 'Estación Cerrada', 6: 'Frecuencia Reducida'
+            1: "Servicio Demorado",
+            2: "Servicio Limitado",
+            3: "Sin Servicio",
+            4: "Desvíos",
+            5: "Estación Cerrada",
+            6: "Frecuencia Reducida",
           };
 
           alerts.push({
@@ -363,8 +384,8 @@ export async function getTelemetryData() {
             routeId,
             headerText: header,
             descriptionText: desc,
-            cause: causeMap[causeCode] || 'Otro',
-            effect: effectMap[effectCode] || 'Modificación de Servicio'
+            cause: causeMap[causeCode] || "Otro",
+            effect: effectMap[effectCode] || "Modificación de Servicio",
           });
         }
       });
@@ -383,17 +404,17 @@ export async function getTelemetryData() {
       };
     } else if (rawForecast && rawForecast.Entity && rawForecast.Entity.length === 0) {
       // Don't cache empty responses — next poll will try again
-      console.log('Skipping cache update — no entities in forecast');
+      console.log("Skipping cache update — no entities in forecast");
     }
     fetchedAt = nowUnix;
   }
 
   // Map stations for easy lookup
-  const stationMap = new Map(stations.map(s => [s.stopId, s]));
+  const stationMap = new Map(stations.map((s) => [s.stopId, s]));
 
   // Group sequences by route and direction
   const routeSequences: Record<string, typeof sequences> = {};
-  sequences.forEach(seq => {
+  sequences.forEach((seq) => {
     const key = `${seq.routeId}_${seq.directionId}`;
     if (!routeSequences[key]) routeSequences[key] = [];
     routeSequences[key].push(seq);
@@ -413,7 +434,7 @@ export async function getTelemetryData() {
 
     const routeId = matchDbRoute(rawRouteId);
     if (!routeId) return;
-    if (routeId === 'LineaD') return;
+    if (routeId === "LineaD") return;
 
     entity.Linea.Estaciones?.forEach((est: GCBAStation) => {
       const arrTime = est.arrival?.time || est.departure?.time;
@@ -428,7 +449,7 @@ export async function getTelemetryData() {
         stopId: est.stop_id,
         arrivalTime: arrTime,
         departureTime: est.departure?.time || arrTime + STOP_DURATION_S,
-        delay: est.arrival?.delay || est.departure?.delay || 0
+        delay: est.arrival?.delay || est.departure?.delay || 0,
       });
     });
   });
@@ -448,15 +469,21 @@ export async function getTelemetryData() {
 
   // Run Stateful Tracking with 1D Clustering algorithm for each route and direction
   for (const [key, seqList] of Object.entries(routeSequences)) {
-    const [routeId, dirStr] = key.split('_');
+    const [routeId, dirStr] = key.split("_");
     const directionId = parseInt(dirStr);
 
     // Collect all valid arrivals for this route and direction
-    const validStops: { stopId: string; stopSequence: number; arrivalTime: number; delay: number; etaEnPaquete: number }[] = [];
+    const validStops: {
+      stopId: string;
+      stopSequence: number;
+      arrivalTime: number;
+      delay: number;
+      etaEnPaquete: number;
+    }[] = [];
 
-    rawArrivals.forEach(arr => {
+    rawArrivals.forEach((arr) => {
       if (arr.routeId === routeId && arr.directionId === directionId) {
-        const seq = seqList.find(s => s.stopId === arr.stopId);
+        const seq = seqList.find((s) => s.stopId === arr.stopId);
         if (seq) {
           const arrivalTimeAdjusted = arr.arrivalTime + timeDiff;
           const etaEnPaquete = arr.arrivalTime - feedTimestamp;
@@ -467,7 +494,7 @@ export async function getTelemetryData() {
               stopSequence: seq.stopSequence,
               arrivalTime: arrivalTimeAdjusted,
               delay: arr.delay,
-              etaEnPaquete
+              etaEnPaquete,
             });
           }
         }
@@ -477,8 +504,8 @@ export async function getTelemetryData() {
     if (validStops.length === 0) continue;
 
     // Calculate t_inicio for each stop to project departure from terminal
-    const validStopsWithTInicio = validStops.map(stop => {
-      const t_inicio = stop.arrivalTime - (stop.stopSequence * 88.5);
+    const validStopsWithTInicio = validStops.map((stop) => {
+      const t_inicio = stop.arrivalTime - stop.stopSequence * 88.5;
       return { ...stop, t_inicio };
     });
 
@@ -487,12 +514,14 @@ export async function getTelemetryData() {
 
     // 1D Clustering (DBSCAN 1D)
     const clusters: { t_inicio_values: number[]; stops: typeof validStopsWithTInicio }[] = [];
-    
-    validStopsWithTInicio.forEach(stop => {
+
+    validStopsWithTInicio.forEach((stop) => {
       let added = false;
       if (clusters.length > 0) {
         const lastCluster = clusters[clusters.length - 1];
-        const avg = lastCluster.t_inicio_values.reduce((sum, v) => sum + v, 0) / lastCluster.t_inicio_values.length;
+        const avg =
+          lastCluster.t_inicio_values.reduce((sum, v) => sum + v, 0) /
+          lastCluster.t_inicio_values.length;
         if (Math.abs(stop.t_inicio - avg) < 180) {
           lastCluster.t_inicio_values.push(stop.t_inicio);
           lastCluster.stops.push(stop);
@@ -502,17 +531,18 @@ export async function getTelemetryData() {
       if (!added) {
         clusters.push({
           t_inicio_values: [stop.t_inicio],
-          stops: [stop]
+          stops: [stop],
         });
       }
     });
 
     // Process each cluster (each physical train found)
-    clusters.forEach(cluster => {
-      const avg_t_inicio = cluster.t_inicio_values.reduce((sum, v) => sum + v, 0) / cluster.t_inicio_values.length;
+    clusters.forEach((cluster) => {
+      const avg_t_inicio =
+        cluster.t_inicio_values.reduce((sum, v) => sum + v, 0) / cluster.t_inicio_values.length;
       let matchedTripId: string | null = null;
       let minDiff = Infinity;
-      
+
       // 1. Time-based matching (Primary)
       for (const [id, entry] of trackerDB.entries()) {
         if (entry.routeId === routeId && entry.directionId === directionId && !usedIds.has(id)) {
@@ -527,13 +557,14 @@ export async function getTelemetryData() {
       // 2. Early activeStop extraction
       const sortedStops = [...cluster.stops].sort((a, b) => a.stopSequence - b.stopSequence);
       if (sortedStops.length === 0) return; // continues to next cluster
-      let activeStop = sortedStops.find(s => s.etaEnPaquete >= -40) || sortedStops[sortedStops.length - 1];
+      let activeStop =
+        sortedStops.find((s) => s.etaEnPaquete >= -40) || sortedStops[sortedStops.length - 1];
 
       // 3. Spatial matching (Fallback for massive lag spikes)
       if (!matchedTripId) {
         for (const [id, entry] of trackerDB.entries()) {
           if (entry.routeId === routeId && entry.directionId === directionId && !usedIds.has(id)) {
-            // If a 'new' train occupies the exact same physical block (+/- 1 sequence) 
+            // If a 'new' train occupies the exact same physical block (+/- 1 sequence)
             // as an existing tracked train, assume it's the same physical train to preserve ID.
             if (Math.abs(entry.lastTargetSeq - activeStop.stopSequence) <= 1) {
               matchedTripId = id;
@@ -550,10 +581,10 @@ export async function getTelemetryData() {
         trackedTrain = trackerDB.get(matchedTripId)!;
         trackedTrain.t_inicio = avg_t_inicio;
         trackedTrain.lastSeen = nowUnix;
-        
+
         // REGLA 1: Anti-Moonwalking (Evitar que el tren retroceda si la API manda datos viejos)
         if (activeStop.stopSequence < trackedTrain.lastTargetSeq) {
-          const simStop = seqList.find(s => s.stopSequence === trackedTrain.lastTargetSeq);
+          const simStop = seqList.find((s) => s.stopSequence === trackedTrain.lastTargetSeq);
           if (simStop) {
             activeStop = {
               t_inicio: trackedTrain.t_inicio,
@@ -561,19 +592,22 @@ export async function getTelemetryData() {
               stopSequence: trackedTrain.lastTargetSeq,
               arrivalTime: nowUnix,
               delay: 0,
-              etaEnPaquete: trackedTrain.lastStatus === 'STOPPED' ? -10 : 30 // Mantiene el estado anterior
+              etaEnPaquete: trackedTrain.lastStatus === "STOPPED" ? -10 : 30, // Mantiene el estado anterior
             };
           }
-        } 
+        }
         // REGLA 2: Breadcrumb Trail / Anti-Teleportation (Obligar a visitar secuencias intermedias)
         else {
           // Si estaba STOPPED, el siguiente paso lógico es la estación + 1. Si estaba en TRANSIT, es la misma estación.
-          const nextLogicalSeq = trackedTrain.lastStatus === 'STOPPED' ? trackedTrain.lastTargetSeq + 1 : trackedTrain.lastTargetSeq;
-          
+          const nextLogicalSeq =
+            trackedTrain.lastStatus === "STOPPED"
+              ? trackedTrain.lastTargetSeq + 1
+              : trackedTrain.lastTargetSeq;
+
           const skipSize = activeStop.stopSequence - nextLogicalSeq;
           if (skipSize > 0 && skipSize <= 3) {
             // Salto ≤3 estaciones. Forzamos secuencia intermedia para evitar microsaltos.
-            const simStop = seqList.find(s => s.stopSequence === nextLogicalSeq);
+            const simStop = seqList.find((s) => s.stopSequence === nextLogicalSeq);
             if (simStop) {
               activeStop = {
                 t_inicio: trackedTrain.t_inicio,
@@ -581,7 +615,7 @@ export async function getTelemetryData() {
                 stopSequence: nextLogicalSeq,
                 arrivalTime: nowUnix - 10,
                 delay: 0,
-                etaEnPaquete: -10 // Forzamos ETA negativo para que la máquina lo registre como STOPPED rápidamente
+                etaEnPaquete: -10, // Forzamos ETA negativo para que la máquina lo registre como STOPPED rápidamente
               };
             }
           }
@@ -593,14 +627,16 @@ export async function getTelemetryData() {
           trackedTrain.stationEnterTime = nowUnix;
         }
       } else {
-        const lineChar = routeId.startsWith('PM-') ? routeId.replace('-', '') : routeId.replace('Linea', '');
+        const lineChar = routeId.startsWith("PM-")
+          ? routeId.replace("-", "")
+          : routeId.replace("Linea", "");
         let randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
         stableId = `${lineChar}-${randomPart}`;
         while (usedIds.has(stableId) || trackerDB.has(stableId)) {
           randomPart = Math.random().toString(36).substring(2, 6).toUpperCase();
           stableId = `${lineChar}-${randomPart}`;
         }
-        
+
         trackedTrain = {
           routeId,
           directionId,
@@ -611,38 +647,38 @@ export async function getTelemetryData() {
           lastTargetSeq: activeStop.stopSequence,
           lastProgress: 0.0,
           stationEnterTime: nowUnix,
-          lastStatus: 'STOPPED'
+          lastStatus: "STOPPED",
         };
         trackerDB.set(stableId, trackedTrain);
       }
       usedIds.add(stableId);
 
       const nextStation = stationMap.get(activeStop.stopId);
-      const nextStopName = nextStation?.stopName || 'Estación';
+      const nextStopName = nextStation?.stopName || "Estación";
       const nextStopId = activeStop.stopId;
       const etaSeconds = Math.max(0, activeStop.arrivalTime - nowUnix);
 
       const segundosParaArriboLocal = activeStop.arrivalTime - nowUnix;
       const apiConfirmaAnden = activeStop.etaEnPaquete <= 15 && activeStop.etaEnPaquete >= -60;
 
-      let status: 'IN_TRANSIT' | 'STOPPED' = 'IN_TRANSIT';
+      let status: "IN_TRANSIT" | "STOPPED" = "IN_TRANSIT";
       let progress = 0.0;
       let prevStopId = activeStop.stopId;
       let prevStopName = nextStopName;
 
-      const nextSeqIndex = seqList.findIndex(s => s.stopId === activeStop.stopId);
+      const nextSeqIndex = seqList.findIndex((s) => s.stopId === activeStop.stopId);
       if (nextSeqIndex > 0) {
         prevStopId = seqList[nextSeqIndex - 1].stopId;
-        prevStopName = stationMap.get(prevStopId)?.stopName || 'Estación';
+        prevStopName = stationMap.get(prevStopId)?.stopName || "Estación";
       }
 
       if (apiConfirmaAnden) {
-        status = 'STOPPED';
+        status = "STOPPED";
         progress = 0.0;
       } else {
-        status = 'IN_TRANSIT';
-        const rawProgress = Math.max(0.0, Math.min(0.95, 1 - (segundosParaArriboLocal / 90)));
-        
+        status = "IN_TRANSIT";
+        const rawProgress = Math.max(0.0, Math.min(0.95, 1 - segundosParaArriboLocal / 90));
+
         // Trinquete Estricto (No puede disminuir su progreso visual hacia el mismo objetivo)
         if (matchedTripId) {
           if (trackedTrain.lastTargetSeq === activeStop.stopSequence) {
@@ -665,12 +701,14 @@ export async function getTelemetryData() {
       let lat = nextStation?.latitude || 0;
       let lon = nextStation?.longitude || 0;
 
-      if (status === 'IN_TRANSIT' && prevStation && nextStation) {
+      if (status === "IN_TRANSIT" && prevStation && nextStation) {
         const shape = LINE_SHAPES[routeId];
         const snapped = interpolateOnShape(
           shape,
-          prevStation.latitude, prevStation.longitude,
-          nextStation.latitude, nextStation.longitude,
+          prevStation.latitude,
+          prevStation.longitude,
+          nextStation.latitude,
+          nextStation.longitude,
           progress
         );
         lat = snapped.latitude;
@@ -679,11 +717,11 @@ export async function getTelemetryData() {
 
       // ALGORITMO CAZAFANTASMAS: Drop phantom trains stopped mid-route for >5min
       const entryData = trackerDB.get(stableId);
-      const maxSeq = Math.max(...seqList.map(s => s.stopSequence));
+      const maxSeq = Math.max(...seqList.map((s) => s.stopSequence));
       const isTerminal = activeStop.stopSequence === 1 || activeStop.stopSequence === maxSeq;
-      
-      if (status === 'STOPPED' && entryData && (nowUnix - entryData.stationEnterTime > 300)) {
-         if (!isTerminal) return;
+
+      if (status === "STOPPED" && entryData && nowUnix - entryData.stationEnterTime > 300) {
+        if (!isTerminal) return;
       }
 
       trains.push({
@@ -700,7 +738,7 @@ export async function getTelemetryData() {
         prevStopName,
         etaSeconds,
         delaySeconds: activeStop.delay,
-        updatedAt: nowUnix
+        updatedAt: nowUnix,
       });
     });
   }
@@ -714,39 +752,43 @@ export async function getTelemetryData() {
       if (!seqList || seqList.length === 0) continue;
 
       // Calculate projected arrival times for each station based on t_inicio
-      const projectedStops = seqList.map(seq => {
-        const arrivalTime = entry.t_inicio + (seq.stopSequence * 88.5);
+      const projectedStops = seqList.map((seq) => {
+        const arrivalTime = entry.t_inicio + seq.stopSequence * 88.5;
         return {
           stopId: seq.stopId,
           stopSequence: seq.stopSequence,
           arrivalTime,
-          delay: 0
+          delay: 0,
         };
       });
 
       // Filter out stops that are more than 60 seconds in the past
-      const validStops = projectedStops.filter(s => s.arrivalTime >= nowUnix - 60);
+      const validStops = projectedStops.filter((s) => s.arrivalTime >= nowUnix - 60);
       if (validStops.length === 0) continue;
 
       // Find the active stop
-      const activeStop = validStops.find(s => s.arrivalTime - nowUnix >= -40) || validStops[validStops.length - 1];
+      const activeStop =
+        validStops.find((s) => s.arrivalTime - nowUnix >= -40) || validStops[validStops.length - 1];
 
       const nextStation = stationMap.get(activeStop.stopId);
-      const nextStopName = nextStation?.stopName || 'Estación';
+      const nextStopName = nextStation?.stopName || "Estación";
       const nextStopId = activeStop.stopId;
       const etaSeconds = Math.max(0, activeStop.arrivalTime - nowUnix);
 
-      let status: 'STOPPED' | 'IN_TRANSIT' = 'STOPPED';
+      let status: "STOPPED" | "IN_TRANSIT" = "STOPPED";
       let progress = 0;
       let prevStopId: string | null = null;
       let prevStopName: string | null = null;
 
-      const nextSeqIndex = seqList.findIndex(s => s.stopId === activeStop.stopId);
+      const nextSeqIndex = seqList.findIndex((s) => s.stopId === activeStop.stopId);
 
       // Dead reckoning: no fresh API data, so never confirm platform arrival
-      status = 'IN_TRANSIT';
-      const newProgress = Math.max(0.0, Math.min(0.95, 1 - ((activeStop.arrivalTime - nowUnix) / 90)));
-      
+      status = "IN_TRANSIT";
+      const newProgress = Math.max(
+        0.0,
+        Math.min(0.95, 1 - (activeStop.arrivalTime - nowUnix) / 90)
+      );
+
       // Trinquete
       if (entry.lastTargetSeq === activeStop.stopSequence) {
         progress = Math.max(entry.lastProgress, newProgress);
@@ -760,7 +802,7 @@ export async function getTelemetryData() {
 
       if (nextSeqIndex > 0) {
         prevStopId = seqList[nextSeqIndex - 1].stopId;
-        prevStopName = stationMap.get(prevStopId)?.stopName || 'Estación';
+        prevStopName = stationMap.get(prevStopId)?.stopName || "Estación";
       }
 
       // Interpolate coordinates
@@ -768,31 +810,32 @@ export async function getTelemetryData() {
       let lat = nextStation?.latitude || 0;
       let lon = nextStation?.longitude || 0;
 
-      if (status === 'IN_TRANSIT' && prevStation && nextStation) {
+      if (status === "IN_TRANSIT" && prevStation && nextStation) {
         const shape = LINE_SHAPES[entry.routeId];
         const snapped = interpolateOnShape(
           shape,
-          prevStation.latitude, prevStation.longitude,
-          nextStation.latitude, nextStation.longitude,
+          prevStation.latitude,
+          prevStation.longitude,
+          nextStation.latitude,
+          nextStation.longitude,
           progress
         );
         lat = snapped.latitude;
         lon = snapped.longitude;
       }
 
-
       // Dead reckoning: train reached projected station. Mark STOPPED, push to client.
       // Will be cleaned by ghostbuster after 300s timeout.
       if (progress >= 0.95) {
-        status = 'STOPPED';
+        status = "STOPPED";
         progress = 0.0;
         lat = nextStation?.latitude || 0;
         lon = nextStation?.longitude || 0;
       }
 
       // ALGORITMO CAZAFANTASMAS: Si el tren está 'STOPPED' en el mismo andén por más de 180 segundos, ignorarlo.
-      if ((status as string) === 'STOPPED' && (nowUnix - entry.stationEnterTime > 300)) {
-         continue; // Ignorar (es un tren fantasma del CBTC)
+      if ((status as string) === "STOPPED" && nowUnix - entry.stationEnterTime > 300) {
+        continue; // Ignorar (es un tren fantasma del CBTC)
       }
 
       trains.push({
@@ -809,7 +852,7 @@ export async function getTelemetryData() {
         prevStopName,
         etaSeconds,
         delaySeconds: 0,
-        updatedAt: nowUnix
+        updatedAt: nowUnix,
       });
     }
   }
@@ -822,8 +865,10 @@ export async function getTelemetryData() {
   }
 
   // Virtual simulator dispatcher for C, H, Premetro lines
-  const simRoutes = ['LineaC', 'LineaD', 'LineaH', 'PM-Civico', 'PM-Savio'];
-  const localDateStr = new Date().toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' });
+  const simRoutes = ["LineaC", "LineaD", "LineaH", "PM-Civico", "PM-Savio"];
+  const localDateStr = new Date().toLocaleString("en-US", {
+    timeZone: "America/Argentina/Buenos_Aires",
+  });
   const localDate = new Date(localDateStr);
   const localDay = localDate.getDay();
   const localHour = localDate.getHours();
@@ -831,33 +876,36 @@ export async function getTelemetryData() {
   const localTimeVal = localHour * 100 + localMinute;
 
   let isTransitActive = false;
-  if (localDay === 0) { // Sunday
+  if (localDay === 0) {
+    // Sunday
     isTransitActive = localTimeVal >= 800 && localTimeVal <= 2230;
-  } else if (localDay === 6) { // Saturday
+  } else if (localDay === 6) {
+    // Saturday
     isTransitActive = localTimeVal >= 600 && localTimeVal <= 2330;
-  } else { // Weekday
+  } else {
+    // Weekday
     isTransitActive = localTimeVal >= 530 && localTimeVal <= 2330;
   }
 
   if (isTransitActive) {
-    simRoutes.forEach(routeId => {
+    simRoutes.forEach((routeId) => {
       let headwayModifier = 1.0;
       let isInterrupted = false;
-      const lineAlerts = alerts.filter(a => a.routeId === routeId);
-      lineAlerts.forEach(a => {
-        if (a.effect === 'Sin Servicio') {
+      const lineAlerts = alerts.filter((a) => a.routeId === routeId);
+      lineAlerts.forEach((a) => {
+        if (a.effect === "Sin Servicio") {
           isInterrupted = true;
-        } else if (a.effect === 'Servicio Demorado' || a.effect === 'Frecuencia Reducida') {
+        } else if (a.effect === "Servicio Demorado" || a.effect === "Frecuencia Reducida") {
           headwayModifier = 1.5;
         }
       });
 
       if (isInterrupted) return;
 
-      const baseHeadway = routeId.startsWith('PM-') ? 900 : 300;
+      const baseHeadway = routeId.startsWith("PM-") ? 900 : 300;
       const headway = Math.round(baseHeadway * headwayModifier);
 
-      [0, 1].forEach(directionId => {
+      [0, 1].forEach((directionId) => {
         const key = `${routeId}_${directionId}`;
         const seqList = routeSequences[key] || [];
         if (seqList.length < 2) return;
@@ -881,20 +929,23 @@ export async function getTelemetryData() {
 
           const segElapsed = trainElapsed - stopIdx * segDuration;
 
-          let status: 'STOPPED' | 'IN_TRANSIT' = 'STOPPED';
+          let status: "STOPPED" | "IN_TRANSIT" = "STOPPED";
           let progress = 0.0;
 
           const prevStopId = activeStop.stopId;
-          const prevStopName = stationMap.get(prevStopId)?.stopName || 'Estación';
+          const prevStopName = stationMap.get(prevStopId)?.stopName || "Estación";
           const nextStopId = nextStop.stopId;
-          const nextStopName = stationMap.get(nextStopId)?.stopName || 'Estación';
+          const nextStopName = stationMap.get(nextStopId)?.stopName || "Estación";
 
           if (segElapsed < STOP_DURATION_S) {
-            status = 'STOPPED';
+            status = "STOPPED";
             progress = 0.0;
           } else {
-            status = 'IN_TRANSIT';
-            progress = Math.min((segElapsed - STOP_DURATION_S) / (segDuration - STOP_DURATION_S), 1.0);
+            status = "IN_TRANSIT";
+            progress = Math.min(
+              (segElapsed - STOP_DURATION_S) / (segDuration - STOP_DURATION_S),
+              1.0
+            );
           }
 
           const prevStation = stationMap.get(prevStopId);
@@ -902,19 +953,23 @@ export async function getTelemetryData() {
           let lat = nextStation?.latitude || 0;
           let lon = nextStation?.longitude || 0;
 
-          if (status === 'IN_TRANSIT' && prevStation && nextStation) {
+          if (status === "IN_TRANSIT" && prevStation && nextStation) {
             const shape = LINE_SHAPES[routeId];
             const snapped = interpolateOnShape(
               shape,
-              prevStation.latitude, prevStation.longitude,
-              nextStation.latitude, nextStation.longitude,
+              prevStation.latitude,
+              prevStation.longitude,
+              nextStation.latitude,
+              nextStation.longitude,
               progress
             );
             lat = snapped.latitude;
             lon = snapped.longitude;
           }
 
-          const lineChar = routeId.startsWith('PM-') ? routeId.replace('-', '') : routeId.replace('Linea', '');
+          const lineChar = routeId.startsWith("PM-")
+            ? routeId.replace("-", "")
+            : routeId.replace("Linea", "");
           const tripId = `SIM-${lineChar}-${directionId}-${k}-${cycleNum}`;
           const etaToNext = segDuration - segElapsed;
           const etaSeconds = Math.max(0, Math.round(etaToNext));
@@ -933,7 +988,7 @@ export async function getTelemetryData() {
             prevStopName,
             etaSeconds,
             delaySeconds: 0,
-            updatedAt: nowUnix
+            updatedAt: nowUnix,
           });
         }
       });
@@ -941,51 +996,55 @@ export async function getTelemetryData() {
   }
 
   // Map raw predictions for the raw schedule tab
-  const apiPredictions = rawArrivals.map(arr => {
-    const key = `${arr.routeId}_${arr.directionId}`;
-    const seqList = routeSequences[key] || [];
-    
-    // Find destination (terminal station)
-    const terminalSeq = seqList[seqList.length - 1];
-    const destinationName = terminalSeq 
-      ? (stationMap.get(terminalSeq.stopId)?.stopName || 'Terminal')
-      : 'Terminal';
-      
-    const station = stationMap.get(arr.stopId);
-    const stationName = station ? station.stopName : 'Estación';
-    
-    const etaSeconds = Math.max(0, (arr.arrivalTime + timeDiff) - nowUnix);
-    
-    return {
-      routeId: arr.routeId,
-      directionId: arr.directionId,
-      stopId: arr.stopId,
-      stationName,
-      destinationName,
-      etaSeconds,
-      delay: arr.delay
-    };
-  }).filter(p => p.etaSeconds < 1800);
+  const apiPredictions = rawArrivals
+    .map((arr) => {
+      const key = `${arr.routeId}_${arr.directionId}`;
+      const seqList = routeSequences[key] || [];
+
+      // Find destination (terminal station)
+      const terminalSeq = seqList[seqList.length - 1];
+      const destinationName = terminalSeq
+        ? stationMap.get(terminalSeq.stopId)?.stopName || "Terminal"
+        : "Terminal";
+
+      const station = stationMap.get(arr.stopId);
+      const stationName = station ? station.stopName : "Estación";
+
+      const etaSeconds = Math.max(0, arr.arrivalTime + timeDiff - nowUnix);
+
+      return {
+        routeId: arr.routeId,
+        directionId: arr.directionId,
+        stopId: arr.stopId,
+        stationName,
+        destinationName,
+        etaSeconds,
+        delay: arr.delay,
+      };
+    })
+    .filter((p) => p.etaSeconds < 1800);
 
   // Add predictions from sim trains for the arrivals tab
   const simPredictions: Prediction[] = [];
-  trains.filter(t => t.id.startsWith('SIM-')).forEach(simTrain => {
-    const key = `${simTrain.routeId}_${simTrain.directionId}`;
-    const seqList = routeSequences[key] || [];
-    const terminalSeq = seqList[seqList.length - 1];
-    const destinationName = terminalSeq
-      ? (stationMap.get(terminalSeq.stopId)?.stopName || 'Terminal')
-      : 'Terminal';
-    simPredictions.push({
-      routeId: simTrain.routeId,
-      directionId: simTrain.directionId,
-      stopId: simTrain.nextStopId,
-      stationName: simTrain.nextStopName,
-      destinationName,
-      etaSeconds: simTrain.etaSeconds,
-      delay: 0
+  trains
+    .filter((t) => t.id.startsWith("SIM-"))
+    .forEach((simTrain) => {
+      const key = `${simTrain.routeId}_${simTrain.directionId}`;
+      const seqList = routeSequences[key] || [];
+      const terminalSeq = seqList[seqList.length - 1];
+      const destinationName = terminalSeq
+        ? stationMap.get(terminalSeq.stopId)?.stopName || "Terminal"
+        : "Terminal";
+      simPredictions.push({
+        routeId: simTrain.routeId,
+        directionId: simTrain.directionId,
+        stopId: simTrain.nextStopId,
+        stationName: simTrain.nextStopName,
+        destinationName,
+        etaSeconds: simTrain.etaSeconds,
+        delay: 0,
+      });
     });
-  });
 
   const schedulePredictions = [...apiPredictions, ...simPredictions];
 
@@ -996,20 +1055,18 @@ export async function getTelemetryData() {
     trains: trains.sort((a, b) => a.id.localeCompare(b.id)),
     alerts,
     predictions: schedulePredictions,
-    stale
+    stale,
   };
 }
 
 // Helper to determine route direction based on stop ID suffix
 function getDirectionFromStopId(stopId: string): number | null {
   const lastChar = stopId[stopId.length - 1];
-  if (lastChar === 'S' || lastChar === 'E') {
+  if (lastChar === "S" || lastChar === "E") {
     return 0;
   }
-  if (lastChar === 'N' || lastChar === 'O') {
+  if (lastChar === "N" || lastChar === "O") {
     return 1;
   }
   return null;
 }
-
-

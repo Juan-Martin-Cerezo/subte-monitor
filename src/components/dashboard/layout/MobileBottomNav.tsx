@@ -1,17 +1,20 @@
-'use client';
+"use client";
 
-import type { TabId } from '../types';
-import { Icon, type IconName } from '../Icon';
-import { classNames } from '../utils';
+import type { TabId } from "../types";
+import { Icon, type IconName } from "../Icon";
+import { classNames } from "../utils";
 
-interface Props { tab: TabId; onTabChange: (t: TabId) => void; }
+interface Props {
+  tab: TabId;
+  onTabChange: (t: TabId) => void;
+}
 
 const TABS: { id: TabId; label: string; icon: IconName }[] = [
-  { id: 'map',       label: 'Mapa',        icon: 'Map' },
-  { id: 'planner',   label: 'Planear',     icon: 'Route' },
-  { id: 'stations',  label: 'Estaciones',  icon: 'Pin' },
-  { id: 'arrivals',  label: 'Arribos',     icon: 'Clock' },
-  { id: 'status',    label: 'Estado',      icon: 'Alert' },
+  { id: "map", label: "Mapa", icon: "Map" },
+  { id: "planner", label: "Planear", icon: "Route" },
+  { id: "stations", label: "Estaciones", icon: "Pin" },
+  { id: "arrivals", label: "Arribos", icon: "Clock" },
+  { id: "status", label: "Estado", icon: "Alert" },
 ];
 
 export function MobileBottomNav({ tab, onTabChange }: Props) {
@@ -20,17 +23,17 @@ export function MobileBottomNav({ tab, onTabChange }: Props) {
       className="md:hidden fixed bottom-0 left-0 right-0 z-40 grid grid-cols-5 border-t border-outline-variant/10 bg-surface-container-lowest/98 backdrop-blur-2xl thumb-safe-bottom"
       aria-label="Navegación principal"
     >
-      {TABS.map(t => {
+      {TABS.map((t) => {
         const active = tab === t.id;
         const Icn = Icon[t.icon];
         return (
           <button
             key={t.id}
             onClick={() => onTabChange(t.id)}
-            aria-current={active ? 'page' : undefined}
+            aria-current={active ? "page" : undefined}
             className={classNames(
-              'relative flex flex-col items-center justify-center gap-0.5 transition-all duration-150 active:scale-95 min-h-[52px] px-1',
-              active ? 'text-primary' : 'text-on-surface-variant active:text-on-surface'
+              "relative flex flex-col items-center justify-center gap-0.5 transition-all duration-150 active:scale-95 min-h-[52px] px-1",
+              active ? "text-primary" : "text-on-surface-variant active:text-on-surface"
             )}
           >
             {active && (
@@ -40,7 +43,9 @@ export function MobileBottomNav({ tab, onTabChange }: Props) {
               </>
             )}
             <Icn size={active ? 22 : 20} />
-            <span className="text-[clamp(9px,2.5vw,11px)] font-semibold leading-tight">{t.label}</span>
+            <span className="text-[clamp(9px,2.5vw,11px)] font-semibold leading-tight">
+              {t.label}
+            </span>
           </button>
         );
       })}

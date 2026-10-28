@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import dynamic from 'next/dynamic';
+import dynamic from "next/dynamic";
 
 // Dashboard is fully client-side (Leaflet + telemetry polling).
 // Disable SSR to avoid hydration mismatches and bundle the map lazily.
-const Dashboard = dynamic(() => import('./dashboard/Dashboard'), {
+const Dashboard = dynamic(() => import("./dashboard/Dashboard"), {
   ssr: false,
   loading: () => (
     <div className="flex h-dvh w-screen items-center justify-center bg-background">

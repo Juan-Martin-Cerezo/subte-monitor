@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      next:
+        patterns: ["next", "eslint-config-next", "react", "react-dom"]
+      prisma:
+        patterns: ["prisma", "@prisma/client", "@prisma/adapter-neon"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
