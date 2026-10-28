@@ -12,9 +12,10 @@ interface Props {
   sequences: RouteSequence[];
   predictions: Prediction[];
   trainsByLine: Record<string, TrainTelemetry[]>;
+  now: number;
 }
 
-export function ArrivalsScreen({ stations, predictions, trainsByLine }: Props) {
+export function ArrivalsScreen({ stations, predictions, trainsByLine, now }: Props) {
   const [origin, setOrigin] = useState<string>("");
   const [lineFilter, setLineFilter] = useState<LineId | "All">("All");
 
@@ -54,7 +55,7 @@ export function ArrivalsScreen({ stations, predictions, trainsByLine }: Props) {
         </div>
         <div className="flex items-center gap-2 text-body-sm text-on-surface-variant">
           <span className="live-dot" />
-          <span className="font-mono">{formatClock(Date.now())}</span>
+          <span className="font-mono">{formatClock(now)}</span>
         </div>
       </header>
 

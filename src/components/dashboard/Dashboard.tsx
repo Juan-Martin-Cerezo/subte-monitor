@@ -137,6 +137,7 @@ export default function Dashboard() {
                 sequences={sequences}
                 predictions={telemetry.predictions}
                 userReports={userReports}
+                now={now}
               />
             )}
             {tab === "stations" && (
@@ -145,6 +146,7 @@ export default function Dashboard() {
                 sequences={sequences}
                 predictions={telemetry.predictions}
                 userReports={userReports}
+                now={now}
               />
             )}
             {tab === "status" && (
@@ -153,6 +155,7 @@ export default function Dashboard() {
                 trainsByLine={trainsByLine}
                 stations={stations}
                 userReports={userReports}
+                now={now}
               />
             )}
             {tab === "arrivals" && (
@@ -161,6 +164,7 @@ export default function Dashboard() {
                 sequences={sequences}
                 predictions={telemetry.predictions}
                 trainsByLine={trainsByLine}
+                now={now}
               />
             )}
           </div>

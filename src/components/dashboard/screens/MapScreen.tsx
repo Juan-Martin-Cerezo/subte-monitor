@@ -133,7 +133,8 @@ export function MapScreen({
       safetyGroupRef.current = L.layerGroup().addTo(map);
       ecobiciGroupRef.current = L.layerGroup().addTo(map);
 
-      // Fit bounds on first ready
+      // Fit bounds on first ready, and flag readiness from Leaflet's own callback
+      // (an external system) instead of setting state synchronously in the effect body.
       map.whenReady(() => {
         const latlngs: [number, number][] = stations.map((s) => [s.latitude, s.longitude]);
         if (latlngs.length) {
@@ -143,12 +144,12 @@ export function MapScreen({
             isProgrammaticMoveRef.current = false;
           }, 600);
         }
+        setMapReady(true);
       });
-
-      setMapReady(true);
     } catch (err) {
       console.error("[MapScreen] Map init threw:", err);
-      setMapError(true);
+      // Defer so the failure path does not set state inside the effect body.
+      requestAnimationFrame(() => setMapError(true));
     }
 
     return () => {

@@ -25,19 +25,14 @@ interface Props {
   sequences: RouteSequence[];
   predictions: Prediction[];
   userReports: ReportItem[];
+  now: number;
 }
 
-export function PlannerScreen({ stations, sequences, predictions, userReports }: Props) {
+export function PlannerScreen({ stations, sequences, predictions, userReports, now }: Props) {
   const [origin, setOrigin] = useState<string>("");
   const [destination, setDestination] = useState<string>("");
   const [stepFree, setStepFree] = useState(false);
   const [route, setRoute] = useState<PlannedRoute | null>(null);
-  const [now, setNow] = useState<number>(Date.now());
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
 
   // Unique sorted station names
   const stationNames = useMemo(

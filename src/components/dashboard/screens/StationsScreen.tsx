@@ -20,9 +20,10 @@ interface Props {
   sequences: RouteSequence[];
   predictions: Prediction[];
   userReports: ReportItem[];
+  now: number;
 }
 
-export function StationsScreen({ stations, sequences, predictions, userReports }: Props) {
+export function StationsScreen({ stations, sequences, predictions, userReports, now }: Props) {
   const [search, setSearch] = useState("");
   const [lineFilter, setLineFilter] = useState<LineId | "All">("All");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -207,6 +208,7 @@ export function StationsScreen({ stations, sequences, predictions, userReports }
             stations={stations}
             predictions={predictions}
             stationReports={reportsByStation.get(selected.stopName) ?? []}
+            now={now}
             onBack={() => setShowDetailMobile(false)}
           />
         ) : (
@@ -223,6 +225,7 @@ function StationDetail({
   stations,
   predictions,
   stationReports,
+  now,
   onBack,
 }: {
   station: Station;
@@ -230,6 +233,7 @@ function StationDetail({
   stations: Station[];
   predictions: Prediction[];
   stationReports: ReportItem[];
+  now: number;
   onBack: () => void;
 }) {
   const passingLines = Array.from(
@@ -450,7 +454,7 @@ function StationDetail({
                         {r.category}
                       </span>
                       <span className="text-[10px] text-outline">
-                        {Math.floor((Date.now() - new Date(r.createdAt).getTime()) / 60000)} min
+                        {Math.floor((now - new Date(r.createdAt).getTime()) / 60000)} min
                       </span>
                     </div>
                     {r.comment && (

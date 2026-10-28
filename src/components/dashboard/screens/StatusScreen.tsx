@@ -12,6 +12,7 @@ interface Props {
   trainsByLine: Record<string, TrainTelemetry[]>;
   stations?: Station[];
   userReports: ReportItem[];
+  now: number;
 }
 
 const REPORT_CATEGORIES = [
@@ -204,7 +205,7 @@ function ReportForm({ stations }: { stations: Station[] }) {
   );
 }
 
-export function StatusScreen({ alerts, trainsByLine, stations, userReports }: Props) {
+export function StatusScreen({ alerts, trainsByLine, stations, userReports, now }: Props) {
   const totalTrains = Object.values(trainsByLine).reduce((s, t) => s + t.length, 0);
   const lineIds = Object.keys(LINE_META) as LineId[];
 
@@ -385,9 +386,7 @@ export function StatusScreen({ alerts, trainsByLine, stations, userReports }: Pr
                 <ul className="flex flex-col gap-2">
                   {userReports.map((r) => {
                     const line = r.line && r.line in LINE_META ? LINE_META[r.line as LineId] : null;
-                    const minutesAgo = Math.floor(
-                      (Date.now() - new Date(r.createdAt).getTime()) / 60000
-                    );
+                    const minutesAgo = Math.floor((now - new Date(r.createdAt).getTime()) / 60000);
                     const timeLabel =
                       minutesAgo < 1
                         ? "Ahora"
