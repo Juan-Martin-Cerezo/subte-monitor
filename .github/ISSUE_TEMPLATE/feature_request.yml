@@ -1,0 +1,16 @@
+name: Idea
+description: A new screen, data source or behaviour
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Which problem does it solve
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: How you would implement it
+    validations:
+      required: false

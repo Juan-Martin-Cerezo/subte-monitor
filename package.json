@@ -1,12 +1,39 @@
 {
   "name": "subte-monitor",
   "version": "0.1.0",
-  "private": true,
+  "description": "Live tracking for the Buenos Aires subway: GTFS-Realtime telemetry, arrivals, service alerts, accessibility data and a step-free route planner.",
+  "license": "MIT",
+  "homepage": "https://subte-monitor.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Juan-Martin-Cerezo/subte-monitor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Juan-Martin-Cerezo/subte-monitor/issues"
+  },
+  "keywords": [
+    "buenos-aires",
+    "subte",
+    "gtfs-realtime",
+    "transit",
+    "nextjs",
+    "prisma",
+    "leaflet",
+    "open-data"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -27,12 +54,10 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "prettier": "^3.6.2",
     "prisma": "6.19.3",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5"
-  },
-  "prisma": {
-    "seed": "npx tsx prisma/seed.ts"
   }
 }

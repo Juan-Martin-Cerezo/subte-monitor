@@ -1,27 +1,34 @@
-'use client';
+"use client";
 
-import { useState, useCallback, useEffect, useRef } from 'react';
-import dynamic from 'next/dynamic';
-import type { TabId } from './types';
-import { useDashboardData } from './useDashboardData';
-import { Header } from './layout/Header';
-import { Sidebar } from './layout/Sidebar';
-import { MobileBottomNav } from './layout/MobileBottomNav';
-import { ErrorBoundary } from './ErrorBoundary';
-import { PlannerScreen } from './screens/PlannerScreen';
-import { StationsScreen } from './screens/StationsScreen';
-import { StatusScreen } from './screens/StatusScreen';
-import { ArrivalsScreen } from './screens/ArrivalsScreen';
-import { EcobiciWidget } from './EcobiciWidget';
-import type { EcobiciStation } from '@/lib/ecobici';
+import { useState, useCallback, useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
+import type { TabId } from "./types";
+import { useDashboardData } from "./useDashboardData";
+import { Header } from "./layout/Header";
+import { Sidebar } from "./layout/Sidebar";
+import { MobileBottomNav } from "./layout/MobileBottomNav";
+import { ErrorBoundary } from "./ErrorBoundary";
+import { PlannerScreen } from "./screens/PlannerScreen";
+import { StationsScreen } from "./screens/StationsScreen";
+import { StatusScreen } from "./screens/StatusScreen";
+import { ArrivalsScreen } from "./screens/ArrivalsScreen";
+import { EcobiciWidget } from "./EcobiciWidget";
+import type { EcobiciStation } from "@/lib/ecobici";
 
-const MapScreen = dynamic(() => import('./screens/MapScreen').then(m => ({ default: m.MapScreen })), {
-  ssr: false,
-  loading: () => <div className="flex-1 flex items-center justify-center bg-background"><div className="skeleton-pulse w-11/12 h-5/6 rounded-2xl" /></div>,
-});
+const MapScreen = dynamic(
+  () => import("./screens/MapScreen").then((m) => ({ default: m.MapScreen })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex-1 flex items-center justify-center bg-background">
+        <div className="skeleton-pulse w-11/12 h-5/6 rounded-2xl" />
+      </div>
+    ),
+  }
+);
 
 export default function Dashboard() {
-  const [tab, setTab] = useState<TabId>('map');
+  const [tab, setTab] = useState<TabId>("map");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [ecobiciStations, setEcobiciStations] = useState<EcobiciStation[]>([]);
 
@@ -45,15 +52,20 @@ export default function Dashboard() {
     let active = true;
     const fetchEcobici = async () => {
       try {
-        const res = await fetch('/api/ecobici');
+        const res = await fetch("/api/ecobici");
         if (!res.ok) return;
         const data = await res.json();
         if (active && data.stations) setEcobiciStations(data.stations);
-      } catch { /* silent */ }
+      } catch {
+        /* silent */
+      }
     };
     fetchEcobici();
     const interval = setInterval(fetchEcobici, 60000);
-    return () => { active = false; clearInterval(interval); };
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const handleTabChange = useCallback((t: TabId) => {
@@ -67,7 +79,7 @@ export default function Dashboard() {
       <Header
         tab={tab}
         onTabChange={handleTabChange}
-        onMenuToggle={() => setSidebarOpen(v => !v)}
+        onMenuToggle={() => setSidebarOpen((v) => !v)}
         isRefreshing={isRefreshing}
         onRefresh={fetchTelemetry}
         lastUpdate={now}
@@ -103,8 +115,8 @@ export default function Dashboard() {
             </div>
           )}
 
-          <div className={tab !== 'map' ? 'max-w-6xl mx-auto w-full px-2 md:px-4' : 'h-full'}>
-            {tab === 'map' && (
+          <div className={tab !== "map" ? "max-w-6xl mx-auto w-full px-2 md:px-4" : "h-full"}>
+            {tab === "map" && (
               <ErrorBoundary>
                 <MapScreen
                   stations={stations}
@@ -119,17 +131,41 @@ export default function Dashboard() {
                 />
               </ErrorBoundary>
             )}
-            {tab === 'planner' && (
-              <PlannerScreen stations={stations} sequences={sequences} predictions={telemetry.predictions} userReports={userReports} />
+            {tab === "planner" && (
+              <PlannerScreen
+                stations={stations}
+                sequences={sequences}
+                predictions={telemetry.predictions}
+                userReports={userReports}
+                now={now}
+              />
             )}
-            {tab === 'stations' && (
-              <StationsScreen stations={stations} sequences={sequences} predictions={telemetry.predictions} userReports={userReports} />
+            {tab === "stations" && (
+              <StationsScreen
+                stations={stations}
+                sequences={sequences}
+                predictions={telemetry.predictions}
+                userReports={userReports}
+                now={now}
+              />
             )}
-            {tab === 'status' && (
-              <StatusScreen alerts={telemetry.alerts} trainsByLine={trainsByLine} stations={stations} userReports={userReports} />
+            {tab === "status" && (
+              <StatusScreen
+                alerts={telemetry.alerts}
+                trainsByLine={trainsByLine}
+                stations={stations}
+                userReports={userReports}
+                now={now}
+              />
             )}
-            {tab === 'arrivals' && (
-              <ArrivalsScreen stations={stations} sequences={sequences} predictions={telemetry.predictions} trainsByLine={trainsByLine} />
+            {tab === "arrivals" && (
+              <ArrivalsScreen
+                stations={stations}
+                sequences={sequences}
+                predictions={telemetry.predictions}
+                trainsByLine={trainsByLine}
+                now={now}
+              />
             )}
           </div>
         </main>
@@ -139,7 +175,7 @@ export default function Dashboard() {
       <MobileBottomNav tab={tab} onTabChange={handleTabChange} />
 
       {/* Global Ecobici widget */}
-      {tab === 'map' && <EcobiciWidget stations={ecobiciStations} />}
+      {tab === "map" && <EcobiciWidget stations={ecobiciStations} />}
     </div>
   );
 }
