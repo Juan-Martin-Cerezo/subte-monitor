@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-30T01:56:51.751Z",
+  "generated_at": "2026-10-30T02:32:16.558Z",
   "cases_requested": 50,
   "subset": null,
   "category": null,
@@ -11,7 +11,7 @@
       "question": "¿cómo está el servicio ahora?",
       "notes": "Estado general, sin línea.",
       "actual": {
-        "answer": "El servicio tiene 3 alertas activas: en la Línea B está cerrada la estación Medrano, en la Línea C está cerrada Lavalle, y en la Línea E están cerradas Entre Ríos y Urquiza con servicio limitado, todas por obras de renovación integral.",
+        "answer": "Hay 3 alertas activas: en la Línea B está cerrada la estación Medrano, en la Línea C está cerrada Lavalle, y en la Línea E están cerradas Entre Ríos y Urquiza con servicio limitado, todas por obras de renovación integral.",
         "abstained": false,
         "citations": [],
         "citations_valid": true,
@@ -20,7 +20,7 @@
             "tool": "subway_status",
             "args": {},
             "ok": true,
-            "ms": 1700
+            "ms": 1671
           }
         ],
         "sources": []
@@ -33,11 +33,11 @@
       "unsupported": [],
       "usage": {
         "prompt_tokens": 2796,
-        "completion_tokens": 89,
-        "total_tokens": 2885
+        "completion_tokens": 87,
+        "total_tokens": 2883
       },
-      "cost_usd": 0.000853,
-      "ms": 4152
+      "cost_usd": 0.000851,
+      "ms": 4359
     },
     {
       "id": "ts-02",
@@ -45,7 +45,7 @@
       "question": "¿hay alguna alerta en la línea B?",
       "notes": "Alerta filtrada por línea.",
       "actual": {
-        "answer": "Sí, la línea B tiene una alerta: la estación Medrano está cerrada por obras de renovación integral, con modificación de servicio.",
+        "answer": "Sí, la línea B tiene una alerta: la estación Medrano está cerrada por obras de renovación integral, con modificación del servicio.",
         "abstained": false,
         "citations": [],
         "citations_valid": true,
@@ -56,7 +56,7 @@
               "line": "LineaB"
             },
             "ok": true,
-            "ms": 795
+            "ms": 885
           }
         ],
         "sources": []
@@ -74,7 +74,7 @@
         "total_tokens": 2771
       },
       "cost_usd": 0.000808,
-      "ms": 3199
+      "ms": 3288
     },
     {
       "id": "ts-03",
@@ -82,7 +82,7 @@
       "question": "¿qué líneas tienen problemas hoy?",
       "notes": "Estado de todas las líneas.",
       "actual": {
-        "answer": "Hoy hay alertas en tres líneas: la Línea B tiene la estación Medrano cerrada por obras de renovación integral, la Línea C tiene Lavalle cerrada por el mismo motivo, y la Línea E opera con servicio limitado porque Entre Ríos y Urquiza están cerradas.",
+        "answer": "Hoy hay alertas en tres líneas: la Línea B tiene la estación Medrano cerrada por obras de renovación integral, la Línea C tiene Lavalle cerrada por el mismo motivo, y la Línea E opera con servicio limitado porque Entre Ríos y Urquiza están cerradas por obras.",
         "abstained": false,
         "citations": [],
         "citations_valid": true,
@@ -91,7 +91,7 @@
             "tool": "subway_status",
             "args": {},
             "ok": true,
-            "ms": 669
+            "ms": 596
           }
         ],
         "sources": []
@@ -104,11 +104,11 @@
       "unsupported": [],
       "usage": {
         "prompt_tokens": 2796,
-        "completion_tokens": 90,
-        "total_tokens": 2886
+        "completion_tokens": 92,
+        "total_tokens": 2888
       },
-      "cost_usd": 0.000854,
-      "ms": 3436
+      "cost_usd": 0.000856,
+      "ms": 3134
     },
     {
       "id": "ts-04",
@@ -127,7 +127,7 @@
               "station": "Medrano"
             },
             "ok": true,
-            "ms": 1365
+            "ms": 1267
           }
         ],
         "sources": []
@@ -145,7 +145,7 @@
         "total_tokens": 2791
       },
       "cost_usd": 0.000822,
-      "ms": 3725
+      "ms": 4062
     },
     {
       "id": "ts-05",
@@ -153,7 +153,7 @@
       "question": "¿cuánto falta para el próximo a Uruguay?",
       "notes": "Uruguay es una estación de la línea B.",
       "actual": {
-        "answer": "En la estación Uruguay (Línea B) los próximos trenes están llegando ahora: uno hacia Leandro N. Alem y otro hacia Juan Manuel de Rosas, ambos con 0 minutos.",
+        "answer": "En la estación Uruguay (Línea B) tenés un tren a Leandro N. Alem llegando ahora (con 1 minuto de demora) y otro a Juan Manuel de Rosas también llegando ahora (con 7 minutos de demora).",
         "abstained": false,
         "citations": [],
         "citations_valid": true,
@@ -164,7 +164,7 @@
               "station": "Uruguay"
             },
             "ok": true,
-            "ms": 605
+            "ms": 599
           }
         ],
         "sources": []
@@ -178,11 +178,11 @@
       "unsupported": [],
       "usage": {
         "prompt_tokens": 2708,
-        "completion_tokens": 83,
-        "total_tokens": 2791
+        "completion_tokens": 95,
+        "total_tokens": 2803
       },
-      "cost_usd": 0.000822,
-      "ms": 2948
+      "cost_usd": 0.000836,
+      "ms": 3206
     },
     {
       "id": "ts-06",
@@ -202,7 +202,7 @@
               "line": "A"
             },
             "ok": true,
-            "ms": 607
+            "ms": 605
           }
         ],
         "sources": []
@@ -220,7 +220,7 @@
         "total_tokens": 2821
       },
       "cost_usd": 0.000831,
-      "ms": 3251
+      "ms": 2981
     },
     {
       "id": "ts-07",
@@ -228,7 +228,7 @@
       "question": "¿cómo llego de Agüero a Catedral?",
       "notes": "Viaje corto dentro de la línea D simulada.",
       "actual": {
-        "answer": "Tomá la Línea D en Agüero directo hasta Catedral: son 6 estaciones, unos 12 minutos y sin combinaciones.",
+        "answer": "Tomá la Línea D en Agüero directo hasta Catedral: son 6 estaciones y unos 12 minutos, sin combinaciones.",
         "abstained": false,
         "citations": [],
         "citations_valid": true,
@@ -240,7 +240,7 @@
               "to": "Catedral"
             },
             "ok": true,
-            "ms": 5
+            "ms": 7
           }
         ],
         "sources": []
@@ -259,7 +259,7 @@
         "total_tokens": 2770
       },
       "cost_usd": 0.000823,
-      "ms": 2380
+      "ms": 2667
     },
     {
       "id": "ts-08",
@@ -279,7 +279,7 @@
               "to": "Retiro"
             },
             "ok": true,
-            "ms": 3
+            "ms": 4
           }
         ],
         "sources": []
@@ -298,7 +298,7 @@
         "total_tokens": 2861
       },
       "cost_usd": 0.000866,
-      "ms": 2762
+      "ms": 2705
     },
     {
       "id": "ts-09",
@@ -306,7 +306,7 @@
       "question": "Estoy en -34.6037, -58.3816. ¿Qué estaciones tengo cerca?",
       "notes": "Coordenadas del Obelisco.",
       "actual": {
-        "answer": "Tenés muy cerca Carlos Pellegrini (Línea B, a 20 m) y 9 de Julio (Línea D, a 135 m); también a pocos metros Diagonal Norte (Línea C, 248 m), Tribunales (Línea D, 338 m) y Lavalle (Línea C, 384 m).",
+        "answer": "Tenés muy cerca Carlos Pellegrini (Línea B, a 20 m) y 9 de Julio (Línea D, a 135 m); también a pocas cuadras Diagonal Norte (Línea C, 248 m), Tribunales (Línea D, 338 m) y Lavalle (Línea C, 384 m).",
         "abstained": false,
         "citations": [],
         "citations_valid": true,
@@ -332,11 +332,11 @@
       "unsupported": [],
       "usage": {
         "prompt_tokens": 3104,
-        "completion_tokens": 142,
-        "total_tokens": 3246
+        "completion_tokens": 143,
+        "total_tokens": 3247
       },
-      "cost_usd": 0.000994,
-      "ms": 2744
+      "cost_usd": 0.000995,
+      "ms": 2685
     },
     {
       "id": "ts-10",
@@ -344,7 +344,7 @@
       "question": "¿cuándo llega el próximo tren a Callao?",
       "notes": "Estación de la línea B.",
       "actual": {
-        "answer": "En Callao, el próximo tren de la Línea B hacia Leandro N. Alem está llegando ahora (con 6 minutos de demora), el de la Línea B hacia Juan Manuel de Rosas también está llegando, y el de la Línea D hacia Congreso de Tucumán llega en menos de un minuto.",
+        "answer": "En Callao, la Línea B hacia Leandro N. Alem y hacia Juan Manuel de Rosas está llegando ahora, y la Línea D hacia Catedral llega en menos de un minuto.",
         "abstained": false,
         "citations": [],
         "citations_valid": true,
@@ -355,7 +355,7 @@
               "station": "Callao"
             },
             "ok": true,
-            "ms": 1742
+            "ms": 1955
           }
         ],
         "sources": []
@@ -368,12 +368,12 @@
       },
       "unsupported": [],
       "usage": {
-        "prompt_tokens": 2756,
-        "completion_tokens": 113,
-        "total_tokens": 2869
+        "prompt_tokens": 2754,
+        "completion_tokens": 85,
+        "total_tokens": 2839
       },
-      "cost_usd": 0.000868,
-      "ms": 4470
+      "cost_usd": 0.000837,
+      "ms": 5015
     },
     {
       "id": "ts-11",
@@ -393,7 +393,7 @@
               "to": "Constitución"
             },
             "ok": true,
-            "ms": 5
+            "ms": 3
           }
         ],
         "sources": []
@@ -412,7 +412,7 @@
         "total_tokens": 2911
       },
       "cost_usd": 0.000887,
-      "ms": 2622
+      "ms": 2844
     },
     {
       "id": "ts-12",
@@ -420,7 +420,7 @@
       "question": "¿cuánto sale el boleto?",
       "notes": "Negativo: no es estado ni arribos.",
       "actual": {
-        "answer": "Con SUBE nominalizada el boleto de subte sale $1.817,00 para los primeros 20 viajes del mes, y baja a $1.453,60 del viaje 21 al 30, $1.271,90 del 31 al 40 y $1.090,20 desde el viaje 41 [kb:tarifa-subte-sube]. Con SUBE no nominalizada cuesta $2.541,10, $2.311,22, $2.022,32 y $1.733,42 según la misma escala [kb:tarifa-subte-no-nominalizada].",
+        "answer": "Con SUBE nominalizada el boleto de subte sale $1.817,00 para los primeros 20 viajes del mes, y baja a $1.453,60 del viaje 21 al 30, $1.271,90 del 31 al 40 y $1.090,20 desde el viaje 41 [kb:tarifa-subte-sube]; con SUBE no nominalizada cuesta $2.541,10, $2.311,22, $2.022,32 y $1.733,42 en esas mismas franjas [kb:tarifa-subte-no-nominalizada].",
         "abstained": false,
         "citations": [
           "kb:tarifa-subte-sube",
@@ -434,7 +434,7 @@
               "query": "cuánto sale el boleto tarifa subte"
             },
             "ok": true,
-            "ms": 25
+            "ms": 24
           }
         ],
         "sources": [
@@ -454,11 +454,11 @@
       "unsupported": [],
       "usage": {
         "prompt_tokens": 3406,
-        "completion_tokens": 183,
-        "total_tokens": 3589
+        "completion_tokens": 185,
+        "total_tokens": 3591
       },
-      "cost_usd": 0.001121,
-      "ms": 3217
+      "cost_usd": 0.001123,
+      "ms": 2916
     },
     {
       "id": "ts-13",
@@ -479,7 +479,7 @@
               "query": "horario último tren línea B"
             },
             "ok": true,
-            "ms": 2
+            "ms": 3
           }
         ],
         "sources": [
@@ -503,7 +503,7 @@
         "total_tokens": 3556
       },
       "cost_usd": 0.001075,
-      "ms": 2708
+      "ms": 2736
     },
     {
       "id": "ts-14",
@@ -530,7 +530,7 @@
         "total_tokens": 1271
       },
       "cost_usd": 0.000349,
-      "ms": 1119
+      "ms": 1292
     },
     {
       "id": "ts-15",
@@ -557,7 +557,7 @@
         "total_tokens": 1269
       },
       "cost_usd": 0.000348,
-      "ms": 1223
+      "ms": 1437
     },
     {
       "id": "trip-01",
@@ -577,7 +577,7 @@
               "to": "Plaza de Mayo"
             },
             "ok": true,
-            "ms": 4
+            "ms": 2
           }
         ],
         "sources": []
@@ -596,7 +596,7 @@
         "total_tokens": 2849
       },
       "cost_usd": 0.000862,
-      "ms": 2626
+      "ms": 2662
     },
     {
       "id": "trip-02",
@@ -616,7 +616,7 @@
               "to": "Catedral"
             },
             "ok": true,
-            "ms": 2
+            "ms": 3
           }
         ],
         "sources": []
@@ -635,7 +635,7 @@
         "total_tokens": 2851
       },
       "cost_usd": 0.000864,
-      "ms": 2464
+      "ms": 3233
     },
     {
       "id": "trip-03",
@@ -655,7 +655,7 @@
               "to": "Retiro"
             },
             "ok": true,
-            "ms": 3
+            "ms": 4
           }
         ],
         "sources": []
@@ -674,7 +674,7 @@
         "total_tokens": 2871
       },
       "cost_usd": 0.000876,
-      "ms": 2832
+      "ms": 2852
     },
     {
       "id": "trip-04",
@@ -713,7 +713,7 @@
         "total_tokens": 2862
       },
       "cost_usd": 0.000867,
-      "ms": 2540
+      "ms": 2854
     },
     {
       "id": "trip-05",
@@ -752,7 +752,7 @@
         "total_tokens": 2782
       },
       "cost_usd": 0.00083,
-      "ms": 2607
+      "ms": 2562
     },
     {
       "id": "trip-06",
@@ -760,7 +760,7 @@
       "question": "¿qué tengo que tomar para ir de Palermo a Callao?",
       "notes": "Viaje directo por línea D.",
       "actual": {
-        "answer": "Tomá la Línea D en Palermo y bajate en Callao: son 7 estaciones, unos 14 minutos y sin combinaciones.",
+        "answer": "Tomá la Línea D en Palermo y bajate en Callao: son 7 estaciones, unos 14 minutos y sin transbordos.",
         "abstained": false,
         "citations": [],
         "citations_valid": true,
@@ -772,7 +772,7 @@
               "to": "Callao"
             },
             "ok": true,
-            "ms": 4
+            "ms": 3
           }
         ],
         "sources": []
@@ -787,11 +787,11 @@
       "unsupported": [],
       "usage": {
         "prompt_tokens": 2675,
-        "completion_tokens": 88,
-        "total_tokens": 2763
+        "completion_tokens": 90,
+        "total_tokens": 2765
       },
-      "cost_usd": 0.000819,
-      "ms": 2403
+      "cost_usd": 0.000821,
+      "ms": 3083
     },
     {
       "id": "trip-07",
@@ -811,7 +811,7 @@
               "to": "Uruguay"
             },
             "ok": true,
-            "ms": 2
+            "ms": 3
           }
         ],
         "sources": []
@@ -830,7 +830,7 @@
         "total_tokens": 2923
       },
       "cost_usd": 0.000894,
-      "ms": 3014
+      "ms": 2596
     },
     {
       "id": "trip-08",
@@ -838,7 +838,7 @@
       "question": "¿cómo voy de Intendente Saguier a General Savio?",
       "notes": "Ramal del Premetro sin combinación.",
       "actual": {
-        "answer": "Tomá el Premetro (línea PM-Savio) directo desde Intendente Saguier hasta General Savio: son 15 paradas, unos 30 minutos y sin transbordos.",
+        "answer": "Tomá el Premetro (línea PM-Savio) en Intendente Saguier directo hasta General Savio: son 15 paradas, unos 30 minutos y sin transbordos.",
         "abstained": false,
         "citations": [],
         "citations_valid": true,
@@ -869,7 +869,7 @@
         "total_tokens": 2798
       },
       "cost_usd": 0.000843,
-      "ms": 2925
+      "ms": 2574
     },
     {
       "id": "trip-09",
@@ -877,7 +877,7 @@
       "question": "¿cómo voy de Agüero a Plaza de Mayo sin escaleras?",
       "notes": "Ruta accesible, primer caso step-free.",
       "actual": {
-        "answer": "Tomá la Línea D en Agüero hasta Catedral, caminá a Perú (combinación accesible) y seguí una parada en Línea A hasta Plaza de Mayo: 7 paradas y unos 17 minutos.",
+        "answer": "Tomá la Línea D en Agüero hasta Catedral, caminá la combinación a Perú (accesible) y seguí una parada en Línea A hasta Plaza de Mayo: 7 paradas y unos 17 minutos.",
         "abstained": false,
         "citations": [],
         "citations_valid": true,
@@ -890,7 +890,7 @@
               "step_free": true
             },
             "ok": true,
-            "ms": 2
+            "ms": 3
           }
         ],
         "sources": []
@@ -909,7 +909,7 @@
         "total_tokens": 2890
       },
       "cost_usd": 0.000888,
-      "ms": 2820
+      "ms": 2489
     },
     {
       "id": "trip-10",
@@ -917,7 +917,7 @@
       "question": "Necesito un viaje accesible de Medrano a Plaza Italia",
       "notes": "Ruta accesible, segundo caso step-free.",
       "actual": {
-        "answer": "El viaje accesible de Medrano a Plaza Italia es: Línea B hasta Pueyrredón, combinación con Línea H en Corrientes y luego Línea D hasta Plaza Italia, con 6 paradas y unos 18 minutos estimados, sin escaleras en las combinaciones.",
+        "answer": "El viaje accesible es: Línea B de Medrano a Pueyrredón (2 paradas) y Línea D de Pueyrredón a Plaza Italia (4 paradas), con 2 transbordos accesibles y unos 18 minutos estimados.",
         "abstained": false,
         "citations": [],
         "citations_valid": true,
@@ -930,7 +930,7 @@
               "step_free": true
             },
             "ok": true,
-            "ms": 2
+            "ms": 3
           }
         ],
         "sources": []
@@ -945,11 +945,11 @@
       "unsupported": [],
       "usage": {
         "prompt_tokens": 2797,
-        "completion_tokens": 141,
-        "total_tokens": 2938
+        "completion_tokens": 137,
+        "total_tokens": 2934
       },
-      "cost_usd": 0.00091,
-      "ms": 2616
+      "cost_usd": 0.000906,
+      "ms": 2746
     },
     {
       "id": "ret-01",
@@ -970,7 +970,7 @@
               "query": "horario último tren línea B"
             },
             "ok": true,
-            "ms": 2
+            "ms": 3
           }
         ],
         "sources": [
@@ -994,7 +994,7 @@
         "total_tokens": 3556
       },
       "cost_usd": 0.001075,
-      "ms": 2683
+      "ms": 2688
     },
     {
       "id": "ret-02",
@@ -1002,7 +1002,7 @@
       "question": "Si hice 35 viajes este mes, ¿cuánto pago por el viaje 35 con SUBE nominalizada?",
       "notes": "Tramo 31 a 40 de la tabla de tarifas.",
       "actual": {
-        "answer": "Con SUBE nominalizada, el viaje 35 del mes se paga $1.271,90, porque del viaje 31 al 40 rige esa tarifa [kb:tarifa-subte-sube].",
+        "answer": "Con SUBE nominalizada, el viaje 35 del mes cae en el tramo del 31 al 40, así que pagás $1.271,90 [kb:tarifa-subte-sube].",
         "abstained": false,
         "citations": [
           "kb:tarifa-subte-sube"
@@ -1035,11 +1035,11 @@
       "unsupported": [],
       "usage": {
         "prompt_tokens": 3275,
-        "completion_tokens": 102,
-        "total_tokens": 3377
+        "completion_tokens": 101,
+        "total_tokens": 3376
       },
-      "cost_usd": 0.000996,
-      "ms": 2338
+      "cost_usd": 0.000995,
+      "ms": 2654
     },
     {
       "id": "ret-03",
@@ -1060,7 +1060,7 @@
               "query": "estaciones de la línea H"
             },
             "ok": true,
-            "ms": 2
+            "ms": 3
           }
         ],
         "sources": [
@@ -1084,7 +1084,7 @@
         "total_tokens": 3283
       },
       "cost_usd": 0.000983,
-      "ms": 2554
+      "ms": 2736
     },
     {
       "id": "ret-04",
@@ -1105,7 +1105,7 @@
               "query": "accesibilidad ascensor estación Medrano"
             },
             "ok": true,
-            "ms": 3
+            "ms": 4
           }
         ],
         "sources": [
@@ -1129,7 +1129,7 @@
         "total_tokens": 3234
       },
       "cost_usd": 0.000958,
-      "ms": 2321
+      "ms": 2340
     },
     {
       "id": "ret-05",
@@ -1175,7 +1175,7 @@
         "total_tokens": 3398
       },
       "cost_usd": 0.001054,
-      "ms": 3192
+      "ms": 3180
     },
     {
       "id": "ret-06",
@@ -1197,7 +1197,7 @@
               "query": "línea D simulada datos simulados aplicación"
             },
             "ok": true,
-            "ms": 2
+            "ms": 3
           }
         ],
         "sources": [
@@ -1221,7 +1221,7 @@
         "total_tokens": 3458
       },
       "cost_usd": 0.001039,
-      "ms": 2939
+      "ms": 2542
     },
     {
       "id": "ret-07",
@@ -1229,7 +1229,7 @@
       "question": "¿dónde combina la línea C con la línea A?",
       "notes": "Se puede combinar por Perú o por Lima y Avenida de Mayo.",
       "actual": {
-        "answer": "La línea C combina con la línea A en Avenida de Mayo con Lima [kb:combinacion-lima-avenida-de-mayo].",
+        "answer": "La línea C combina con la línea A en Avenida de Mayo (C) con Lima (A) [kb:combinacion-lima-avenida-de-mayo].",
         "abstained": false,
         "citations": [
           "kb:combinacion-lima-avenida-de-mayo"
@@ -1242,7 +1242,7 @@
               "query": "combinación línea C con línea A estación"
             },
             "ok": true,
-            "ms": 2
+            "ms": 3
           }
         ],
         "sources": [
@@ -1262,11 +1262,11 @@
       "unsupported": [],
       "usage": {
         "prompt_tokens": 3139,
-        "completion_tokens": 80,
-        "total_tokens": 3219
+        "completion_tokens": 86,
+        "total_tokens": 3225
       },
-      "cost_usd": 0.000936,
-      "ms": 2872
+      "cost_usd": 0.000942,
+      "ms": 2661
     },
     {
       "id": "ret-08",
@@ -1311,7 +1311,7 @@
         "total_tokens": 3223
       },
       "cost_usd": 0.000944,
-      "ms": 2709
+      "ms": 2481
     },
     {
       "id": "ret-09",
@@ -1319,7 +1319,7 @@
       "question": "¿cuántos ascensores tiene la estación Perú?",
       "notes": "Dato de accesibilidad que no viene del feed.",
       "actual": {
-        "answer": "La estación Perú de la Línea A tiene 2 ascensores (y 2 escaleras mecánicas) [kb:accesibilidad-a-peru].",
+        "answer": "La estación Perú de la Línea A tiene 2 ascensores y 2 escaleras mecánicas [kb:accesibilidad-a-peru].",
         "abstained": false,
         "citations": [
           "kb:accesibilidad-a-peru"
@@ -1329,10 +1329,10 @@
           {
             "tool": "search_knowledge",
             "args": {
-              "query": "estación Perú ascensores accesibilidad"
+              "query": "estación Perú accesibilidad ascensores"
             },
             "ok": true,
-            "ms": 1
+            "ms": 2
           }
         ],
         "sources": [
@@ -1352,11 +1352,11 @@
       "unsupported": [],
       "usage": {
         "prompt_tokens": 3185,
-        "completion_tokens": 83,
-        "total_tokens": 3268
+        "completion_tokens": 81,
+        "total_tokens": 3266
       },
-      "cost_usd": 0.000951,
-      "ms": 2329
+      "cost_usd": 0.000949,
+      "ms": 2657
     },
     {
       "id": "ret-10",
@@ -1364,7 +1364,7 @@
       "question": "¿cómo trata las combinaciones el planificador?",
       "notes": "Regla de 3 minutos por transbordo.",
       "actual": {
-        "answer": "El planificador considera una combinación como un túnel entre andenes de líneas distintas, excluye las conexiones de la misma línea y asigna 3 minutos a cada transbordo [kb:combinacion-regla-app].",
+        "answer": "El planificador considera una combinación solo como túnel entre andenes de líneas distintas, excluye las conexiones de la misma línea y suma 3 minutos por cada transbordo [kb:combinacion-regla-app].",
         "abstained": false,
         "citations": [
           "kb:combinacion-regla-app"
@@ -1377,7 +1377,7 @@
               "query": "cómo trata las combinaciones el planificador de viajes"
             },
             "ok": true,
-            "ms": 2
+            "ms": 1
           }
         ],
         "sources": [
@@ -1397,11 +1397,11 @@
       "unsupported": [],
       "usage": {
         "prompt_tokens": 3350,
-        "completion_tokens": 99,
-        "total_tokens": 3449
+        "completion_tokens": 98,
+        "total_tokens": 3448
       },
-      "cost_usd": 0.001013,
-      "ms": 2249
+      "cost_usd": 0.001012,
+      "ms": 2778
     },
     {
       "id": "abs-01",
@@ -1428,7 +1428,7 @@
               "station": "Montevideo"
             },
             "ok": false,
-            "ms": 28
+            "ms": 27
           }
         ],
         "sources": [
@@ -1451,7 +1451,7 @@
         "total_tokens": 3302
       },
       "cost_usd": 0.00096,
-      "ms": 2646
+      "ms": 3333
     },
     {
       "id": "abs-02",
@@ -1470,7 +1470,7 @@
               "query": "guardería en estación Plaza Italia"
             },
             "ok": true,
-            "ms": 3
+            "ms": 2
           }
         ],
         "sources": [
@@ -1493,7 +1493,7 @@
         "total_tokens": 3235
       },
       "cost_usd": 0.000917,
-      "ms": 2247
+      "ms": 2730
     },
     {
       "id": "abs-03",
@@ -1529,7 +1529,7 @@
         "total_tokens": 2688
       },
       "cost_usd": 0.000777,
-      "ms": 2146
+      "ms": 2043
     },
     {
       "id": "abs-04",
@@ -1555,7 +1555,7 @@
         "total_tokens": 1272
       },
       "cost_usd": 0.000349,
-      "ms": 1020
+      "ms": 1236
     },
     {
       "id": "abs-05",
@@ -1574,7 +1574,7 @@
               "query": "estacionamiento para bicicletas estación Retiro"
             },
             "ok": true,
-            "ms": 2
+            "ms": 3
           }
         ],
         "sources": [
@@ -1597,7 +1597,7 @@
         "total_tokens": 3354
       },
       "cost_usd": 0.000953,
-      "ms": 2357
+      "ms": 2455
     },
     {
       "id": "abs-06",
@@ -1623,7 +1623,7 @@
         "total_tokens": 1272
       },
       "cost_usd": 0.000349,
-      "ms": 1007
+      "ms": 1235
     },
     {
       "id": "abs-07",
@@ -1649,7 +1649,7 @@
         "total_tokens": 1268
       },
       "cost_usd": 0.000348,
-      "ms": 1017
+      "ms": 915
     },
     {
       "id": "abs-08",
@@ -1672,9 +1672,11 @@
           },
           {
             "tool": "subway_status",
-            "args": {},
+            "args": {
+              "line": "LineaB"
+            },
             "ok": true,
-            "ms": 1655
+            "ms": 8905
           }
         ],
         "sources": [
@@ -1692,12 +1694,12 @@
       },
       "unsupported": [],
       "usage": {
-        "prompt_tokens": 3407,
-        "completion_tokens": 68,
-        "total_tokens": 3475
+        "prompt_tokens": 3306,
+        "completion_tokens": 86,
+        "total_tokens": 3392
       },
-      "cost_usd": 0.000995,
-      "ms": 4017
+      "cost_usd": 0.000987,
+      "ms": 11562
     },
     {
       "id": "abs-09",
@@ -1723,7 +1725,7 @@
         "total_tokens": 1272
       },
       "cost_usd": 0.000349,
-      "ms": 1356
+      "ms": 962
     },
     {
       "id": "abs-10",
@@ -1739,8 +1741,8 @@
           {
             "tool": "subway_status",
             "args": {},
-            "ok": false,
-            "ms": 10253
+            "ok": true,
+            "ms": 1582
           },
           {
             "tool": "search_knowledge",
@@ -1766,12 +1768,12 @@
       },
       "unsupported": [],
       "usage": {
-        "prompt_tokens": 3574,
+        "prompt_tokens": 3792,
         "completion_tokens": 71,
-        "total_tokens": 3645
+        "total_tokens": 3863
       },
-      "cost_usd": 0.001043,
-      "ms": 12445
+      "cost_usd": 0.001102,
+      "ms": 3724
     },
     {
       "id": "mem-01",
@@ -1779,7 +1781,7 @@
       "question": "¿cómo llego a Plaza de Mayo?",
       "notes": "La pregunta omite el origen.",
       "actual": {
-        "answer": "Tomá la Línea D en Pueyrredón hasta Catedral, caminá a Perú y combiná con la Línea A una parada hasta Plaza de Mayo: son unos 15 minutos en total, con 6 paradas y una combinación.",
+        "answer": "Tomá la Línea D en Pueyrredón hasta Catedral, caminá a Perú y combiná con la Línea A hasta Plaza de Mayo: son 6 paradas y unos 15 minutos.",
         "abstained": false,
         "citations": [],
         "citations_valid": true,
@@ -1791,7 +1793,7 @@
               "to": "Plaza de Mayo"
             },
             "ok": true,
-            "ms": 3
+            "ms": 4
           }
         ],
         "sources": []
@@ -1805,11 +1807,11 @@
       "unsupported": [],
       "usage": {
         "prompt_tokens": 2885,
-        "completion_tokens": 118,
-        "total_tokens": 3003
+        "completion_tokens": 108,
+        "total_tokens": 2993
       },
-      "cost_usd": 0.000909,
-      "ms": 2472
+      "cost_usd": 0.000898,
+      "ms": 2703
     },
     {
       "id": "mem-02",
@@ -1847,7 +1849,7 @@
         "total_tokens": 2975
       },
       "cost_usd": 0.000888,
-      "ms": 2577
+      "ms": 2432
     },
     {
       "id": "mem-03",
@@ -1867,7 +1869,7 @@
               "to": "Catedral"
             },
             "ok": true,
-            "ms": 4
+            "ms": 2
           }
         ],
         "sources": []
@@ -1885,7 +1887,7 @@
         "total_tokens": 2996
       },
       "cost_usd": 0.000903,
-      "ms": 2653
+      "ms": 2578
     },
     {
       "id": "mem-04",
@@ -1893,7 +1895,7 @@
       "question": "¿cómo llego a Plaza de Mayo sin escaleras?",
       "notes": "Origen recordado y preferencia de accesibilidad.",
       "actual": {
-        "answer": "Tomá la Línea A en Primera Junta directo hasta Plaza de Mayo: 12 estaciones, unos 24 minutos y sin transbordos ni escaleras.",
+        "answer": "Tomá la Línea A en Primera Junta directo hasta Plaza de Mayo: 12 estaciones, unos 24 minutos y sin transbordos.",
         "abstained": false,
         "citations": [],
         "citations_valid": true,
@@ -1906,7 +1908,7 @@
               "step_free": true
             },
             "ok": true,
-            "ms": 4
+            "ms": 3
           }
         ],
         "sources": []
@@ -1920,11 +1922,11 @@
       "unsupported": [],
       "usage": {
         "prompt_tokens": 2860,
-        "completion_tokens": 115,
-        "total_tokens": 2975
+        "completion_tokens": 112,
+        "total_tokens": 2972
       },
-      "cost_usd": 0.000899,
-      "ms": 2739
+      "cost_usd": 0.000895,
+      "ms": 2559
     },
     {
       "id": "mem-05",
@@ -1932,7 +1934,7 @@
       "question": "¿qué línea me conviene tomar para ir a Constitución?",
       "notes": "Pregunta por línea, pero el viaje sale del origen recordado.",
       "actual": {
-        "answer": "Te conviene la Línea B desde Uruguay hasta Carlos Pellegrini y combinar con la Línea C en Diagonal Norte hasta Constitución, unos 15 minutos con 6 paradas y una combinación.",
+        "answer": "Te conviene tomar la Línea B en Uruguay hasta Carlos Pellegrini, caminar a Diagonal Norte y combinar con la Línea C hasta Constitución, con un total de 6 paradas y unos 15 minutos.",
         "abstained": false,
         "citations": [],
         "citations_valid": true,
@@ -1958,11 +1960,11 @@
       "unsupported": [],
       "usage": {
         "prompt_tokens": 2878,
-        "completion_tokens": 103,
-        "total_tokens": 2981
+        "completion_tokens": 107,
+        "total_tokens": 2985
       },
-      "cost_usd": 0.00089,
-      "ms": 2455
+      "cost_usd": 0.000895,
+      "ms": 2337
     }
   ],
   "metrics": {
@@ -1972,10 +1974,10 @@
     "citation_validity": 1,
     "abstain_correctness": 1,
     "hallucination_rate": 0,
-    "p50_ms": 2626,
-    "p95_ms": 4152,
-    "tokens": 142992,
-    "cost_usd": 0.042452,
+    "p50_ms": 2685,
+    "p95_ms": 4359,
+    "tokens": 143103,
+    "cost_usd": 0.042479,
     "failed": []
   },
   "by_category": {
@@ -1986,10 +1988,10 @@
       "citation_validity": null,
       "abstain_correctness": 1,
       "hallucination_rate": 0,
-      "p50_ms": 2948,
-      "p95_ms": 4470,
-      "tokens": 41287,
-      "cost_usd": 0.012321,
+      "p50_ms": 2916,
+      "p95_ms": 5015,
+      "tokens": 41272,
+      "cost_usd": 0.012307,
       "failed": []
     },
     "trip_planning": {
@@ -1999,10 +2001,10 @@
       "citation_validity": null,
       "abstain_correctness": 1,
       "hallucination_rate": 0,
-      "p50_ms": 2616,
-      "p95_ms": 3014,
-      "tokens": 28527,
-      "cost_usd": 0.008653,
+      "p50_ms": 2662,
+      "p95_ms": 3233,
+      "tokens": 28525,
+      "cost_usd": 0.008651,
       "failed": []
     },
     "retrieval_citation": {
@@ -2012,10 +2014,10 @@
       "citation_validity": 1,
       "abstain_correctness": 1,
       "hallucination_rate": 0,
-      "p50_ms": 2554,
-      "p95_ms": 3192,
-      "tokens": 33465,
-      "cost_usd": 0.009949,
+      "p50_ms": 2657,
+      "p95_ms": 3180,
+      "tokens": 33467,
+      "cost_usd": 0.009951,
       "failed": []
     },
     "abstain": {
@@ -2025,10 +2027,10 @@
       "citation_validity": null,
       "abstain_correctness": 1,
       "hallucination_rate": 0,
-      "p50_ms": 2146,
-      "p95_ms": 12445,
-      "tokens": 24783,
-      "cost_usd": 0.00704,
+      "p50_ms": 2043,
+      "p95_ms": 11562,
+      "tokens": 24918,
+      "cost_usd": 0.007091,
       "failed": []
     },
     "memory": {
@@ -2038,10 +2040,10 @@
       "citation_validity": null,
       "abstain_correctness": 1,
       "hallucination_rate": 0,
-      "p50_ms": 2577,
-      "p95_ms": 2739,
-      "tokens": 14930,
-      "cost_usd": 0.004489,
+      "p50_ms": 2559,
+      "p95_ms": 2703,
+      "tokens": 14921,
+      "cost_usd": 0.004479,
       "failed": []
     }
   },
@@ -2051,7 +2053,7 @@
     "output_per_1m": 1.1,
     "assumption": "Prices per 1M tokens are an assumption based on deepseek-chat list pricing. Update them when the provider or model changes.",
     "max_cost_usd": 0.2,
-    "spent_usd": 0.042452
+    "spent_usd": 0.042479
   },
   "aborted_by_cost": false,
   "gate": {

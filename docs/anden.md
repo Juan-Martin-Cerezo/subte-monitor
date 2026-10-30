@@ -2,6 +2,55 @@
 
 Anden adds an assistant layer on top of `subte-monitor` in five stages: an MCP server, retrieval, memory, evals, and a harness. Each stage is additive and runs without a database. This page records what is built and how to check it.
 
+## Architecture
+
+```text
+                    ┌──────────────┐   ┌──────────────┐
+                    │   /anden     │   │   /traces    │
+                    │  chat page   │   │  table page  │
+                    └──────┬───────┘   └──────┬───────┘
+                           │                  │
+                    ┌──────▼──────────────────▼───────┐
+                    │  POST /api/anden/ask             │
+                    │  GET  /api/anden/traces[/id]     │
+                    └──────┬───────────────────┬──────┘
+                           │                   │
+                    ┌──────▼───────┐    ┌──────▼───────┐
+                    │ harness      │    │ trace store  │
+                    │ plan · budget│───▶│ sqlite / pg  │
+                    │ guards·retry │    └──────────────┘
+                    └──────┬───────┘
+                           │
+                    ┌──────▼───────┐
+                    │ agent loop   │◀──▶ chat completions
+                    │ runAgent     │
+                    └──┬────┬───┬──┘
+                       │    │   │
+              ┌────────▼┐ ┌─▼────────┐ ┌▼─────────────┐
+              │ tools/  │ │ retrieval│ │ memory       │
+              │ @subte/ │ │ BM25     │ │ sqlite / pg  │
+              │ core    │ │ corpus   │ │              │
+              └────┬────┘ └──────────┘ └──────────────┘
+                   │
+              ┌────▼─────────────┐
+              │ live app API     │
+              │ bootstrap ·      │
+              │ telemetry        │
+              └──────────────────┘
+```
+
+The CLI in `scripts/anden/` calls the harness directly, without HTTP. The MCP package is a second client of the live app API and does not import the Next app.
+
+## What each stage taught
+
+| Stage | What landed | What it taught |
+| --- | --- | --- |
+| 1 | `subte-mcp` over stdio | The live API carries a useful server. Linea D is simulated and the feed can be slow. |
+| 2 | BM25 retrieval with citations | Lexical search covers Spanish transit vocabulary. Citations catch claims the sources do not support. |
+| 3 | Typed facts and turns | A remembered origin removes real repetition. Strict extraction beats guessing. |
+| 4 | 50 hand-written cases and a runner | Tool selection is measurable. The hallucination proxy has blind spots. |
+| 5 | Harness, traces and chat | A cost and time bound is what makes the agent usable. A trace makes a failure explainable. |
+
 ## Stage 1: subte-mcp
 
 `packages/subte-mcp` is a standalone npm package that publishes the live subway data as MCP tools over stdio. It imports nothing from the Next app and uses no database or Prisma. Its only runtime dependencies are `@modelcontextprotocol/sdk` and `zod`.
@@ -13,7 +62,7 @@ It reads two public endpoints on the deployed app:
 | `/api/bootstrap` | Stations and GTFS stop sequences | 10 minutes, in memory |
 | `/api/telemetry` | Trains, alerts, predictions | Never cached |
 
-The base URL comes from `SUBTE_API_BASE` and defaults to the live deployment. Requests time out after 5 seconds and retry once on a network failure. A 4xx response is not retried.
+The base URL comes from `SUBTE_API_BASE` and defaults to the live deployment. Requests time out after 12 seconds and retry once on a network failure. A 4xx response is not retried. The timeout matches the app's own upstream budget: `/api/telemetry` waits up to 8 seconds for GCBA before it falls back to its cache, so a shorter client timeout would abort every slow refresh.
 
 ### Tools
 
@@ -303,7 +352,7 @@ Observed timings from the dev log on this machine:
 - Memory supplies the origin and destination. The answer still comes from the BM25 corpus, so a route question outside the corpus abstains even when the stations are known.
 - The Postgres adapter is implemented but was not run against a live Neon database here, because this environment has no `DATABASE_URL`. The sqlite adapter is the tested path.
 - Identity is the cookie. Clearing cookies loses access to the stored facts.
-- The panel lists and deletes memory. There is no in-app question box yet.
+- The panel lists and deletes memory. The question box arrives in stage 5 at `/anden`.
 
 ## Stage 4: evals
 
@@ -337,7 +386,7 @@ Core files import each other with `.ts` extensions. Turbopack resolves them dire
 - The stage 2 citation checker still runs on the answer. When the only successful tool was `search_knowledge` and the answer has no valid citation, the agent makes one repair call. If the repair still cites nothing, it abstains with `No tengo información sobre eso.`
 - The returned object is `{answer, steps, sources, abstained, citationsValid, usage, evidence}`. `evidence` holds the tool output the model saw and is used by the evals. The HTTP route does not expose it.
 
-`POST /api/anden/ask` is now a wrapper around `runAgent`. It keeps the stage 2 response fields and adds `steps`, one entry per tool call with `tool`, `args`, `ok` and `ms`.
+`POST /api/anden/ask` called `runAgent` directly in stage 4. Stage 5 routes it through the harness. The response keeps the stage 2 fields and adds `steps`, one entry per tool call with `tool`, `args`, `ok` and `ms`, plus `trace_id`, `trace_steps`, `total_ms`, `tokens`, `cost_usd`, `truncated` and `citations`.
 
 ### Golden set
 
@@ -406,21 +455,21 @@ arg_accuracy: 1
 citation_validity: 1
 abstain_correctness: 1
 hallucination_rate: 0
-p50_ms: 2626 p95_ms: 4152
-tokens: 142992
-cost_usd: 0.042452 of 0.2 USD
+p50_ms: 2685 p95_ms: 4359
+tokens: 143103
+cost_usd: 0.042479 of 0.2 USD
 ```
 
 Per category:
 
 | Set | Cases | tool acc | arg acc | citation validity | abstain | hallucination | p50 ms | p95 ms | cost USD |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| all | 50 | 100% | 100% | 100% | 100% | 0% | 2626 | 4152 | 0.0425 |
-| tool_selection | 15 | 100% | 100% | n/a | 100% | 0% | 2948 | 4470 | 0.0123 |
-| trip_planning | 10 | 100% | 100% | n/a | 100% | 0% | 2616 | 3014 | 0.0087 |
-| retrieval_citation | 10 | n/a | n/a | 100% | 100% | 0% | 2554 | 3192 | 0.0099 |
-| abstain | 10 | n/a | n/a | n/a | 100% | 0% | 2146 | 12445 | 0.0070 |
-| memory | 5 | 100% | n/a | n/a | 100% | 0% | 2577 | 2739 | 0.0045 |
+| all | 50 | 100% | 100% | 100% | 100% | 0% | 2685 | 4359 | 0.0425 |
+| tool_selection | 15 | 100% | 100% | n/a | 100% | 0% | 2916 | 5015 | 0.0123 |
+| trip_planning | 10 | 100% | 100% | n/a | 100% | 0% | 2662 | 3233 | 0.0087 |
+| retrieval_citation | 10 | n/a | n/a | 100% | 100% | 0% | 2657 | 3180 | 0.0100 |
+| abstain | 10 | n/a | n/a | n/a | 100% | 0% | 2043 | 11562 | 0.0071 |
+| memory | 5 | 100% | n/a | n/a | 100% | 0% | 2559 | 2703 | 0.0045 |
 
 Retrieval eval:
 
@@ -447,7 +496,196 @@ The root `README.md` carries the same summary table between `<!-- evals:start --
 - Live evals need a model key. The offline CI job does not run the model.
 - There is no second model judge. The stage allows one as a second opinion, but it is not the primary metric, so it is not part of the score.
 
-## Later stages
+## Stage 5: harness, traces and chat
 
-The harness in stage 5 is documented here as it lands.
+The agent is the same one from stage 4. This stage wraps it in a harness that plans, bounds, guards and records every question, then exposes it to a person.
+
+### Harness
+
+`src/lib/anden/harness/` holds the loop around `runAgent`.
+
+| File | Contents |
+| --- | --- |
+| `config.ts` | Budget numbers, model parameters and token prices |
+| `schema.ts` | Zod schemas for the plan, the five tool argument sets and every stored step |
+| `plan.ts` | Deterministic plan. `nearby_stations` is offered only when the question carries coordinates |
+| `budget.ts` | Steps, tokens, cost and wall clock |
+| `index.ts` | `runHarness({question, userId})` |
+
+A question runs as `plan -> memory -> (tool | retrieve | answer)`. The plan, the memory read, every model decision, every tool call and the final answer are recorded as steps. A step is validated with zod before it is stored.
+
+| Limit | Value | On hit |
+| --- | --- | --- |
+| Executed steps | 6. Five tool or retrieval calls plus the answer | Stop calling tools and answer with what is there |
+| Tokens | 12,000 per question | Return the partial answer with `truncated: true` |
+| Cost | USD 0.02 per question | Same |
+| Wall clock | 25 s | Same |
+
+The budget is checked before each model call and each tool call, not inside a call, so one slow request can push the total past 25 s. The harness does not throw on a budget hit: it returns the best answer it has and marks the trace `truncated`.
+
+Guards run before a tool executes:
+
+- Arguments are validated with zod. An invalid call goes back to the model as a tool error.
+- The same tool with identical arguments is rejected inside one attempt. The duplicate set resets between attempts so a retry can repeat the call.
+- Arguments that contain the memory block are rejected. A remembered station can still arrive as a structured `from` or `to`.
+
+One retry is allowed for a transport error inside a tool or a thrown network error. The error text is appended to the next system prompt. A clean abstention is not retried. A run that ends in a dead end after invalid tool arguments is retried once with the validation error in the prompt.
+
+`runAgent` takes optional `budget`, `memory`, `notes`, `allowedTools`, `maxToolCalls`, `beforeTool` and `onStep`. The evals keep calling it with no options, so stage 4 behavior and numbers are unchanged.
+
+### Traces
+
+Every question writes one row to `anden_traces` and the steps as JSON. The row stores the question, the steps, the totals, the model, a SHA-256 of the system prompt and the request parameters. That is enough to reproduce the run without storing the key or the whole prompt.
+
+```text
+GET /api/anden/traces?limit=50   -> { traces: [{ trace_id, question, steps, total_ms, tokens, cost_usd, ok, created_at }] }
+GET /api/anden/traces/[id]       -> full trace, each step input and output cut at 800 chars
+```
+
+Both routes are scoped to the `subte_uid` cookie. The list counts memory, tool, retrieval and answer steps. The deterministic plan is not counted. The detail page shows every step, including the plan.
+
+`/traces` is a server component with a plain table. The question links to `/traces/[id]`. There is no chart library and no client state. A visitor without a cookie sees an empty state until they ask a question.
+
+### Chat
+
+`/anden` is a client page with an input, the answer and one disclosure line under it:
+
+```text
+3 pasos · 6 fuentes · 3.1 s · $0.001
+```
+
+The disclosure expands with `<details>` to the tools used, the citations with their titles, the token count and a link to the trace. The empty state lists three real questions as buttons that fill the input. The page is not streaming: a request takes 3 to 6 seconds and streaming would add more state than it removes. Copy is Spanish and describes what Anden did, not a persona. All custom controls carry the shared focus ring, and the reduced-motion rule in `globals.css` covers the only animation.
+
+The layout is mobile first. At 320 px the form stacks, the disclosure wraps and the citation line breaks on words.
+
+### CLI
+
+```bash
+npm run anden:ask -- "¿está andando la línea B ahora?"
+npm run anden:trace -- <trace_id>
+```
+
+`ask.ts` prints the answer, the tool calls, the sources, the token and cost totals, then the trace id. `trace.ts` prints the stored trace with the model, the prompt hash, the parameters and every step, cut at 800 chars. Both use the same sqlite store as the app.
+
+### Check
+
+Run from the repository root. These are the commands used for this stage:
+
+```bash
+npm run anden:ask -- "¿está andando la línea B ahora?"
+npm run anden:ask -- "hasta qué hora funciona el subte"
+npm run anden:trace -- f6a5f1a1-c628-413b-bff0-6b4a87ec4ddf
+npm run evals -- --subset 10 --max-cost 0.20
+node packages/subte-mcp/test/smoke.mjs
+npx tsc --noEmit
+npm run build
+```
+
+The line B question:
+
+```text
+Sí, la línea B está operando, con una alerta: la estación Medrano está cerrada por obras de renovación integral.
+
+Pasos (1):
+  1. subway_status(line="LineaB") ok 1633ms
+Fuentes: 0
+tokens: 2415 · costo: $0.000710 · 4556ms
+trace: 9996df17-95c5-47da-b2f9-d92814d02236
+```
+
+The service hours question, shortened:
+
+```text
+El horario de cierre varía según la línea y el día: ... la Línea B a las 23:32 desde Leandro N. Alem y 23:00 desde Juan Manuel de Rosas [kb:ultimo-tren-linea-a] [kb:ultimo-tren-linea-b]. Los fines de semana y feriados el último tren sale más temprano; decime qué línea te interesa y te paso el detalle.
+
+Pasos (1):
+  1. search_knowledge(query="horario último tren hasta qué hora funciona el subte") ok 15ms
+Fuentes (6):
+  - kb:ultimo-tren-linea-c · Último tren de la Línea C
+  - kb:ultimo-tren-linea-d · Último tren de la Línea D
+  - kb:ultimo-tren-linea-h · Último tren de la Línea H
+  - kb:ultimo-tren-linea-e · Último tren de la Línea E
+  - kb:ultimo-tren-linea-a · Último tren de la Línea A
+  - kb:ultimo-tren-linea-b · Último tren de la Línea B
+tokens: 3254 · costo: $0.001032 · 3698ms
+trace: f6a5f1a1-c628-413b-bff0-6b4a87ec4ddf
+```
+
+The stored trace, shortened:
+
+```text
+hasta qué hora funciona el subte
+2026-10-30T02:27:06.187Z · 3698ms · 3254 tokens · $0.001032 · ok
+modelo: deepseek-chat
+prompt: sha256:e9477dcd6b234d3d38c0aa38a7d298462274f462d9daedb7af147c94b5f3f286
+params: {"temperature":0,"max_tokens":600,"answer_max_tokens":400,"max_steps":6,...,"notes":null}
+
+#1 plan ok 0ms tokens 0/0
+#2 memory ok 2ms tokens 0/0
+#3 plan ok 1378ms tokens 1080/49
+#4 retrieve ok 15ms tokens 0/0
+#5 answer ok 2298ms tokens 1989/136
+```
+
+Eval subset:
+
+```text
+cases: 10
+tool_accuracy: 1
+arg_accuracy: 1
+citation_validity: 1
+abstain_correctness: 1
+hallucination_rate: 0
+p50_ms: 2685 p95_ms: 11585
+tokens: 30587
+cost_usd: 0.009069 of 0.2 USD
+```
+
+The MCP smoke test ends with `smoke test passed against https://subte-monitor.vercel.app`. `npx tsc --noEmit` exits 0. `npm run build` exits 0 with no `DATABASE_URL` and lists `/anden`, `/traces`, `/traces/[id]` and the three `/api/anden` routes.
+
+### Limits
+
+- The wall clock is checked between steps. One 20 s model timeout can push a question past 25 s.
+- Cost uses the same assumed token prices as the evals. A provider change makes the number wrong until `config.ts` is updated.
+- The duplicate guard is per attempt. A run that needs the same call twice with identical arguments is blocked and must change the question or the arguments.
+- Traces are scoped to the cookie. Clearing cookies loses the history. There is no shared view across users.
+- `/anden` keeps the thread in memory. A reload starts with an empty page. The facts and the last turns still reach the model through the store.
+- Streaming is not implemented.
+
+## Run everything locally
+
+No database and no `.env` are needed. The default store is `node:sqlite` in `.anden/anden.db`, which is gitignored.
+
+```bash
+npm install
+npx tsc --noEmit
+npm run anden:retrieval-eval
+npm test -- tests/anden-memory.test.mjs
+npm run evals:validate
+npm run anden:ask -- "¿está andando la línea B ahora?"
+npm run dev
+```
+
+The chat is at `http://localhost:3000/anden` and the traces are at `http://localhost:3000/traces`.
+
+A model key is needed for the live paths. Set `ANDEN_LLM_KEY` for an endpoint that speaks the chat completions format, or leave the fallback file at `~/.config/b2first/ai.env` with `B2_AI_KEY`. The offline checks (`evals:validate`, the retrieval eval, the memory tests, `tsc`) run without a key. The MCP smoke test needs the package built once:
+
+```bash
+npm --prefix packages/subte-mcp run build
+node packages/subte-mcp/test/smoke.mjs
+```
+
+Postgres is optional. Set `DATABASE_URL` to use the Neon adapters for memory and traces. The build does not touch the database: the Prisma client in `src/lib/db.ts` is created on first use, not at import. `npm run anden:corpus` is only needed when the knowledge base or the docs change.
+
+## Known limits
+
+- Retrieval is lexical. A question with no shared terms with the corpus will miss, and a Spanish question against an English document can miss even when the answer is there.
+- The alert corpus is a snapshot. Refreshing it needs network access to the live API.
+- The live API is part of the measurement. A slow or failing feed turns a case into an abstention or a failure, not a skip.
+- The hallucination check is a proxy. It can miss a wrong claim that reuses a supported number and can flag a correct computed figure that is not in the evidence.
+- Memory extraction is one strict model call. A vague sentence can produce no fact.
+- The Postgres adapters for memory and traces are implemented but were not run against a live Neon database here, because this environment has no `DATABASE_URL`. The sqlite path is the tested one.
+- Identity is a cookie. There is no login and no way to recover the stored facts after clearing it.
+- The harness budget bounds cost and time. It does not make the model correct, and the evals are the place where correctness is measured.
+
 
