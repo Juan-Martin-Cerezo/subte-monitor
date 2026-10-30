@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import type { AndenStore, Fact, FactKey, FactValue, Turn } from './types';
+import type { AndenStore, Fact, FactKey, FactValue, Trace, TraceStep, TraceSummary, Turn } from './types';
 
 interface FactRow {
   user_id: string;
@@ -14,6 +14,50 @@ interface TurnRow {
   question: string;
   answer: string;
   created_at: string;
+}
+
+interface TraceRow {
+  trace_id: string;
+  user_id: string;
+  question: string;
+  steps: TraceStep[] | string;
+  total_ms: number;
+  tokens: number;
+  cost_usd: number | string;
+  ok: boolean;
+  truncated: boolean;
+  model: string;
+  prompt_hash: string;
+  params: string;
+  created_at: string;
+}
+
+function parseSteps(raw: TraceStep[] | string): TraceStep[] {
+  if (Array.isArray(raw)) return raw;
+  try {
+    const value: unknown = JSON.parse(raw);
+    return Array.isArray(value) ? (value as TraceStep[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function toTrace(row: TraceRow): Trace {
+  return {
+    traceId: row.trace_id,
+    userId: row.user_id,
+    question: row.question,
+    steps: parseSteps(row.steps),
+    totalMs: Number(row.total_ms),
+    tokens: Number(row.tokens),
+    costUsd: Number(row.cost_usd),
+    ok: row.ok === true,
+    truncated: row.truncated === true,
+    model: row.model,
+    promptHash: row.prompt_hash,
+    params: row.params,
+    createdAt: row.created_at,
+  };
 }
 
 const TURN_TTL_MS = 24 * 60 * 60 * 1000;
@@ -39,6 +83,13 @@ export class PostgresStore implements AndenStore {
           id BIGSERIAL PRIMARY KEY, user_id TEXT NOT NULL, question TEXT NOT NULL,
           answer TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL)`;
         await this.sql`CREATE INDEX IF NOT EXISTS anden_turns_user ON anden_turns (user_id, created_at DESC)`;
+        await this.sql`CREATE TABLE IF NOT EXISTS anden_traces (
+          trace_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, question TEXT NOT NULL,
+          steps JSONB NOT NULL, total_ms INT NOT NULL, tokens INT NOT NULL,
+          cost_usd DOUBLE PRECISION NOT NULL, ok BOOLEAN NOT NULL, truncated BOOLEAN NOT NULL,
+          model TEXT NOT NULL, prompt_hash TEXT NOT NULL, params TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL)`;
+        await this.sql`CREATE INDEX IF NOT EXISTS anden_traces_user ON anden_traces (user_id, created_at DESC)`;
       })();
     }
     return this.ready;
@@ -102,6 +153,42 @@ export class PostgresStore implements AndenStore {
       userId: row.user_id,
       question: row.question,
       answer: row.answer,
+      createdAt: row.created_at,
+    }));
+  }
+
+  async putTrace(trace: Trace): Promise<void> {
+    await this.sql`INSERT INTO anden_traces (
+        trace_id, user_id, question, steps, total_ms, tokens, cost_usd, ok, truncated, model, prompt_hash, params, created_at
+      ) VALUES (
+        ${trace.traceId}, ${trace.userId}, ${trace.question}, ${JSON.stringify(trace.steps)}::jsonb,
+        ${trace.totalMs}, ${trace.tokens}, ${trace.costUsd}, ${trace.ok}, ${trace.truncated},
+        ${trace.model}, ${trace.promptHash}, ${trace.params}, ${trace.createdAt})
+      ON CONFLICT (trace_id) DO UPDATE SET
+        steps = excluded.steps, total_ms = excluded.total_ms, tokens = excluded.tokens,
+        cost_usd = excluded.cost_usd, ok = excluded.ok, truncated = excluded.truncated,
+        model = excluded.model, prompt_hash = excluded.prompt_hash, params = excluded.params`;
+  }
+
+  async getTrace(traceId: string): Promise<Trace | null> {
+    const rows = (await this.sql`SELECT trace_id, user_id, question, steps, total_ms, tokens,
+        cost_usd, ok, truncated, model, prompt_hash, params, created_at
+      FROM anden_traces WHERE trace_id = ${traceId}`) as unknown as TraceRow[];
+    return rows[0] ? toTrace(rows[0]) : null;
+  }
+
+  async recentTraces(userId: string, limit: number): Promise<TraceSummary[]> {
+    const rows = (await this.sql`SELECT trace_id, question, steps, total_ms, tokens, cost_usd, ok, created_at
+      FROM anden_traces WHERE user_id = ${userId}
+      ORDER BY created_at DESC LIMIT ${Math.max(1, limit)}`) as unknown as TraceRow[];
+    return rows.map((row) => ({
+      traceId: row.trace_id,
+      question: row.question,
+      steps: parseSteps(row.steps).filter((step) => step.kind !== 'plan').length,
+      totalMs: Number(row.total_ms),
+      tokens: Number(row.tokens),
+      costUsd: Number(row.cost_usd),
+      ok: row.ok === true,
       createdAt: row.created_at,
     }));
   }

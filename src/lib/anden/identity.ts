@@ -20,3 +20,9 @@ export async function getUserId(): Promise<string> {
   });
   return id;
 }
+
+export async function readUserId(): Promise<string | null> {
+  const jar = await cookies();
+  const current = jar.get(UID_COOKIE)?.value;
+  return current && UID_PATTERN.test(current) ? current : null;
+}

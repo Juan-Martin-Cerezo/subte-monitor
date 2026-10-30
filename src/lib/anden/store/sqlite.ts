@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { AndenStore, Fact, FactKey, FactValue, Turn } from './types';
+import type { AndenStore, Fact, FactKey, FactValue, Trace, TraceStep, TraceSummary, Turn } from './types';
 
 const DEFAULT_DB_PATH = path.join(process.cwd(), '.anden', 'anden.db');
 const TURN_TTL_MS = 24 * 60 * 60 * 1000;
@@ -23,8 +23,51 @@ interface TurnRow {
   created_at: string;
 }
 
+interface TraceRow {
+  trace_id: string;
+  user_id: string;
+  question: string;
+  steps: string;
+  total_ms: number;
+  tokens: number;
+  cost_usd: number;
+  ok: number;
+  truncated: number;
+  model: string;
+  prompt_hash: string;
+  params: string;
+  created_at: string;
+}
+
 function parseValue(raw: string): FactValue {
   return JSON.parse(raw) as FactValue;
+}
+
+function parseSteps(raw: string): TraceStep[] {
+  try {
+    const value: unknown = JSON.parse(raw);
+    return Array.isArray(value) ? (value as TraceStep[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function toTrace(row: TraceRow): Trace {
+  return {
+    traceId: row.trace_id,
+    userId: row.user_id,
+    question: row.question,
+    steps: parseSteps(row.steps),
+    totalMs: row.total_ms,
+    tokens: row.tokens,
+    costUsd: row.cost_usd,
+    ok: row.ok === 1,
+    truncated: row.truncated === 1,
+    model: row.model,
+    promptHash: row.prompt_hash,
+    params: row.params,
+    createdAt: row.created_at,
+  };
 }
 
 export class SqliteStore implements AndenStore {
@@ -58,6 +101,22 @@ export class SqliteStore implements AndenStore {
         created_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS anden_turns_user ON anden_turns (user_id, created_at DESC);
+      CREATE TABLE IF NOT EXISTS anden_traces (
+        trace_id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        question TEXT NOT NULL,
+        steps TEXT NOT NULL,
+        total_ms INTEGER NOT NULL,
+        tokens INTEGER NOT NULL,
+        cost_usd REAL NOT NULL,
+        ok INTEGER NOT NULL,
+        truncated INTEGER NOT NULL,
+        model TEXT NOT NULL,
+        prompt_hash TEXT NOT NULL,
+        params TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS anden_traces_user ON anden_traces (user_id, created_at DESC);
     `);
     this.db = db;
   }
@@ -159,6 +218,67 @@ export class SqliteStore implements AndenStore {
       userId: row.user_id,
       question: row.question,
       answer: row.answer,
+      createdAt: row.created_at,
+    }));
+  }
+
+  async putTrace(trace: Trace): Promise<void> {
+    this.conn()
+      .prepare(
+        `INSERT INTO anden_traces (
+           trace_id, user_id, question, steps, total_ms, tokens, cost_usd, ok, truncated, model, prompt_hash, params, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (trace_id) DO UPDATE SET
+           steps = excluded.steps,
+           total_ms = excluded.total_ms,
+           tokens = excluded.tokens,
+           cost_usd = excluded.cost_usd,
+           ok = excluded.ok,
+           truncated = excluded.truncated,
+           model = excluded.model,
+           prompt_hash = excluded.prompt_hash,
+           params = excluded.params`,
+      )
+      .run(
+        trace.traceId,
+        trace.userId,
+        trace.question,
+        JSON.stringify(trace.steps),
+        trace.totalMs,
+        trace.tokens,
+        trace.costUsd,
+        trace.ok ? 1 : 0,
+        trace.truncated ? 1 : 0,
+        trace.model,
+        trace.promptHash,
+        trace.params,
+        trace.createdAt,
+      );
+  }
+
+  async getTrace(traceId: string): Promise<Trace | null> {
+    const row = this.conn()
+      .prepare('SELECT * FROM anden_traces WHERE trace_id = ?')
+      .get(traceId) as unknown as TraceRow | undefined;
+    return row ? toTrace(row) : null;
+  }
+
+  async recentTraces(userId: string, limit: number): Promise<TraceSummary[]> {
+    const rows = this.conn()
+      .prepare(
+        `SELECT trace_id, question, steps, total_ms, tokens, cost_usd, ok, created_at
+         FROM anden_traces WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`,
+      )
+      .all(userId, Math.max(1, limit)) as unknown as TraceRow[];
+
+    return rows.map((row) => ({
+      traceId: row.trace_id,
+      question: row.question,
+      steps: parseSteps(row.steps).filter((step) => step.kind !== 'plan').length,
+      totalMs: row.total_ms,
+      tokens: row.tokens,
+      costUsd: row.cost_usd,
+      ok: row.ok === 1,
       createdAt: row.created_at,
     }));
   }
