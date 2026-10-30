@@ -74,6 +74,86 @@ Warm medians from a local run, Node 22.23, against the live API:
 - The reference feed is mostly unaccented. Matching removes accents, but a misspelling more than two edits away falls back to a closest-name error.
 - Stations missing from the accessibility data count as not step-free, so some step-free trips report no route.
 
+## Stage 2: retrieval and cited answers
+
+`POST /api/anden/ask` answers questions about the network from a committed corpus. Retrieval is BM25 without embeddings or a database. Every factual claim in the answer carries the id of the source that supports it.
+
+### Corpus
+
+The corpus is three JSONL files under `data/corpus/`, one object per line with `{id, title, text, source, kind}`.
+
+| File | Entries | Contents |
+| --- | --- | --- |
+| `knowledge.jsonl` | 133 | Lines and stations, first and last train hours, fares and SUBE discounts, accessibility per station, transfer rules, how the app treats Linea D |
+| `alerts.jsonl` | 3 | GCBA alerts from the live feed, with `first_seen` and `last_seen` |
+| `docs.jsonl` | 73 | This repository's Markdown chunked on headings, 303 to 900 characters, prefixed with the heading path |
+
+`data/corpus/labels.jsonl` holds 26 hand-written `{query, expected_ids}` pairs used by the retrieval eval. They were written against the corpus, not generated from retriever output.
+
+Rebuild the generated files with:
+
+```bash
+npm run anden:corpus
+```
+
+The builder regenerates `docs.jsonl`, then merges alerts by id. It is safe to run from cron: the same alert id updates `last_seen` instead of adding a line, and an unreachable feed leaves the existing file in place. `npm run anden:poll-alerts` runs only the alert merge.
+
+### Retrieval
+
+`src/lib/anden/retrieval/` contains the tokenizer and a hand-written BM25 index.
+
+- `k1 = 1.5`, `b = 0.75`, title tokens counted twice.
+- Exact phrase bonus on the raw question, both in the title and the text.
+- The index is built once per process and rebuilt when a corpus file changes its mtime or size.
+- `search(query, k=6)` returns `{id, title, text, source, score}`.
+- The tokenizer lowercases, strips accents, drops Spanish stopwords and single characters, and folds `línea B` into `lineab` so a line question matches `LineaB` in route ids.
+
+### Answering
+
+The request body is `{question, session_id?}`. The endpoint retrieves six sources, renders them as `[S1]` to `[S6]` with their ids, and asks the model to answer in Spanish using only those sources.
+
+- `fetch` to the chat completions endpoint, `temperature 0.2`, `max_tokens 400`, 20 second timeout, no streaming.
+- Key from `ANDEN_LLM_KEY`, then `~/.config/b2first/ai.env` (`B2_AI_KEY`, `B2_AI_PROVIDER`, `B2_AI_MODEL`). The key is never logged.
+- Citations are checked in code. An id outside the retrieved set is stripped and sets `citations_valid` to false.
+- A factual answer with no valid citation is retried once with a stricter instruction. If the retry still cites nothing, the endpoint replies exactly `No tengo información sobre eso.` and sets `abstained`.
+- No sources yields the same abstention without calling the model.
+
+### Check
+
+```bash
+npm run anden:corpus
+npm run anden:retrieval-eval
+npm run dev
+curl -s -X POST localhost:3000/api/anden/ask -H 'content-type: application/json' -d '{"question":"¿hasta qué hora funciona la línea B?"}'
+npx tsc --noEmit
+```
+
+Eval output on the committed corpus:
+
+```text
+queries: 26
+recall@5: 0.962 (threshold 0.75)
+MRR: 0.849
+```
+
+Answer from the curl above, shortened:
+
+```json
+{
+  "answer": "La Línea B funciona hasta las 23:32 de lunes a viernes (último tren desde Leandro N. Alem) y hasta las 23:00 desde Juan Manuel de Rosas - Villa Urquiza [kb:ultimo-tren-linea-b]. Los sábados hasta las 23:56 y 23:25, y los domingos y feriados hasta las 22:31 y 22:00 [kb:ultimo-tren-linea-b].",
+  "abstained": false,
+  "citations_valid": true,
+  "usage": { "prompt_tokens": 782, "completion_tokens": 106, "total_tokens": 888 }
+}
+```
+
+### Limits
+
+- Retrieval is lexical. A question that shares no terms with the corpus will miss, and a Spanish question against an English document can miss even when the answer is there.
+- The alert corpus is a snapshot. Refreshing it needs network access to the live API.
+- Answers are one shot, with no conversation memory yet.
+- Alert labels can drift because the alert file follows the live feed.
+
 ## Later stages
 
-Retrieval, memory, evals, and the harness are documented here as they land.
+Memory, evals, and the harness are documented here as they land.
