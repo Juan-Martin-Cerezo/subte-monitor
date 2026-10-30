@@ -102,6 +102,10 @@ async function resolveConfig(): Promise<Config> {
   return config;
 }
 
+export async function currentModel(): Promise<string> {
+  return (await resolveConfig()).model;
+}
+
 export async function chat(
   messages: ChatMessage[],
   options: {

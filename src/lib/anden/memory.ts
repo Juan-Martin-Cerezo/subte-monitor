@@ -8,6 +8,8 @@ export interface MemorySnapshot {
   turns: Turn[];
 }
 
+export const FACTS_MARKER = 'Datos que el usuario ya contó';
+
 const TRIP_INTENT =
   /(c[oó]mo (llego|voy|viajo)|c[oó]mo ir|ruta|viaje|tarda|demora|planific|conviene)/i;
 
@@ -38,7 +40,7 @@ export function factsForPrompt(facts: Fact[]): string {
     'Si la pregunta no aclara el origen, usá la estación de casa. Si no aclara el destino, usá la del trabajo. ' +
     'No aclares que usás datos recordados y no repitas el origen si la pregunta no lo pide.';
 
-  return `Datos que el usuario ya contó:\n${lines.join('\n')}\n${hint}`;
+  return `${FACTS_MARKER}:\n${lines.join('\n')}\n${hint}`;
 }
 
 export function answerMentionsStation(answer: string, station: string): boolean {

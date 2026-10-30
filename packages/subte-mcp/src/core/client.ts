@@ -1,7 +1,7 @@
 import type { Bootstrap, Telemetry } from './types.ts';
 
 const DEFAULT_BASE = 'https://subte-monitor.vercel.app';
-const TIMEOUT_MS = 5000;
+const TIMEOUT_MS = 12000;
 const BOOTSTRAP_TTL_MS = 10 * 60 * 1000;
 
 export class ApiError extends Error {
