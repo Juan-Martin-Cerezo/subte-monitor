@@ -16,7 +16,8 @@
     "anden:ask": "tsx scripts/anden/ask.ts",
     "anden:trace": "tsx scripts/anden/trace.ts",
     "evals": "tsx evals/run.ts",
-    "evals:validate": "tsx evals/validate.ts"
+    "evals:validate": "tsx evals/validate.ts",
+    "anden:evals-selfcheck": "tsx evals/selfcheck.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

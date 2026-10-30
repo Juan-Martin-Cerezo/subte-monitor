@@ -27,6 +27,7 @@ jobs:
       - run: npm run anden:retrieval-eval
       - run: npm test -- tests/anden-memory.test.mjs
       - run: npm run evals:validate
+      - run: npm run anden:evals-selfcheck
 
   live:
     if: github.event_name == 'workflow_dispatch'
