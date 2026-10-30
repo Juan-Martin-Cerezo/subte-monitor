@@ -79,7 +79,3 @@ export function buildFact(
     expiresAt: new Date(now.getTime() + TTL_DAYS[key] * DAY_MS).toISOString(),
   };
 }
-
-export function ttlDays(key: FactKey): number {
-  return TTL_DAYS[key];
-}

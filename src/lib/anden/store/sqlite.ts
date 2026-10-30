@@ -3,7 +3,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { AndenStore, Fact, FactKey, FactValue, Turn } from './types';
 
-export const DEFAULT_DB_PATH = path.join(process.cwd(), '.anden', 'anden.db');
+const DEFAULT_DB_PATH = path.join(process.cwd(), '.anden', 'anden.db');
 const TURN_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_TURNS = 8;
 const MAX_TURN_TEXT = 500;
