@@ -26,7 +26,7 @@ The base URL comes from `SUBTE_API_BASE` and defaults to the live deployment. Re
 
 Station names match without case or accents, so `Agüero`, `aguero`, and `AGUERO` reach the same station. A name that matches several stations returns the candidates instead of a guess.
 
-The planner runs Dijkstra over two kinds of edge: a ride between adjacent stops costs 2 minutes, a transfer costs 3. Transfers come from stations with the same name on different lines plus the interchange pairs in `packages/subte-mcp/src/data/transfers.json`, copied from `src/lib/connections.ts`. Floor access comes from `packages/subte-mcp/src/data/accessibility.json`, copied from the app's station accessibility data. With `step_free=true`, transfers at stations without an elevator are removed.
+The planner runs Dijkstra over two kinds of edge: a ride between adjacent stops costs 2 minutes, a transfer costs 3. Transfers come from stations with the same name on different lines plus the interchange pairs in `packages/subte-mcp/src/data/transfers.json`. The app's `STATION_CONNECTIONS` map in `src/lib/connections.ts` only lists bus and rail links, so the package keeps its own list of underground interchanges. Floor access comes from `packages/subte-mcp/src/data/accessibility.json`, copied from `ACCESSIBILITY_METADATA` in `src/lib/metadata.ts`. With `step_free=true`, transfers at stations without an elevator are removed.
 
 Client setup, request and response examples, and the limits live in [packages/subte-mcp/README.md](../packages/subte-mcp/README.md).
 
