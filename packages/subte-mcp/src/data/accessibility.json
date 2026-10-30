@@ -1,0 +1,326 @@
+{
+  "acoyte": {
+    "elevators": 2,
+    "stairs": 2
+  },
+  "carabobo": {
+    "elevators": 3,
+    "stairs": 3
+  },
+  "castrobarros": {
+    "elevators": 1,
+    "stairs": 1
+  },
+  "congreso": {
+    "elevators": 2,
+    "stairs": 2
+  },
+  "lima": {
+    "elevators": 0,
+    "stairs": 1
+  },
+  "loria": {
+    "elevators": 1,
+    "stairs": 1
+  },
+  "peru": {
+    "elevators": 2,
+    "stairs": 2
+  },
+  "piedras": {
+    "elevators": 0,
+    "stairs": 1
+  },
+  "plazademayo": {
+    "elevators": 1,
+    "stairs": 0
+  },
+  "plazamiserere": {
+    "elevators": 0,
+    "stairs": 6
+  },
+  "primerajunta": {
+    "elevators": 2,
+    "stairs": 3
+  },
+  "puan": {
+    "elevators": 3,
+    "stairs": 3
+  },
+  "saenzpea": {
+    "elevators": 0,
+    "stairs": 2
+  },
+  "sanjosedeflores": {
+    "elevators": 3,
+    "stairs": 4
+  },
+  "sanpedrito": {
+    "elevators": 2,
+    "stairs": 3
+  },
+  "angelgallardo": {
+    "elevators": 0,
+    "stairs": 1
+  },
+  "callao": {
+    "elevators": 1,
+    "stairs": 1
+  },
+  "carlosgardel": {
+    "elevators": 0,
+    "stairs": 4
+  },
+  "carlospellegrini": {
+    "elevators": 0,
+    "stairs": 2
+  },
+  "dorrego": {
+    "elevators": 0,
+    "stairs": 1
+  },
+  "echeverria": {
+    "elevators": 3,
+    "stairs": 5
+  },
+  "federicolacroze": {
+    "elevators": 0,
+    "stairs": 3
+  },
+  "florida": {
+    "elevators": 0,
+    "stairs": 4
+  },
+  "juanmanuelderosas": {
+    "elevators": 6,
+    "stairs": 11
+  },
+  "leandroalem": {
+    "elevators": 0,
+    "stairs": 2
+  },
+  "losincas": {
+    "elevators": 2,
+    "stairs": 4
+  },
+  "malabia": {
+    "elevators": 0,
+    "stairs": 1
+  },
+  "medrano": {
+    "elevators": 0,
+    "stairs": 1
+  },
+  "pasteur": {
+    "elevators": 0,
+    "stairs": 4
+  },
+  "pueyrredon": {
+    "elevators": 0,
+    "stairs": 3
+  },
+  "tronador": {
+    "elevators": 2,
+    "stairs": 4
+  },
+  "uruguay": {
+    "elevators": 3,
+    "stairs": 2
+  },
+  "avenidademayo": {
+    "elevators": 0,
+    "stairs": 3
+  },
+  "constitucion": {
+    "elevators": 4,
+    "stairs": 2
+  },
+  "diagonalnorte": {
+    "elevators": 0,
+    "stairs": 4
+  },
+  "independencia": {
+    "elevators": 0,
+    "stairs": 3
+  },
+  "lavalle": {
+    "elevators": 0,
+    "stairs": 4
+  },
+  "moreno": {
+    "elevators": 0,
+    "stairs": 2
+  },
+  "retiro": {
+    "elevators": 3,
+    "stairs": 10
+  },
+  "sanjuan": {
+    "elevators": 0,
+    "stairs": 2
+  },
+  "sanmartin": {
+    "elevators": 0,
+    "stairs": 3
+  },
+  "9dejulio": {
+    "elevators": 0,
+    "stairs": 2
+  },
+  "aguero": {
+    "elevators": 0,
+    "stairs": 3
+  },
+  "bulnes": {
+    "elevators": 0,
+    "stairs": 1
+  },
+  "carranza": {
+    "elevators": 0,
+    "stairs": 8
+  },
+  "catedral": {
+    "elevators": 1,
+    "stairs": 1
+  },
+  "congresodetucuman": {
+    "elevators": 2,
+    "stairs": 6
+  },
+  "facultaddemedicina": {
+    "elevators": 2,
+    "stairs": 3
+  },
+  "josehernandez": {
+    "elevators": 0,
+    "stairs": 5
+  },
+  "juramento": {
+    "elevators": 3,
+    "stairs": 6
+  },
+  "olleros": {
+    "elevators": 0,
+    "stairs": 4
+  },
+  "palermo": {
+    "elevators": 0,
+    "stairs": 3
+  },
+  "plazaitalia": {
+    "elevators": 0,
+    "stairs": 5
+  },
+  "tribunales": {
+    "elevators": 1,
+    "stairs": 5
+  },
+  "avenidalaplata": {
+    "elevators": 0,
+    "stairs": 2
+  },
+  "belgrano": {
+    "elevators": 0,
+    "stairs": 3
+  },
+  "boedo": {
+    "elevators": 0,
+    "stairs": 1
+  },
+  "bolivar": {
+    "elevators": 0,
+    "stairs": 5
+  },
+  "catalinas": {
+    "elevators": 2,
+    "stairs": 6
+  },
+  "correocentral": {
+    "elevators": 4,
+    "stairs": 9
+  },
+  "emiliomitre": {
+    "elevators": 0,
+    "stairs": 1
+  },
+  "entrerios": {
+    "elevators": 0,
+    "stairs": 2
+  },
+  "josemariamoreno": {
+    "elevators": 0,
+    "stairs": 2
+  },
+  "jujuy": {
+    "elevators": 0,
+    "stairs": 2
+  },
+  "medallamilagrosa": {
+    "elevators": 0,
+    "stairs": 2
+  },
+  "pichincha": {
+    "elevators": 0,
+    "stairs": 2
+  },
+  "sanjose": {
+    "elevators": 0,
+    "stairs": 2
+  },
+  "urquiza": {
+    "elevators": 0,
+    "stairs": 2
+  },
+  "varela": {
+    "elevators": 0,
+    "stairs": 1
+  },
+  "caseros": {
+    "elevators": 3,
+    "stairs": 4
+  },
+  "cordoba": {
+    "elevators": 3,
+    "stairs": 6
+  },
+  "corrientes": {
+    "elevators": 6,
+    "stairs": 10
+  },
+  "facultaddederecho": {
+    "elevators": 3,
+    "stairs": 2
+  },
+  "hospitales": {
+    "elevators": 3,
+    "stairs": 3
+  },
+  "humberto1": {
+    "elevators": 4,
+    "stairs": 5
+  },
+  "inclan": {
+    "elevators": 3,
+    "stairs": 4
+  },
+  "lasheras": {
+    "elevators": 4,
+    "stairs": 6
+  },
+  "once": {
+    "elevators": 3,
+    "stairs": 10
+  },
+  "parquepatricios": {
+    "elevators": 3,
+    "stairs": 4
+  },
+  "santafe": {
+    "elevators": 7,
+    "stairs": 9
+  },
+  "venezuela": {
+    "elevators": 3,
+    "stairs": 4
+  }
+}

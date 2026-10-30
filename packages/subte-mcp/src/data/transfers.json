@@ -1,0 +1,60 @@
+{
+  "peru": [
+    "bolivar",
+    "catedral"
+  ],
+  "catedral": [
+    "bolivar",
+    "peru"
+  ],
+  "bolivar": [
+    "catedral",
+    "peru"
+  ],
+  "avenidademayo": [
+    "lima"
+  ],
+  "lima": [
+    "avenidademayo"
+  ],
+  "carlospellegrini": [
+    "9dejulio",
+    "diagonalnorte"
+  ],
+  "9dejulio": [
+    "carlospellegrini",
+    "diagonalnorte"
+  ],
+  "diagonalnorte": [
+    "9dejulio",
+    "carlospellegrini"
+  ],
+  "plazamiserere": [
+    "once"
+  ],
+  "once": [
+    "plazamiserere"
+  ],
+  "humberto1": [
+    "jujuy"
+  ],
+  "jujuy": [
+    "humberto1"
+  ],
+  "santafe": [
+    "pueyrredon"
+  ],
+  "pueyrredon": [
+    "corrientes",
+    "santafe"
+  ],
+  "corrientes": [
+    "pueyrredon"
+  ],
+  "intendentesaguier": [
+    "plazadelosvirreyes"
+  ],
+  "plazadelosvirreyes": [
+    "intendentesaguier"
+  ]
+}
