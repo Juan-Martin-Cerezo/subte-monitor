@@ -1,5 +1,5 @@
-import { getBootstrap } from './client.js';
-import { buildStationIndex, findNearby, type NearbyStation } from './network.js';
+import { getBootstrap } from './client.ts';
+import { buildStationIndex, findNearby, type NearbyStation } from './network.ts';
 
 export interface NearbyQuery {
   lat: number;

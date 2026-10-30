@@ -1,5 +1,5 @@
-import { getBootstrap } from './client.js';
-import { buildGraph, buildStationIndex, findPlan, resolveStation, type TripLeg, type TransferPoint } from './network.js';
+import { getBootstrap } from './client.ts';
+import { buildGraph, buildStationIndex, findPlan, resolveStation, type TripLeg, type TransferPoint } from './network.ts';
 
 export interface PlanTripQuery {
   from: string;

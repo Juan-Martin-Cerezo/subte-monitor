@@ -1,7 +1,7 @@
-export { ApiError, getBootstrap, getTelemetry } from './client.js';
-export { feedFreshness, type FeedFreshness } from './feed.js';
-export { lineLabel, matchLines, type LineId } from './lines.js';
-export { compactName, editDistance, normalizeName } from './names.js';
+export { ApiError, getBootstrap, getTelemetry } from './client.ts';
+export { feedFreshness, type FeedFreshness } from './feed.ts';
+export { lineLabel, matchLines, type LineId } from './lines.ts';
+export { compactName, editDistance, normalizeName } from './names.ts';
 export {
   buildGraph,
   buildStationIndex,
@@ -17,28 +17,28 @@ export {
   type TransferPoint,
   type TripLeg,
   type TripPlan,
-} from './network.js';
+} from './network.ts';
 export {
   getStatus,
   type StatusAlert,
   type StatusResult,
-} from './status.js';
+} from './status.ts';
 export {
   getNextTrains,
   type Arrival,
   type NextTrainsQuery,
   type NextTrainsResult,
-} from './next-trains.js';
+} from './next-trains.ts';
 export {
   getPlanTrip,
   type PlanTripQuery,
   type PlanTripResult,
-} from './plan-trip.js';
+} from './plan-trip.ts';
 export {
   getNearbyStations,
   type NearbyQuery,
   type NearbyResult,
-} from './nearby.js';
+} from './nearby.ts';
 export type {
   Alert,
   Bootstrap,
@@ -47,4 +47,4 @@ export type {
   Station,
   Telemetry,
   Train,
-} from './types.js';
+} from './types.ts';

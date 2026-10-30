@@ -1,7 +1,7 @@
 import transfersData from '../data/transfers.json' with { type: 'json' };
 import accessibilityData from '../data/accessibility.json' with { type: 'json' };
-import type { Bootstrap } from './types.js';
-import { compactName, editDistance, normalizeName } from './names.js';
+import type { Bootstrap } from './types.ts';
+import { compactName, editDistance, normalizeName } from './names.ts';
 
 const TRANSFERS = transfersData as Record<string, string[]>;
 const ACCESSIBILITY = accessibilityData as Record<string, { elevators: number; stairs: number }>;

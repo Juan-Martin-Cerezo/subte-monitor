@@ -1,8 +1,8 @@
-import { getBootstrap, getTelemetry } from './client.js';
-import { feedFreshness } from './feed.js';
-import { lineLabel, matchLines } from './lines.js';
-import { compactName } from './names.js';
-import { buildStationIndex, resolveStation } from './network.js';
+import { getBootstrap, getTelemetry } from './client.ts';
+import { feedFreshness } from './feed.ts';
+import { lineLabel, matchLines } from './lines.ts';
+import { compactName } from './names.ts';
+import { buildStationIndex, resolveStation } from './network.ts';
 
 const VALID_LINES = 'LineaA, LineaB, LineaC, LineaD, LineaE, LineaH, Premetro';
 

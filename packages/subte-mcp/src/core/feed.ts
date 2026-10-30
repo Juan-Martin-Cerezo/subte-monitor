@@ -1,4 +1,4 @@
-import type { Telemetry } from './types.js';
+import type { Telemetry } from './types.ts';
 
 export interface FeedFreshness {
   stale: boolean;

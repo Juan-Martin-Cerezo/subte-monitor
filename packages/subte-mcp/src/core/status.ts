@@ -1,6 +1,6 @@
-import { getTelemetry } from './client.js';
-import { feedFreshness } from './feed.js';
-import { matchLines } from './lines.js';
+import { getTelemetry } from './client.ts';
+import { feedFreshness } from './feed.ts';
+import { matchLines } from './lines.ts';
 
 const VALID_LINES = 'LineaA, LineaB, LineaC, LineaD, LineaE, LineaH, Premetro';
 

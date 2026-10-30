@@ -1,4 +1,4 @@
-import type { Bootstrap, Telemetry } from './types.js';
+import type { Bootstrap, Telemetry } from './types.ts';
 
 const DEFAULT_BASE = 'https://subte-monitor.vercel.app';
 const TIMEOUT_MS = 5000;
