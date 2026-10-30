@@ -24,7 +24,9 @@ During development, `npm --prefix packages/subte-mcp run dev` runs the same entr
 
 ## Client setup
 
-Claude Desktop, in `claude_desktop_config.json`:
+Any MCP client that speaks stdio works. Two common setups:
+
+Desktop client, in the `mcpServers` block of its config file (Settings, Developer, Edit Config):
 
 ```json
 {
@@ -239,10 +241,10 @@ Three warm calls per tool from a local run on 2026-10-30, Node 22.23, against th
 
 | Tool | Median call | Response |
 | --- | --- | --- |
-| `subway_status` | 748 ms | 0.9 KB |
-| `next_trains` | 415 ms | 0.4 KB |
-| `plan_trip` | 8 ms | 0.4 KB |
-| `nearby_stations` | 2 ms | 1.4 KB |
+| `subway_status` | 415 ms | 0.9 KB |
+| `next_trains` | 413 ms | 0.4 KB |
+| `plan_trip` | 6 ms | 0.4 KB |
+| `nearby_stations` | 2 ms | 1.3 KB |
 
 The two tools that only need reference data are effectively local after the first call. The network time is the upstream telemetry request.
 
