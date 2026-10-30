@@ -69,7 +69,7 @@ Warm medians from a local run, Node 22.23, against the live API:
 
 ### Limits
 
-- Linea D is not in the live telemetry feed, so `next_trains` returns an empty list and a note for D-only stations. Reference data and alerts for D are still available.
+- Linea D is simulated by the app instead of coming from the GCBA feed. The server passes through what `/api/telemetry` reports, so D arrivals appear when the simulated feed has them. When a D-only station has no arrivals, the response carries a note saying so.
 - Trip durations are estimates from the 2 minute and 3 minute assumptions and exclude the first wait. Use `next_trains` for the real ETA.
 - The reference feed is mostly unaccented. Matching removes accents, but a misspelling more than two edits away falls back to a closest-name error.
 - Stations missing from the accessibility data count as not step-free, so some step-free trips report no route.

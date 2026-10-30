@@ -255,7 +255,7 @@ The server calls two public endpoints: `/api/bootstrap` for stations and stop se
 ## Limits
 
 - The feed refreshes upstream. `feedAgeSeconds` and `stale` tell you how fresh the last update is. The client allows 5 seconds per request and retries once on a network failure.
-- Linea D is not part of the live telemetry feed. `next_trains` returns an empty list and a note for D-only stations. Reference data and alerts for D are still available.
+- Linea D is produced by the app as a simulated line, not read from the GCBA feed. `next_trains` returns whatever the deployment reports and adds a note when a D-only station has no arrivals. Reference data for D is always available.
 - Trip durations are estimates, not guarantees. The model uses 2 minutes per stop and 3 minutes per transfer and does not include waiting for the first train. Use `next_trains` for the real ETA.
 - Station names come from the reference feed, which is mostly unaccented. Matching removes accents and case, so both spellings work.
 - Step-free routing depends on the app's elevator metadata. Stations missing from that data are treated as not step-free, so some step-free trips can report no route.
