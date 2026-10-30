@@ -13,6 +13,8 @@
     "anden:stations": "tsx scripts/anden/build-stations.ts",
     "anden:poll-alerts": "tsx scripts/anden/poll-alerts.ts",
     "anden:retrieval-eval": "tsx scripts/anden/retrieval-eval.ts",
+    "anden:ask": "tsx scripts/anden/ask.ts",
+    "anden:trace": "tsx scripts/anden/trace.ts",
     "evals": "tsx evals/run.ts",
     "evals:validate": "tsx evals/validate.ts"
   },
