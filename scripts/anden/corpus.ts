@@ -51,7 +51,7 @@ export async function writeJsonl(file: string, entries: CorpusEntry[]): Promise<
   await fs.rename(tmp, file);
 }
 
-export function slug(value: string): string {
+function slug(value: string): string {
   return value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -287,19 +287,4 @@ export async function buildDocChunks(): Promise<CorpusEntry[]> {
   }
 
   return chunks;
-}
-
-export async function mtimeKey(files: string[]): Promise<string> {
-  const parts = await Promise.all(
-    files.map(async (file) => {
-      try {
-        const stat = await fs.stat(file);
-        return `${stat.mtimeMs}:${stat.size}`;
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return 'missing';
-        throw error;
-      }
-    }),
-  );
-  return parts.join('|');
 }

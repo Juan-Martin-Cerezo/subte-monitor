@@ -4,7 +4,7 @@ const STOPWORDS = new Set(
   ).split(' '),
 );
 
-export function normalize(value: string): string {
+function normalize(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
