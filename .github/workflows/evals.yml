@@ -1,0 +1,45 @@
+name: evals
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DATABASE_URL: postgresql://user:pass@localhost:5432/subte
+
+jobs:
+  offline:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm --prefix packages/subte-mcp ci
+      - run: npx tsc --noEmit
+      - run: npm run anden:retrieval-eval
+      - run: npm test -- tests/anden-memory.test.mjs
+      - run: npm run evals:validate
+
+  live:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run evals -- --subset 15 --max-cost 0.10 --gate
+        env:
+          ANDEN_LLM_KEY: ${{ secrets.ANDEN_LLM_KEY }}
+          ANDEN_LLM_BASE: ${{ vars.ANDEN_LLM_BASE || 'https://api.deepseek.com/v1' }}
+          ANDEN_LLM_MODEL: ${{ vars.ANDEN_LLM_MODEL || 'deepseek-chat' }}
