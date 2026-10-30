@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { runAgent } from '@/lib/anden/agent/run';
 import { extractFacts } from '@/lib/anden/extraction';
+import { extractCitations } from '@/lib/anden/citations';
+import { runHarness } from '@/lib/anden/harness';
 import { getUserId } from '@/lib/anden/identity';
 import { LlmConfigError } from '@/lib/anden/llm';
 import { getStore } from '@/lib/anden/store';
@@ -40,17 +41,24 @@ export async function POST(request: Request) {
   const userId = await getUserId();
 
   try {
-    const result = await runAgent({ question, userId });
+    const result = await runHarness({ question, userId });
 
-    if (!result.abstained) await remember(userId, question, result.answer);
+    if (!result.abstained && !result.truncated) await remember(userId, question, result.answer);
 
     return NextResponse.json({
       answer: result.answer,
       sources: result.sources,
+      citations: extractCitations(result.answer),
       abstained: result.abstained,
       citations_valid: result.citationsValid,
       usage: result.usage,
       steps: result.steps,
+      trace_id: result.traceId,
+      trace_steps: result.traceSteps,
+      total_ms: result.totalMs,
+      tokens: result.tokens,
+      cost_usd: result.costUsd,
+      truncated: result.truncated,
     });
   } catch (error) {
     if (error instanceof LlmConfigError) {

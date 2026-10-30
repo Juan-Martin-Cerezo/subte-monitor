@@ -211,6 +211,12 @@ export function MemoryPanel({ onClose }: MemoryPanelProps) {
           <span className="text-[11px] font-mono text-outline">
             {turns > 0 ? `${turns} ${turns === 1 ? 'conversación' : 'conversaciones'} guardadas` : 'Sin conversaciones guardadas'}
           </span>
+          <a
+            href="/anden"
+            className="focus-ring rounded-sm text-body-sm font-semibold text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+          >
+            Abrir Anden
+          </a>
           <div className="ml-auto flex items-center gap-2">
             {confirming ? (
               <>

@@ -6,6 +6,17 @@ export interface CitationCheck {
   citationsValid: boolean;
 }
 
+export function extractCitations(answer: string): string[] {
+  const found: string[] = [];
+  const pattern = /\[([^[\]\n]{1,120})\]/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(answer)) !== null) {
+    const id = match[1].trim();
+    if (id.includes(':')) found.push(id);
+  }
+  return [...new Set(found)];
+}
+
 export function validateCitations(answer: string, validIds: Iterable<string>): CitationCheck {
   const allowed = new Set(validIds);
   const citations: string[] = [];
