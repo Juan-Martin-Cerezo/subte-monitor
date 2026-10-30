@@ -3,7 +3,7 @@ import { ABSTAIN, validateCitations } from '@/lib/anden/citations';
 import { extractFacts } from '@/lib/anden/extraction';
 import { getUserId } from '@/lib/anden/identity';
 import { LlmConfigError, chat, type ChatMessage } from '@/lib/anden/llm';
-import { factsForPrompt, loadMemory, memoryOriginClause, type MemorySnapshot } from '@/lib/anden/memory';
+import { answerMentionsStation, factsForPrompt, loadMemory, memoryOriginClause, type MemorySnapshot } from '@/lib/anden/memory';
 import { search, type RetrievedSource } from '@/lib/anden/retrieval';
 import { getStore } from '@/lib/anden/store';
 
@@ -117,7 +117,11 @@ export async function POST(request: Request) {
     }
 
     const clause = abstained ? null : memoryOriginClause(question, memory.facts);
-    const finalAnswer = abstained ? ABSTAIN : clause ? `${clause} ${check.answer}` : check.answer;
+    const withOrigin =
+      clause && !answerMentionsStation(check.answer, clause.origin)
+        ? `${clause.text} ${check.answer}`
+        : check.answer;
+    const finalAnswer = abstained ? ABSTAIN : withOrigin;
 
     if (!abstained) await remember(userId, question, finalAnswer);
 

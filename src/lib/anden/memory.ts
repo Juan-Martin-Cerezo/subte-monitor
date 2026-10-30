@@ -21,8 +21,13 @@ export async function loadMemory(userId: string, turnLimit = 4): Promise<MemoryS
   return { facts, turns };
 }
 
-export function factValue(facts: Fact[], key: FactKey): FactValue | undefined {
+function factValue(facts: Fact[], key: FactKey): FactValue | undefined {
   return facts.find((fact) => fact.key === key)?.value;
+}
+
+interface OriginClause {
+  origin: string;
+  text: string;
 }
 
 export function factsForPrompt(facts: Fact[]): string {
@@ -31,12 +36,17 @@ export function factsForPrompt(facts: Fact[]): string {
   const lines = facts.map((fact) => `- ${FACT_LABELS[fact.key]}: ${formatFactValue(fact.key, fact.value)}`);
   const hint =
     'Si la pregunta no aclara el origen, usá la estación de casa. Si no aclara el destino, usá la del trabajo. ' +
-    'No aclares que usás datos recordados.';
+    'No aclares que usás datos recordados y no repitas el origen si la pregunta no lo pide.';
 
   return `Datos que el usuario ya contó:\n${lines.join('\n')}\n${hint}`;
 }
 
-export function memoryOriginClause(question: string, facts: Fact[]): string | null {
+export function answerMentionsStation(answer: string, station: string): boolean {
+  const target = normalizeName(station);
+  return mentionedStations(answer).some((name) => normalizeName(name) === target);
+}
+
+export function memoryOriginClause(question: string, facts: Fact[]): OriginClause | null {
   if (!facts.length || !TRIP_INTENT.test(question)) return null;
 
   const mentioned = mentionedStations(question);
@@ -47,10 +57,10 @@ export function memoryOriginClause(question: string, facts: Fact[]): string | nu
   const spoken = mentioned.map((name) => normalizeName(name));
 
   if (home && !spoken.includes(normalizeName(String(home)))) {
-    return `Desde ${home}, como siempre.`;
+    return { origin: String(home), text: `Desde ${home}, como siempre.` };
   }
   if (work && !spoken.includes(normalizeName(String(work)))) {
-    return `Desde ${work}, como siempre.`;
+    return { origin: String(work), text: `Desde ${work}, como siempre.` };
   }
   return null;
 }
