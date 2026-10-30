@@ -39,3 +39,8 @@ yarn-error.log*
 AGENTS.md
 CLAUDE.md
 .skills/
+
+# anden local state
+/.anden/
+/evals/results/
+!.env.local.example

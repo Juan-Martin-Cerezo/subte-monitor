@@ -34,7 +34,17 @@
     "format:check": "prettier --check .",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test": "node --import tsx --test",
+    "anden:corpus": "tsx scripts/anden/build-corpus.ts",
+    "anden:stations": "tsx scripts/anden/build-stations.ts",
+    "anden:poll-alerts": "tsx scripts/anden/poll-alerts.ts",
+    "anden:retrieval-eval": "tsx scripts/anden/retrieval-eval.ts",
+    "anden:ask": "tsx scripts/anden/ask.ts",
+    "anden:trace": "tsx scripts/anden/trace.ts",
+    "evals": "tsx evals/run.ts",
+    "evals:validate": "tsx evals/validate.ts",
+    "anden:evals-selfcheck": "tsx evals/selfcheck.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
@@ -44,7 +54,8 @@
     "next": "16.4.3",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "ws": "^8.21.0"
+    "ws": "^8.21.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

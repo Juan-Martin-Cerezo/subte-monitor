@@ -13,6 +13,7 @@ import { StationsScreen } from "./screens/StationsScreen";
 import { StatusScreen } from "./screens/StatusScreen";
 import { ArrivalsScreen } from "./screens/ArrivalsScreen";
 import { EcobiciWidget } from "./EcobiciWidget";
+import { MemoryPanel } from "./MemoryPanel";
 import type { EcobiciStation } from "@/lib/ecobici";
 
 const MapScreen = dynamic(
@@ -30,6 +31,7 @@ const MapScreen = dynamic(
 export default function Dashboard() {
   const [tab, setTab] = useState<TabId>("map");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
   const [ecobiciStations, setEcobiciStations] = useState<EcobiciStation[]>([]);
 
   const {
@@ -80,6 +82,7 @@ export default function Dashboard() {
         tab={tab}
         onTabChange={handleTabChange}
         onMenuToggle={() => setSidebarOpen((v) => !v)}
+        onMemoryOpen={() => setMemoryOpen(true)}
         isRefreshing={isRefreshing}
         onRefresh={fetchTelemetry}
         lastUpdate={now}
@@ -176,6 +179,7 @@ export default function Dashboard() {
 
       {/* Global Ecobici widget */}
       {tab === "map" && <EcobiciWidget stations={ecobiciStations} />}
+      {memoryOpen && <MemoryPanel onClose={() => setMemoryOpen(false)} />}
     </div>
   );
 }

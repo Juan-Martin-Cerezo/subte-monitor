@@ -10,6 +10,7 @@ interface HeaderProps {
   tab: TabId;
   onTabChange: (t: TabId) => void;
   onMenuToggle: () => void;
+  onMemoryOpen: () => void;
   isRefreshing: boolean;
   onRefresh: () => void;
   lastUpdate?: number;
@@ -29,6 +30,7 @@ export function Header({
   tab,
   onTabChange,
   onMenuToggle,
+  onMemoryOpen,
   isRefreshing,
   onRefresh,
   activeLine,
@@ -94,7 +96,11 @@ export function Header({
           <button aria-label="Notificaciones" className="icon-btn focus-ring">
             <Icon.Bell size={18} />
           </button>
-          <button aria-label="Ajustes" className="icon-btn focus-ring">
+          <button
+            onClick={onMemoryOpen}
+            aria-label="Ajustes y memoria"
+            className="icon-btn focus-ring"
+          >
             <Icon.Settings size={18} />
           </button>
         </div>
@@ -153,6 +159,13 @@ export function Header({
             className="touch-target !w-10 !h-10 active:scale-90 transition-transform"
           >
             <Icon.Refresh size={18} className={isRefreshing ? "animate-spin" : ""} />
+          </button>
+          <button
+            onClick={onMemoryOpen}
+            aria-label="Ajustes y memoria"
+            className="touch-target !w-10 !h-10 active:scale-90 transition-transform"
+          >
+            <Icon.Settings size={18} />
           </button>
         </div>
       </header>

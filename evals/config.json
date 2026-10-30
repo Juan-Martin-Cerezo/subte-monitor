@@ -1,0 +1,7 @@
+{
+  "currency": "USD",
+  "input_per_1m": 0.27,
+  "output_per_1m": 1.1,
+  "max_cost_usd": 0.2,
+  "assumption": "Prices per 1M tokens are an assumption based on deepseek-chat list pricing. Update them when the provider or model changes."
+}
