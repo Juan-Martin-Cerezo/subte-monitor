@@ -46,3 +46,6 @@ next-env.d.ts
 
 # eval runs
 /evals/results/
+
+# keep the template in the repo
+!.env.local.example
