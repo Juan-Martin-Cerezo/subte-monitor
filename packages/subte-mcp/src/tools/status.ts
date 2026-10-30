@@ -1,11 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { getTelemetry } from '../http.js';
-import { feedFreshness } from '../feed.js';
-import { matchLines } from '../lines.js';
+import { getStatus } from '../core/index.js';
 import { toolError, toolResult } from './results.js';
-
-const VALID_LINES = 'LineaA, LineaB, LineaC, LineaD, LineaE, LineaH, Premetro';
 
 export function registerStatusTool(server: McpServer): void {
   server.registerTool(
@@ -21,37 +17,7 @@ export function registerStatusTool(server: McpServer): void {
     },
     async ({ line }) => {
       try {
-        const selected = line ? matchLines(line) : [];
-        if (line && !selected.length) {
-          return toolError(new Error(`unknown line '${line}'. Valid values: ${VALID_LINES}.`));
-        }
-
-        const telemetry = await getTelemetry();
-        const alerts: Record<string, { id: string; header: string; description: string; cause: string; effect: string }[]> = {};
-
-        for (const alert of telemetry.alerts) {
-          if (selected.length && !selected.some(lineId => lineId === alert.routeId)) continue;
-          const group = alerts[alert.routeId] ?? [];
-          group.push({
-            id: alert.id,
-            header: alert.headerText,
-            description: alert.descriptionText,
-            cause: alert.cause,
-            effect: alert.effect,
-          });
-          alerts[alert.routeId] = group;
-        }
-
-        const alertCount = Object.values(alerts).reduce((sum, group) => sum + group.length, 0);
-
-        return toolResult({
-          generatedAt: new Date().toISOString(),
-          ...(selected.length === 1 ? { line: selected[0] } : {}),
-          ...(selected.length > 1 ? { lines: selected } : {}),
-          ...feedFreshness(telemetry),
-          alertCount,
-          alerts,
-        });
+        return toolResult(await getStatus(line));
       } catch (error) {
         return toolError(error);
       }

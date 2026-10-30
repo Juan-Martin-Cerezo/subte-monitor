@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { getBootstrap } from '../http.js';
-import { buildStationIndex, findNearby } from '../network.js';
+import { getNearbyStations } from '../core/index.js';
 import { toolError, toolResult } from './results.js';
 
 export function registerNearbyTool(server: McpServer): void {
@@ -20,16 +19,7 @@ export function registerNearbyTool(server: McpServer): void {
     },
     async ({ lat, lng, radius_m }) => {
       try {
-        const index = buildStationIndex(await getBootstrap());
-        const stations = findNearby(index, lat, lng, radius_m);
-
-        return toolResult({
-          lat,
-          lng,
-          radiusM: radius_m,
-          count: stations.length,
-          stations,
-        });
+        return toolResult(await getNearbyStations({ lat, lng, radiusM: radius_m }));
       } catch (error) {
         return toolError(error);
       }

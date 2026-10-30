@@ -1,6 +1,6 @@
 import type { Telemetry } from './types.js';
 
-interface FeedFreshness {
+export interface FeedFreshness {
   stale: boolean;
   feedAgeSeconds: number | null;
   feedUpdatedAt: string | null;

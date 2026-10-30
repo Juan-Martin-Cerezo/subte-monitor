@@ -25,6 +25,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@subte/core": [
+        "./packages/subte-mcp/src/core/index.ts"
       ]
     }
   },

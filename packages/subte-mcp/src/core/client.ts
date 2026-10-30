@@ -4,7 +4,7 @@ const DEFAULT_BASE = 'https://subte-monitor.vercel.app';
 const TIMEOUT_MS = 5000;
 const BOOTSTRAP_TTL_MS = 10 * 60 * 1000;
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ApiError';

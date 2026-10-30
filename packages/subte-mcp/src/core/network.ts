@@ -1,5 +1,5 @@
-import transfersData from './data/transfers.json' with { type: 'json' };
-import accessibilityData from './data/accessibility.json' with { type: 'json' };
+import transfersData from '../data/transfers.json' with { type: 'json' };
+import accessibilityData from '../data/accessibility.json' with { type: 'json' };
 import type { Bootstrap } from './types.js';
 import { compactName, editDistance, normalizeName } from './names.js';
 
