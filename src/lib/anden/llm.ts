@@ -83,7 +83,7 @@ async function resolveConfig(): Promise<Config> {
 
 export async function chat(
   messages: ChatMessage[],
-  options: { temperature?: number; maxTokens?: number } = {},
+  options: { temperature?: number; maxTokens?: number; responseFormat?: 'json_object' } = {},
 ): Promise<ChatResult> {
   const config = await resolveConfig();
 
@@ -98,6 +98,7 @@ export async function chat(
       messages,
       temperature: options.temperature ?? 0.2,
       max_tokens: options.maxTokens ?? 400,
+      ...(options.responseFormat ? { response_format: { type: options.responseFormat } } : {}),
       stream: false,
     }),
     signal: AbortSignal.timeout(TIMEOUT_MS),
