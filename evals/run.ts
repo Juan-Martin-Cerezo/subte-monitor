@@ -528,6 +528,7 @@ async function main(): Promise<void> {
           citationsValid: false,
           usage: {},
           evidence: [],
+          truncated: false,
         };
       }
 
