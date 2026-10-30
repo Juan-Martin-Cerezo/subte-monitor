@@ -9,6 +9,7 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "anden:corpus": "tsx scripts/anden/build-corpus.ts",
+    "anden:stations": "tsx scripts/anden/build-stations.ts",
     "anden:poll-alerts": "tsx scripts/anden/poll-alerts.ts",
     "anden:retrieval-eval": "tsx scripts/anden/retrieval-eval.ts"
   },
