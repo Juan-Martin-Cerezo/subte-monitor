@@ -20,6 +20,8 @@ npm --prefix packages/subte-mcp run build
 node packages/subte-mcp/dist/index.js
 ```
 
+During development, `npm --prefix packages/subte-mcp run dev` runs the same entry through `tsx` without a build.
+
 ## Client setup
 
 Claude Desktop, in `claude_desktop_config.json`:
