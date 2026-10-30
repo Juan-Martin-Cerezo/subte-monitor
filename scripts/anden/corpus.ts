@@ -67,6 +67,12 @@ interface Section {
   body: string;
 }
 
+interface Candidate {
+  title: string;
+  prefix: string;
+  body: string;
+}
+
 function parseSections(markdown: string): Section[] {
   const sections: Section[] = [];
   let stack: string[] = [];
@@ -99,54 +105,122 @@ function parseSections(markdown: string): Section[] {
   return sections;
 }
 
-function splitSentences(paragraph: string, max: number): string[] {
-  const sentences = paragraph.split(/(?<=[.!?])\s+/);
+function hardSplit(text: string, max: number): string[] {
+  const pieces: string[] = [];
+  for (let i = 0; i < text.length; i += max) pieces.push(text.slice(i, i + max));
+  return pieces;
+}
+
+// split into near-equal pieces so the final piece is not a short leftover
+function splitBalanced(body: string, budget: number): string[] {
+  const text = body.trim();
+  if (!text) return [];
+  if (text.length <= budget) return [text];
+
+  const count = Math.ceil(text.length / budget);
+  const target = Math.ceil(text.length / count);
+  const units: string[] = [];
+
+  for (const paragraph of text.split(/\n{2,}/)) {
+    const trimmed = paragraph.trim();
+    if (!trimmed) continue;
+    for (const sentence of trimmed.split(/(?<=[.!?])\s+/)) {
+      const unit = sentence.trim();
+      if (!unit) continue;
+      if (unit.length > budget) units.push(...hardSplit(unit, budget));
+      else units.push(unit);
+    }
+  }
+
   const pieces: string[] = [];
   let buffer = '';
 
-  for (const sentence of sentences) {
-    if (buffer && buffer.length + 1 + sentence.length > max) {
+  for (const unit of units) {
+    if (buffer && buffer.length + 1 + unit.length > budget) {
       pieces.push(buffer);
       buffer = '';
     }
-    if (sentence.length > max) {
-      if (buffer) {
-        pieces.push(buffer);
-        buffer = '';
-      }
-      for (let i = 0; i < sentence.length; i += max) pieces.push(sentence.slice(i, i + max));
-      continue;
+    buffer = buffer ? `${buffer} ${unit}` : unit;
+    if (buffer.length >= target) {
+      pieces.push(buffer);
+      buffer = '';
     }
-    buffer = buffer ? `${buffer} ${sentence}` : sentence;
   }
 
   if (buffer) pieces.push(buffer);
   return pieces;
 }
 
-function splitLong(body: string, max: number): string[] {
-  const paragraphs = body.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
-  const pieces: string[] = [];
-  let buffer = '';
-
-  for (const paragraph of paragraphs) {
-    if (buffer && buffer.length + 2 + paragraph.length > max) {
-      pieces.push(buffer);
-      buffer = '';
-    }
-    if (paragraph.length > max) {
-      if (buffer) {
-        pieces.push(buffer);
-        buffer = '';
+function rebalance(pieces: string[], budget: number): string[] {
+  const out: string[] = [];
+  for (const piece of pieces) {
+    if (piece.length < 300 && out.length) {
+      const merged = `${out[out.length - 1]} ${piece}`;
+      if (merged.length <= budget) {
+        out[out.length - 1] = merged;
+        continue;
       }
-      pieces.push(...splitSentences(paragraph, max));
+      const cutAt = Math.max(merged.lastIndexOf(' ', Math.ceil(merged.length / 2)), 200);
+      out[out.length - 1] = merged.slice(0, cutAt).trim();
+      out.push(merged.slice(cutAt).trim());
       continue;
     }
-    buffer = buffer ? `${buffer}\n\n${paragraph}` : paragraph;
+    out.push(piece);
+  }
+  return out.filter(Boolean);
+}
+
+function chunkText(candidate: Candidate): string {
+  return `${candidate.prefix}\n${candidate.body}`.trim();
+}
+
+function appendCandidate(target: Candidate, next: Candidate): string {
+  const addition = next.prefix === target.prefix ? next.body : `${next.title}\n${next.body}`;
+  return `${target.body}\n\n${addition}`.trim();
+}
+
+function mergeShort(candidates: Candidate[], min = 300, max = 900): Candidate[] {
+  const out: Candidate[] = [];
+
+  for (const candidate of candidates) {
+    const last = out[out.length - 1];
+    if (last && chunkText(last).length < min) {
+      const body = appendCandidate(last, candidate);
+      if (chunkText({ ...last, body }).length <= max) {
+        last.body = body;
+        continue;
+      }
+    }
+    out.push({ ...candidate });
   }
 
-  if (buffer) pieces.push(buffer);
-  return pieces;
+  for (let i = out.length - 1; i >= 0; i -= 1) {
+    if (chunkText(out[i]).length >= min) continue;
+
+    if (i > 0) {
+      const body = appendCandidate(out[i - 1], out[i]);
+      if (chunkText({ ...out[i - 1], body }).length <= max) {
+        out[i - 1].body = body;
+        out.splice(i, 1);
+        continue;
+      }
+    }
+
+    if (i + 1 < out.length) {
+      const body = appendCandidate(out[i], out[i + 1]);
+      const merged = { ...out[i], body };
+      if (chunkText(merged).length <= max) {
+        out[i] = merged;
+        out.splice(i + 1, 1);
+      } else {
+        const half = Math.ceil(body.length / 2);
+        const cut = Math.max(body.lastIndexOf(' ', half), Math.ceil(body.length / 3));
+        out.splice(i, 2, { ...out[i], body: body.slice(0, cut).trim() }, { ...out[i], body: body.slice(cut).trim() });
+      }
+    }
+  }
+
+  return out;
 }
 
 async function markdownFiles(dir: string): Promise<string[]> {
@@ -179,44 +253,36 @@ export async function buildDocChunks(): Promise<CorpusEntry[]> {
 
   for (const relative of await docSources()) {
     const markdown = await fs.readFile(path.join(ROOT, relative), 'utf8');
-    const sections = parseSections(markdown);
     const fileSlug = relative.replace(/\.md$/, '').replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase();
+    const candidates: Candidate[] = [];
 
-    let index = 0;
-    while (index < sections.length) {
-      const first = sections[index];
-      let body = first.body;
-
-      // short sections borrow the next heading so chunks stay above 300 chars
-      while (body.length < 300 && index + 1 < sections.length) {
-        index += 1;
-        body += `\n\n${sections[index].title}\n${sections[index].body}`;
-      }
-
-      const prefix = first.path.join(' > ');
-      // the prefix counts toward the 900 char ceiling
+    for (const section of parseSections(markdown)) {
+      const prefix = section.path.join(' > ');
       const budget = Math.max(200, 900 - prefix.length - 1);
+      const pieces = rebalance(splitBalanced(section.body, budget), budget);
 
-      for (const piece of splitLong(body, budget)) {
-        const text = `${prefix}\n${piece}`.trim();
-        if (text.length < 80) continue;
-
-        const base = `doc:${fileSlug}-${slug(first.title)}`.slice(0, 70).replace(/-+$/, '');
-        let id = base;
-        let suffix = 2;
-        while (used.has(id)) id = `${base}-${suffix++}`;
-        used.add(id);
-
-        chunks.push({
-          id,
-          title: first.title,
-          text,
-          source: `repo:${relative}#${slug(first.title)}`,
-          kind: 'doc',
-        });
+      for (const piece of pieces) {
+        candidates.push({ title: section.title, prefix, body: piece });
       }
+    }
 
-      index += 1;
+    for (const candidate of mergeShort(candidates)) {
+      const text = chunkText(candidate);
+      if (text.length < 80) continue;
+
+      const base = `doc:${fileSlug}-${slug(candidate.title)}`.slice(0, 70).replace(/-+$/, '');
+      let id = base;
+      let suffix = 2;
+      while (used.has(id)) id = `${base}-${suffix++}`;
+      used.add(id);
+
+      chunks.push({
+        id,
+        title: candidate.title,
+        text,
+        source: `repo:${relative}#${slug(candidate.title)}`,
+        kind: 'doc',
+      });
     }
   }
 
