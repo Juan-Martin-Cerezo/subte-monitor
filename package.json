@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "anden:corpus": "tsx scripts/anden/build-corpus.ts",
+    "anden:poll-alerts": "tsx scripts/anden/poll-alerts.ts",
+    "anden:retrieval-eval": "tsx scripts/anden/retrieval-eval.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
