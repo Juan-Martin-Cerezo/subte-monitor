@@ -12,7 +12,9 @@
     "anden:corpus": "tsx scripts/anden/build-corpus.ts",
     "anden:stations": "tsx scripts/anden/build-stations.ts",
     "anden:poll-alerts": "tsx scripts/anden/poll-alerts.ts",
-    "anden:retrieval-eval": "tsx scripts/anden/retrieval-eval.ts"
+    "anden:retrieval-eval": "tsx scripts/anden/retrieval-eval.ts",
+    "evals": "tsx evals/run.ts",
+    "evals:validate": "tsx evals/validate.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
