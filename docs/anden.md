@@ -151,9 +151,158 @@ Answer from the curl above, shortened:
 
 - Retrieval is lexical. A question that shares no terms with the corpus will miss, and a Spanish question against an English document can miss even when the answer is there.
 - The alert corpus is a snapshot. Refreshing it needs network access to the live API.
-- Answers are one shot, with no conversation memory yet.
+- Answers were one shot before stage 3. From stage 3 on, the last turns and typed facts are part of the request.
 - Alert labels can drift because the alert file follows the live feed.
+
+## Stage 3: memory
+
+Anden keeps a small set of typed facts and the last turns of a conversation, so a follow-up question does not repeat the origin. Everything is visible and deletable from the app.
+
+### Storage
+
+`src/lib/anden/store/` has one interface and two adapters.
+
+- `sqlite.ts` is the default. It uses `node:sqlite`, writes to `.anden/anden.db` (gitignored) and enables WAL on `init()`.
+- `postgres.ts` is used only when `DATABASE_URL` is set. It talks to Neon over HTTP with `@neondatabase/serverless`, which is already a dependency, and creates the same two tables.
+- `index.ts` picks the adapter once per process and exposes `getStore()`.
+
+The user id comes from the `subte_uid` cookie: a random uuid, httpOnly, one year, same site lax. There is no login and no other personal data.
+
+```text
+anden_facts(user_id, key, value, updated_at, expires_at)  primary key (user_id, key)
+anden_turns(id, user_id, question, answer, created_at)
+```
+
+| Fact | Value | TTL |
+| --- | --- | --- |
+| `home_station`, `work_station` | Canonical station name | 180 days |
+| `step_free` | Boolean | 180 days |
+| `usual_line` | `LineaA` to `LineaH`, `Premetro` | 180 days |
+| `usual_departure_time` | `HH:MM` | 30 days |
+| `max_transfer_minutes` | Integer, 0 to 120 | 30 days |
+
+`listFacts` deletes expired rows before it selects, so an expired fact is invisible immediately and removed lazily. Station names are checked against `src/lib/anden/station-names.ts`, generated from `gtfs.zip` with `npm run anden:stations`. That is the same station set `/api/bootstrap` serves. A misspelled or invented station is dropped.
+
+Turns are stored truncated to 500 characters. Each user keeps the last 8, and anything older than 24 hours is deleted on write and before a read.
+
+### Extraction
+
+After a successful answer, `extractFacts` makes one model call with `response_format: json_object`, temperature 0 and `max_tokens` 180. The prompt lists the six keys and the station catalogue. The model returns only facts the user stated explicitly, or `{}`. The message may contain a question, and the prompt tells the model to ignore it and read only the statements. Unknown keys and invalid values are discarded in code.
+
+The extraction call is best effort. A failure is caught and the answer is returned unchanged.
+
+### Ask flow
+
+`POST /api/anden/ask` now reads memory before answering and writes it after.
+
+- It loads the facts and the last 4 turns. Past turns go into the message history.
+- The facts go into the system prompt. If the question does not state an origin, the model assumes `home_station`. If it does not state a destination, it assumes `work_station`.
+- For a trip question with fewer than two station names, the endpoint prepends one short clause, for example `Desde Pueyrredon, como siempre.` It skips the clause when the answer already names that station. The clause is added after citation checks, so it never carries a citation.
+- An abstained answer is not stored and does not trigger extraction.
+- After a normal answer, extracted facts are upserted with fresh TTLs and the turn is saved.
+
+### Memory surface
+
+```text
+GET    /api/anden/memory                 -> { facts: [{key, value, updated_at, expires_at}], turns }
+DELETE /api/anden/memory?key=home_station -> { deleted: true }
+DELETE /api/anden/memory                 -> { deleted: n }
+```
+
+`DELETE` without `key` removes facts and turns for that cookie and returns the number of rows. An unknown key returns 400 and a missing fact returns 404 with `deleted: false`.
+
+The settings gear in the header opens a panel in Spanish. It lists each fact with its expiry, a delete button per row and `Borrar todo` with an inline confirmation. The panel closes on Escape, traps Tab inside the dialog and is reachable from the desktop and mobile headers.
+
+### Check
+
+```bash
+npm test -- tests/anden-memory.test.mjs
+npx tsc --noEmit
+npm run dev
+```
+
+The test file runs on `node:sqlite` with no network and no model key:
+
+```text
+# Subtest: put, list and delete one fact
+ok 1 - put, list and delete one fact
+# Subtest: expired facts stay hidden and are removed lazily
+ok 2 - expired facts stay hidden and are removed lazily
+# Subtest: delete all removes facts and turns for one user
+ok 3 - delete all removes facts and turns for one user
+# Subtest: two users do not see each other
+ok 4 - two users do not see each other
+# Subtest: invalid station and malformed values are rejected
+ok 5 - invalid station and malformed values are rejected
+# Subtest: turns keep the last eight, newest last, and truncate text
+ok 6 - turns keep the last eight, newest last, and truncate text
+# Subtest: turns older than a day are dropped
+ok 7 - turns older than a day are dropped
+1..7
+# tests 7
+# pass 7
+# fail 0
+```
+
+Manual run against the dev server, with a cookie jar:
+
+```bash
+curl -s -c jar -b jar -X POST localhost:3000/api/anden/ask \
+  -H 'content-type: application/json' \
+  -d '{"question":"Salgo siempre de Pueyrredón y voy a Plaza de Mayo. ¿Hasta qué hora funciona la línea B?"}'
+curl -s -c jar -b jar localhost:3000/api/anden/memory
+curl -s -c jar -b jar -X POST localhost:3000/api/anden/ask \
+  -H 'content-type: application/json' \
+  -d '{"question":"¿Qué línea me conviene para ir a Plaza de Mayo?"}'
+```
+
+Second answer:
+
+```json
+{
+  "answer": "Desde Pueyrredon, como siempre. Te conviene la Línea A, que tiene una estación en Plaza de Mayo [kb:linea-a-estaciones].",
+  "abstained": false,
+  "citations_valid": true
+}
+```
+
+Memory after the two questions:
+
+```json
+{
+  "facts": [
+    { "key": "home_station", "value": "Pueyrredon", "updated_at": "2026-10-30T01:20:45.749Z", "expires_at": "2027-04-28T01:20:45.749Z" },
+    { "key": "work_station", "value": "Plaza de Mayo", "updated_at": "2026-10-30T01:20:45.749Z", "expires_at": "2027-04-28T01:20:45.749Z" }
+  ],
+  "turns": 2
+}
+```
+
+Deletes:
+
+```text
+DELETE /api/anden/memory?key=home_station -> {"deleted":true}
+DELETE /api/anden/memory                 -> {"deleted":3}
+```
+
+After the second delete, `GET /api/anden/memory` returns `{"facts":[],"turns":0}`.
+
+Observed timings from the dev log on this machine:
+
+| Request | Time |
+| --- | --- |
+| `POST /api/anden/ask` with memory | 2.5 s, 2.4 s |
+| `GET /api/anden/memory` | 16 to 64 ms |
+| `DELETE /api/anden/memory` | 23 to 43 ms |
+
+### Limits
+
+- Extraction is one model call and it is strict. A vague sentence can produce no fact. An explicit `mi casa es X` or `salgo de X` is reliable.
+- Memory supplies the origin and destination. The answer still comes from the BM25 corpus, so a route question outside the corpus abstains even when the stations are known.
+- The Postgres adapter is implemented but was not run against a live Neon database here, because this environment has no `DATABASE_URL`. The sqlite adapter is the tested path.
+- Identity is the cookie. Clearing cookies loses access to the stored facts.
+- The panel lists and deletes memory. There is no in-app question box yet.
 
 ## Later stages
 
-Memory, evals, and the harness are documented here as they land.
+Evals and the harness are documented here as they land.
