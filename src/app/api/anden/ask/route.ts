@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { ABSTAIN, validateCitations } from '@/lib/anden/citations';
+import { extractFacts } from '@/lib/anden/extraction';
+import { getUserId } from '@/lib/anden/identity';
 import { LlmConfigError, chat, type ChatMessage } from '@/lib/anden/llm';
+import { factsForPrompt, loadMemory, memoryOriginClause, type MemorySnapshot } from '@/lib/anden/memory';
 import { search, type RetrievedSource } from '@/lib/anden/retrieval';
+import { getStore } from '@/lib/anden/store';
 
 const MAX_QUESTION = 500;
 
@@ -19,13 +23,28 @@ const STRICT_PROMPT = [
   `Si no podés respaldar la respuesta, respondé exactamente: ${ABSTAIN}`,
 ].join(' ');
 
-function buildMessages(question: string, sources: RetrievedSource[], strict: boolean): ChatMessage[] {
+function buildMessages(
+  question: string,
+  sources: RetrievedSource[],
+  strict: boolean,
+  memory: MemorySnapshot,
+): ChatMessage[] {
   const numbered = sources
     .map((source, index) => `[S${index + 1}] id=${source.id} | ${source.title}\n${source.text}`)
     .join('\n\n');
 
+  const system = [SYSTEM_PROMPT, factsForPrompt(memory.facts), strict ? STRICT_PROMPT : '']
+    .filter(Boolean)
+    .join(' ');
+
+  const history: ChatMessage[] = memory.turns.flatMap((turn) => [
+    { role: 'user', content: turn.question },
+    { role: 'assistant', content: turn.answer },
+  ]);
+
   return [
-    { role: 'system', content: strict ? `${SYSTEM_PROMPT} ${STRICT_PROMPT}` : SYSTEM_PROMPT },
+    { role: 'system', content: system },
+    ...history,
     { role: 'user', content: `Pregunta: ${question}\n\nFuentes:\n${numbered}` },
   ];
 }
@@ -36,6 +55,17 @@ function publicSources(sources: RetrievedSource[]) {
 
 function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
+}
+
+async function remember(userId: string, question: string, answer: string) {
+  try {
+    const store = getStore();
+    await store.init();
+    for (const fact of await extractFacts(userId, question)) await store.putFact(fact);
+    await store.putTurn({ userId, question, answer, createdAt: new Date().toISOString() });
+  } catch {
+    // la memoria es best effort: nunca cambia la respuesta que ya se calculó
+  }
 }
 
 export async function POST(request: Request) {
@@ -53,6 +83,8 @@ export async function POST(request: Request) {
   if (!question) return badRequest('Falta la pregunta.');
   if (question.length > MAX_QUESTION) return badRequest('La pregunta es demasiado larga.');
 
+  const userId = await getUserId();
+  const memory = await loadMemory(userId, 4).catch(() => ({ facts: [], turns: [] }));
   const sources = await search(question, 6);
   const ids = sources.map((source) => source.id);
 
@@ -67,13 +99,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    let result = await chat(buildMessages(question, sources, false));
+    let result = await chat(buildMessages(question, sources, false, memory));
     let answer = result.content.trim();
     let abstained = !answer || answer === ABSTAIN;
     let check = validateCitations(answer, ids);
 
     if (!abstained && check.citations.length === 0) {
-      result = await chat(buildMessages(question, sources, true));
+      result = await chat(buildMessages(question, sources, true, memory));
       answer = result.content.trim();
       abstained = !answer || answer === ABSTAIN;
       check = validateCitations(answer, ids);
@@ -84,8 +116,13 @@ export async function POST(request: Request) {
       }
     }
 
+    const clause = abstained ? null : memoryOriginClause(question, memory.facts);
+    const finalAnswer = abstained ? ABSTAIN : clause ? `${clause} ${check.answer}` : check.answer;
+
+    if (!abstained) await remember(userId, question, finalAnswer);
+
     return NextResponse.json({
-      answer: abstained ? ABSTAIN : check.answer,
+      answer: finalAnswer,
       sources: publicSources(sources),
       abstained,
       citations_valid: abstained ? true : check.citationsValid,
