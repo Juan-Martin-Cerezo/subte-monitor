@@ -7,6 +7,7 @@ const MAX_OUTPUT_TOKENS = 180;
 
 const SYSTEM_PROMPT = [
   'Extraé solo datos que el usuario afirmó explícitamente sobre sí mismo.',
+  'El mensaje puede incluir una pregunta: ignorá la pregunta y mirá solo lo que el usuario afirma.',
   'Devolvé un objeto JSON, sin texto alrededor, con cero o más de estas claves:',
   'home_station, work_station, usual_line, usual_departure_time, step_free, max_transfer_minutes.',
   `home_station y work_station tienen que ser uno de estos nombres: ${STATION_NAMES.join(', ')}.`,
