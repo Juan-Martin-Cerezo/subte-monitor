@@ -30,6 +30,8 @@ The planner runs Dijkstra over two kinds of edge: a ride between adjacent stops 
 
 Client setup, request and response examples, and the limits live in [packages/subte-mcp/README.md](../packages/subte-mcp/README.md).
 
+The tool bodies are a thin layer over `packages/subte-mcp/src/core/`. That core has no MCP and no Next imports, and the app uses the same files through the `@subte/core` path. The split is described in stage 4.
+
 ### Build and check
 
 Run from the repository root:
@@ -303,6 +305,149 @@ Observed timings from the dev log on this machine:
 - Identity is the cookie. Clearing cookies loses access to the stored facts.
 - The panel lists and deletes memory. There is no in-app question box yet.
 
+## Stage 4: evals
+
+This stage answers one question with numbers: how often is Anden wrong. The answer is reproducible with a small set of commands and no database.
+
+### Shared core
+
+The tool logic moved out of the MCP transport into `packages/subte-mcp/src/core/`:
+
+| File | Contents |
+| --- | --- |
+| `client.ts` | HTTP client, bootstrap cache, timeouts and API errors |
+| `feed.ts` | Feed freshness from the telemetry payload |
+| `lines.ts`, `names.ts` | Line matching and station name normalisation |
+| `network.ts` | Station index, name resolution, Dijkstra planner, nearby search |
+| `status.ts`, `next-trains.ts`, `plan-trip.ts`, `nearby.ts` | One exported function per tool |
+| `types.ts`, `index.ts` | Payload types and the public surface |
+
+The core imports no MCP SDK and no Next module. The four MCP tools now only declare the schema and delegate to it. The app reaches the same files through the `@subte/core` path in `tsconfig.json`, so there is one implementation of each tool.
+
+Core files import each other with `.ts` extensions. Turbopack resolves them directly from source, and the package build rewrites them to `.js` through `rewriteRelativeImportExtensions`. Without that, the app build and the Node ESM build need different specifiers.
+
+### Agent
+
+`src/lib/anden/agent/run.ts` exports `runAgent({question, userId})`.
+
+- One function calling loop, at most 4 tool calls, `temperature 0`, `max_tokens 600`, no streaming.
+- Tools come from `src/lib/anden/tools/`: `subway_status`, `next_trains`, `plan_trip`, `nearby_stations` and `search_knowledge`. The last one wraps the BM25 index and returns source ids.
+- Memory facts go into the system prompt and the last 4 turns go into the message history before the question.
+- A tool error is returned to the model as text, so it can choose another tool.
+- The stage 2 citation checker still runs on the answer. When the only successful tool was `search_knowledge` and the answer has no valid citation, the agent makes one repair call. If the repair still cites nothing, it abstains with `No tengo información sobre eso.`
+- The returned object is `{answer, steps, sources, abstained, citationsValid, usage, evidence}`. `evidence` holds the tool output the model saw and is used by the evals. The HTTP route does not expose it.
+
+`POST /api/anden/ask` is now a wrapper around `runAgent`. It keeps the stage 2 response fields and adds `steps`, one entry per tool call with `tool`, `args`, `ok` and `ms`.
+
+### Golden set
+
+`evals/cases.jsonl` has 50 hand written cases. Every station name and corpus id was checked against the real files.
+
+| Category | Cases | Expectation |
+| --- | ---: | --- |
+| `tool_selection` | 15 | 11 positive cases where the tool must be called first, plus 4 negatives where `search_knowledge` or no tool is right |
+| `trip_planning` | 10 | `plan_trip` with `from` and `to`, and the returned legs must not use the destination as origin. 2 cases are step-free |
+| `retrieval_citation` | 10 | The answer cites an expected corpus id and does not abstain |
+| `abstain` | 10 | Impossible or out-of-scope questions, including a line and station pair that does not exist |
+| `memory` | 5 | Seeded `user_facts`, a question without an origin, and `expect.uses_fact: home_station` |
+
+`npm run evals:validate` checks the schema without a key or network. It checks counts, unique ids, tool and fact names, station arguments and that every expected citation exists in the corpus.
+
+### Runner
+
+`evals/run.ts` is plain TypeScript run with `tsx`. There is no test framework.
+
+| Flag | Effect |
+| --- | --- |
+| `--subset N` | N cases, one per category in rotation |
+| `--category X` | One category |
+| `--seed-facts` | Seed memory facts in a temporary sqlite database |
+| `--max-cost USD` | Stop and exit 1 before the run passes the limit |
+| `--out path` | JSON output path |
+| `--write-readme` | Replace the table between the evals markers in `README.md` |
+| `--gate` | Exit 1 when `hallucination_rate > 0.10` or `tool_accuracy < 0.85` |
+
+Scores are `tool_accuracy`, `arg_accuracy`, `citation_validity`, `abstain_correctness`, `hallucination_rate`, `p50_ms`, `p95_ms`, `tokens` and `cost_usd`. The detailed output goes to `evals/results/latest.json`. The cost uses `evals/config.json`, currently 0.27 USD per 1M input tokens and 1.10 USD per 1M output tokens. That is an assumption for the configured model and has to change with the provider.
+
+The hallucination check is deterministic. It compares station names and line names against the question, the tool output and the seeded facts, and numbers against the same evidence. Citation ids are stripped first. A number reported in seconds by a tool is accepted when the answer restates it in minutes. `evals/README.md` describes the limits of this check and what is not measured.
+
+### Results
+
+The stage commands, run from the repository root on 2026-10-30:
+
+```bash
+npm run evals -- --subset 10 --max-cost 0.20
+npm run anden:retrieval-eval
+npm test -- tests/anden-memory.test.mjs
+node packages/subte-mcp/test/smoke.mjs
+npx tsc --noEmit
+```
+
+Eval subset:
+
+```text
+cases: 10
+tool_accuracy: 1
+arg_accuracy: 1
+citation_validity: 1
+abstain_correctness: 1
+hallucination_rate: 0
+p50_ms: 2776 p95_ms: 9513
+tokens: 30582
+cost_usd: 0.009064 of 0.2 USD
+```
+
+The full set, run with `npm run evals -- --seed-facts --write-readme --max-cost 0.20`:
+
+```text
+cases: 50
+tool_accuracy: 1
+arg_accuracy: 1
+citation_validity: 1
+abstain_correctness: 1
+hallucination_rate: 0
+p50_ms: 2626 p95_ms: 4152
+tokens: 142992
+cost_usd: 0.042452 of 0.2 USD
+```
+
+Per category:
+
+| Set | Cases | tool acc | arg acc | citation validity | abstain | hallucination | p50 ms | p95 ms | cost USD |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| all | 50 | 100% | 100% | 100% | 100% | 0% | 2626 | 4152 | 0.0425 |
+| tool_selection | 15 | 100% | 100% | n/a | 100% | 0% | 2948 | 4470 | 0.0123 |
+| trip_planning | 10 | 100% | 100% | n/a | 100% | 0% | 2616 | 3014 | 0.0087 |
+| retrieval_citation | 10 | n/a | n/a | 100% | 100% | 0% | 2554 | 3192 | 0.0099 |
+| abstain | 10 | n/a | n/a | n/a | 100% | 0% | 2146 | 12445 | 0.0070 |
+| memory | 5 | 100% | n/a | n/a | 100% | 0% | 2577 | 2739 | 0.0045 |
+
+Retrieval eval:
+
+```text
+queries: 26
+recall@5: 0.962 (threshold 0.75)
+MRR: 0.849
+```
+
+Memory tests: 7 pass, 0 fail. The MCP smoke test ends with `smoke test passed against https://subte-monitor.vercel.app`. `npx tsc --noEmit` exits 0.
+
+The root `README.md` carries the same summary table between `<!-- evals:start -->` and `<!-- evals:end -->`. History is kept by git, not by extra result files.
+
+### CI
+
+`.github/workflows/evals.yml` runs the offline parts on push and pull request: `tsc`, `npm run anden:retrieval-eval`, the memory tests and `npm run evals:validate`. It needs no key. The live eval runs on `workflow_dispatch` with `ANDEN_LLM_KEY` from secrets, `--subset 15 --max-cost 0.10 --gate`. The job fails above 10 percent hallucination or below 85 percent tool accuracy.
+
+### Limits
+
+- The hallucination check is a proxy. It can miss a wrong claim that reuses a supported number, for example a price from the wrong monthly tier of the same table. It can also flag a correct figure that the model computed and that never appears in the evidence.
+- The live API is part of the measurement. `p95` includes upstream latency, and an outage turns a case into a failure rather than a skip.
+- A subset run is a sample. The 10 case run and the 50 case run can differ.
+- Memory cases need `--seed-facts`. Without it they are left out of the pool.
+- Live evals need a model key. The offline CI job does not run the model.
+- There is no second model judge. The stage allows one as a second opinion, but it is not the primary metric, so it is not part of the score.
+
 ## Later stages
 
-Evals and the harness are documented here as they land.
+The harness in stage 5 is documented here as it lands.
+
