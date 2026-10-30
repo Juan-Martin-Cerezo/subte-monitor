@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { runAgent, type AgentResult } from '../src/lib/anden/agent/run';
+import { loadEnv } from '../scripts/anden/env';
 import { buildFact, validateFact } from '../src/lib/anden/facts';
 import { LlmConfigError, type LlmUsage } from '../src/lib/anden/llm';
 import { getStore } from '../src/lib/anden/store';
@@ -366,6 +367,7 @@ function printCostTable(rows: CaseRow[]): void {
 }
 
 async function main(): Promise<void> {
+  loadEnv();
   const options = parseOptions(process.argv.slice(2));
   const config: EvalConfig = await loadConfig();
   const maxCost = Number.isFinite(options.maxCost) ? options.maxCost : config.max_cost_usd;
@@ -544,7 +546,7 @@ async function main(): Promise<void> {
 
 main().catch((error: unknown) => {
   if (error instanceof LlmConfigError) {
-    console.error('no model key configured: set ANDEN_LLM_KEY or ~/.config/b2first/ai.env');
+    console.error('no model key configured: set ANDEN_LLM_KEY, or ANDEN_LLM_KEY in .env.local');
     process.exitCode = 2;
     return;
   }

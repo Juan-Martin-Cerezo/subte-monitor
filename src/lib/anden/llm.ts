@@ -1,6 +1,3 @@
-import { promises as fs } from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 
 export interface ToolCall {
   id: string;
@@ -51,55 +48,14 @@ interface Config {
   model: string;
 }
 
-let fallback: Promise<Config | null> | null = null;
-
-function baseFor(provider: string | undefined): string {
-  if (!provider) return DEFAULT_BASE;
-  if (/^https?:\/\//i.test(provider)) return provider.replace(/\/+$/, '');
-  return DEFAULT_BASE;
-}
-
-async function readFallback(): Promise<Config | null> {
-  const file = process.env.ANDEN_LLM_ENV ?? path.join(os.homedir(), '.config/b2first/ai.env');
-
-  let raw: string;
-  try {
-    raw = await fs.readFile(file, 'utf8');
-  } catch {
-    return null;
-  }
-
-  const values = new Map<string, string>();
-  for (const line of raw.split(/\r?\n/)) {
-    const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/.exec(line);
-    if (!match) continue;
-    values.set(match[1], match[2].replace(/^["']|["']$/g, '').trim());
-  }
-
-  const key = values.get('B2_AI_KEY');
-  if (!key) return null;
-
+function resolveConfig(): Config {
+  const key = process.env.ANDEN_LLM_KEY ?? process.env.OPENAI_API_KEY;
+  if (!key) throw new LlmConfigError('no llm key configured');
   return {
     key,
-    base: baseFor(values.get('B2_AI_PROVIDER')),
-    model: values.get('B2_AI_MODEL') || DEFAULT_MODEL,
+    base: (process.env.ANDEN_LLM_BASE?.trim() || DEFAULT_BASE).replace(/\/+$/, ''),
+    model: process.env.ANDEN_LLM_MODEL?.trim() || DEFAULT_MODEL,
   };
-}
-
-async function resolveConfig(): Promise<Config> {
-  const key = process.env.ANDEN_LLM_KEY;
-  if (key) {
-    return {
-      key,
-      base: (process.env.ANDEN_LLM_BASE?.trim() || DEFAULT_BASE).replace(/\/+$/, ''),
-      model: process.env.ANDEN_LLM_MODEL?.trim() || DEFAULT_MODEL,
-    };
-  }
-
-  if (!fallback) fallback = readFallback();
-  const config = await fallback;
-  if (!config) throw new LlmConfigError('no llm key configured');
-  return config;
 }
 
 export async function currentModel(): Promise<string> {

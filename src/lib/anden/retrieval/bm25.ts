@@ -31,7 +31,7 @@ interface CorpusIndex {
   averageLength: number;
 }
 
-const CORPUS_DIR = path.join(process.cwd(), 'data', 'corpus');
+const CORPUS_DIR = path.join(process.cwd(), 'data', 'corpus'); // traced via next.config outputFileTracingIncludes
 const FILES = ['knowledge.jsonl', 'alerts.jsonl', 'docs.jsonl'].map((name) => path.join(CORPUS_DIR, name));
 const K1 = 1.5;
 const B = 0.75;

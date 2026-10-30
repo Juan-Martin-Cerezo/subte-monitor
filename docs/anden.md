@@ -164,7 +164,7 @@ The builder regenerates `docs.jsonl`, then merges alerts by id. It is safe to ru
 The request body is `{question, session_id?}`. The endpoint retrieves six sources, renders them as `[S1]` to `[S6]` with their ids, and asks the model to answer in Spanish using only those sources.
 
 - `fetch` to the chat completions endpoint, `temperature 0.2`, `max_tokens 400`, 20 second timeout, no streaming.
-- Key from `ANDEN_LLM_KEY`, then `~/.config/b2first/ai.env` (`B2_AI_KEY`, `B2_AI_PROVIDER`, `B2_AI_MODEL`). The key is never logged.
+- Key from `ANDEN_LLM_KEY`, then `.env.local` in the repo root (same variable, or `OPENAI_API_KEY`). Base and model come from `ANDEN_LLM_BASE` and `ANDEN_LLM_MODEL` if set. The key is never logged.
 - Citations are checked in code. An id outside the retrieved set is stripped and sets `citations_valid` to false.
 - A factual answer with no valid citation is retried once with a stricter instruction. If the retry still cites nothing, the endpoint replies exactly `No tengo información sobre eso.` and sets `abstained`.
 - No sources yields the same abstention without calling the model.
@@ -668,7 +668,7 @@ npm run dev
 
 The chat is at `http://localhost:3000/anden` and the traces are at `http://localhost:3000/traces`.
 
-A model key is needed for the live paths. Set `ANDEN_LLM_KEY` for an endpoint that speaks the chat completions format, or leave the fallback file at `~/.config/b2first/ai.env` with `B2_AI_KEY`. The offline checks (`evals:validate`, the retrieval eval, the memory tests, `tsc`) run without a key. The MCP smoke test needs the package built once:
+A model key is needed for the live paths. Set `ANDEN_LLM_KEY` for any endpoint that speaks the chat completions format, or put it in `.env.local` at the repo root. The offline checks (`evals:validate`, the retrieval eval, the memory tests, `tsc`) run without a key. The MCP smoke test needs the package built once:
 
 ```bash
 npm --prefix packages/subte-mcp run build

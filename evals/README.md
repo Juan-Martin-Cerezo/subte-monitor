@@ -13,7 +13,7 @@ npm run evals -- --seed-facts --write-readme
 npm run evals:validate
 ```
 
-`npm run evals` needs a model key. It reads `ANDEN_LLM_KEY` and falls back to `~/.config/b2first/ai.env`, the same path the app uses. Without a key the runner exits with code 2 before calling the model.
+`npm run evals` needs a model key. It reads `ANDEN_LLM_KEY`, then `.env.local` in the repo root, the same path the app uses. Without a key the runner exits with code 2 before calling the model.
 
 ## Flags
 

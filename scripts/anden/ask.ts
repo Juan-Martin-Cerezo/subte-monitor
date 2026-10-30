@@ -1,3 +1,4 @@
+import { loadEnv } from './env';
 import { runHarness } from '../../src/lib/anden/harness';
 import { LlmConfigError } from '../../src/lib/anden/llm';
 
@@ -10,6 +11,7 @@ function formatArgs(args: Record<string, unknown>): string {
 }
 
 async function main(): Promise<void> {
+  loadEnv();
   const question = process.argv.slice(2).join(' ').trim();
 
   if (!question) {
@@ -59,7 +61,7 @@ async function main(): Promise<void> {
 
 main().catch((error: unknown) => {
   if (error instanceof LlmConfigError) {
-    console.error('falta la clave del modelo: ANDEN_LLM_KEY o ~/.config/b2first/ai.env');
+    console.error('falta la clave del modelo: ANDEN_LLM_KEY, o ANDEN_LLM_KEY en .env.local');
     process.exitCode = 2;
     return;
   }
