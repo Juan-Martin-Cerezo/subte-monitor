@@ -40,3 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .codegraph/
+
+# local agent tooling
+.agents/
+.claude/
+skills-lock.json
+CLAUDE.md
