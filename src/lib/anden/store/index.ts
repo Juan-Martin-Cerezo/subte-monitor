@@ -10,7 +10,7 @@ export function getStore(): AndenStore {
   if (!globalForStore.andenStore) {
     globalForStore.andenStore = process.env.DATABASE_URL
       ? new PostgresStore(process.env.DATABASE_URL)
-      : new SqliteStore();
+      : new SqliteStore(process.env.ANDEN_SQLITE_PATH);
   }
   return globalForStore.andenStore;
 }

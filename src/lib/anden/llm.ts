@@ -2,9 +2,29 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_calls?: ToolCall[];
+  tool_call_id?: string;
+}
+
+export interface ToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
 }
 
 export interface LlmUsage {
@@ -15,6 +35,7 @@ export interface LlmUsage {
 
 export interface ChatResult {
   content: string;
+  toolCalls: ToolCall[];
   usage: LlmUsage;
 }
 
@@ -70,8 +91,8 @@ async function resolveConfig(): Promise<Config> {
   if (key) {
     return {
       key,
-      base: (process.env.ANDEN_LLM_BASE ?? DEFAULT_BASE).replace(/\/+$/, ''),
-      model: process.env.ANDEN_LLM_MODEL ?? DEFAULT_MODEL,
+      base: (process.env.ANDEN_LLM_BASE?.trim() || DEFAULT_BASE).replace(/\/+$/, ''),
+      model: process.env.ANDEN_LLM_MODEL?.trim() || DEFAULT_MODEL,
     };
   }
 
@@ -83,7 +104,12 @@ async function resolveConfig(): Promise<Config> {
 
 export async function chat(
   messages: ChatMessage[],
-  options: { temperature?: number; maxTokens?: number; responseFormat?: 'json_object' } = {},
+  options: {
+    temperature?: number;
+    maxTokens?: number;
+    responseFormat?: 'json_object';
+    tools?: ToolDefinition[];
+  } = {},
 ): Promise<ChatResult> {
   const config = await resolveConfig();
 
@@ -99,6 +125,7 @@ export async function chat(
       temperature: options.temperature ?? 0.2,
       max_tokens: options.maxTokens ?? 400,
       ...(options.responseFormat ? { response_format: { type: options.responseFormat } } : {}),
+      ...(options.tools?.length ? { tools: options.tools, tool_choice: 'auto' } : {}),
       stream: false,
     }),
     signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -107,12 +134,24 @@ export async function chat(
   if (!response.ok) throw new Error(`chat completions returned ${response.status}`);
 
   const data = (await response.json()) as {
-    choices?: { message?: { content?: unknown } }[];
+    choices?: { message?: { content?: unknown; tool_calls?: unknown } }[];
     usage?: LlmUsage;
   };
 
-  const content = data.choices?.[0]?.message?.content;
-  if (typeof content !== 'string') throw new Error('chat completions returned no content');
+  const message = data.choices?.[0]?.message;
+  const content = typeof message?.content === 'string' ? message.content : '';
+  const toolCalls = Array.isArray(message?.tool_calls)
+    ? message.tool_calls.filter(
+        (call): call is ToolCall =>
+          Boolean(call) &&
+          typeof call === 'object' &&
+          typeof (call as ToolCall).id === 'string' &&
+          typeof (call as ToolCall).function?.name === 'string' &&
+          typeof (call as ToolCall).function?.arguments === 'string',
+      )
+    : [];
 
-  return { content, usage: data.usage ?? {} };
+  if (!content && !toolCalls.length) throw new Error('chat completions returned no content');
+
+  return { content, toolCalls, usage: data.usage ?? {} };
 }
