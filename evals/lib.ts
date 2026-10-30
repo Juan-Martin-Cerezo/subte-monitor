@@ -1,19 +1,19 @@
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
+import { promises as fs } from "node:fs";
+import path from "node:path";
 
 export const ROOT = process.cwd();
-export const EVALS_DIR = path.join(ROOT, 'evals');
-export const CASES_PATH = path.join(EVALS_DIR, 'cases.jsonl');
-export const CONFIG_PATH = path.join(EVALS_DIR, 'config.json');
-export const RESULTS_PATH = path.join(EVALS_DIR, 'results', 'latest.json');
-export const README_PATH = path.join(ROOT, 'README.md');
+export const EVALS_DIR = path.join(ROOT, "evals");
+export const CASES_PATH = path.join(EVALS_DIR, "cases.jsonl");
+export const CONFIG_PATH = path.join(EVALS_DIR, "config.json");
+export const RESULTS_PATH = path.join(EVALS_DIR, "results", "latest.json");
+export const README_PATH = path.join(ROOT, "README.md");
 
 export const CATEGORIES = [
-  'tool_selection',
-  'trip_planning',
-  'retrieval_citation',
-  'abstain',
-  'memory',
+  "tool_selection",
+  "trip_planning",
+  "retrieval_citation",
+  "abstain",
+  "memory",
 ] as const;
 
 export type Category = (typeof CATEGORIES)[number];
@@ -60,14 +60,14 @@ export interface EvalConfig {
 async function readJsonl<T>(file: string): Promise<T[]> {
   let raw: string;
   try {
-    raw = await fs.readFile(file, 'utf8');
+    raw = await fs.readFile(file, "utf8");
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw error;
   }
 
   return raw
-    .split('\n')
+    .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
     .flatMap((line, index) => {
@@ -84,10 +84,10 @@ export async function loadCases(file = CASES_PATH): Promise<EvalCase[]> {
 }
 
 export async function loadConfig(file = CONFIG_PATH): Promise<EvalConfig> {
-  const raw = await fs.readFile(file, 'utf8');
+  const raw = await fs.readFile(file, "utf8");
   const config = JSON.parse(raw) as EvalConfig;
-  for (const key of ['input_per_1m', 'output_per_1m', 'max_cost_usd'] as const) {
-    if (typeof config[key] !== 'number' || !Number.isFinite(config[key]) || config[key] < 0) {
+  for (const key of ["input_per_1m", "output_per_1m", "max_cost_usd"] as const) {
+    if (typeof config[key] !== "number" || !Number.isFinite(config[key]) || config[key] < 0) {
       throw new Error(`${path.relative(ROOT, file)}: ${key} must be a non-negative number`);
     }
   }
@@ -100,7 +100,7 @@ export function extractCitations(answer: string): string[] {
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(answer)) !== null) {
     const id = match[1].trim();
-    if (id.includes(':')) found.push(id);
+    if (id.includes(":")) found.push(id);
   }
   return [...new Set(found)];
 }
@@ -112,7 +112,10 @@ export function percentile(values: number[], p: number): number {
   return sorted[Math.min(sorted.length - 1, Math.max(0, rank - 1))] ?? 0;
 }
 
-export function costOf(usage: { prompt_tokens?: number; completion_tokens?: number }, config: EvalConfig): number {
+export function costOf(
+  usage: { prompt_tokens?: number; completion_tokens?: number },
+  config: EvalConfig
+): number {
   const input = ((usage.prompt_tokens ?? 0) / 1_000_000) * config.input_per_1m;
   const output = ((usage.completion_tokens ?? 0) / 1_000_000) * config.output_per_1m;
   return Number((input + output).toFixed(6));

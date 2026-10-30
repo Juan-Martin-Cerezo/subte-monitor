@@ -1,4 +1,4 @@
-import type { Telemetry } from './types.ts';
+import type { Telemetry } from "./types.ts";
 
 export interface FeedFreshness {
   stale: boolean;
@@ -11,7 +11,7 @@ export function feedFreshness(telemetry: Telemetry): FeedFreshness {
     return { stale: telemetry.stale === true, feedAgeSeconds: null, feedUpdatedAt: null };
   }
 
-  const newest = Math.max(...telemetry.trains.map(train => train.updatedAt));
+  const newest = Math.max(...telemetry.trains.map((train) => train.updatedAt));
   const age = Math.max(0, Math.round(Date.now() / 1000 - newest));
 
   return {

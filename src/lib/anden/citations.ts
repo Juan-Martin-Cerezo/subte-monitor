@@ -1,4 +1,4 @@
-export const ABSTAIN = 'No tengo información sobre eso.';
+export const ABSTAIN = "No tengo información sobre eso.";
 
 export interface CitationCheck {
   answer: string;
@@ -12,7 +12,7 @@ export function extractCitations(answer: string): string[] {
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(answer)) !== null) {
     const id = match[1].trim();
-    if (id.includes(':')) found.push(id);
+    if (id.includes(":")) found.push(id);
   }
   return [...new Set(found)];
 }
@@ -29,13 +29,13 @@ export function validateCitations(answer: string, validIds: Iterable<string>): C
       return `[${id}]`;
     }
     citationsValid = false;
-    return '';
+    return "";
   });
 
   return {
     answer: cleaned
-      .replace(/[ \t]{2,}/g, ' ')
-      .replace(/[ \t]+([.,;:!?])/g, '$1')
+      .replace(/[ \t]{2,}/g, " ")
+      .replace(/[ \t]+([.,;:!?])/g, "$1")
       .trim(),
     citations: [...new Set(citations)],
     citationsValid,

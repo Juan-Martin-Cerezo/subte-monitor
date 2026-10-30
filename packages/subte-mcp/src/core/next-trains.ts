@@ -1,10 +1,10 @@
-import { getBootstrap, getTelemetry } from './client.ts';
-import { feedFreshness } from './feed.ts';
-import { lineLabel, matchLines } from './lines.ts';
-import { compactName } from './names.ts';
-import { buildStationIndex, resolveStation } from './network.ts';
+import { getBootstrap, getTelemetry } from "./client.ts";
+import { feedFreshness } from "./feed.ts";
+import { lineLabel, matchLines } from "./lines.ts";
+import { compactName } from "./names.ts";
+import { buildStationIndex, resolveStation } from "./network.ts";
 
-const VALID_LINES = 'LineaA, LineaB, LineaC, LineaD, LineaE, LineaH, Premetro';
+const VALID_LINES = "LineaA, LineaB, LineaC, LineaD, LineaE, LineaH, Premetro";
 
 export interface NextTrainsQuery {
   station: string;
@@ -45,29 +45,31 @@ export async function getNextTrains(query: NextTrainsQuery): Promise<NextTrainsR
   }
 
   const served = requested.length
-    ? requested.filter(candidate => resolved.station.lines.includes(candidate))
+    ? requested.filter((candidate) => resolved.station.lines.includes(candidate))
     : resolved.station.lines;
 
   if (requested.length && !served.length) {
     throw new Error(
-      `station '${resolved.station.name}' is not served by ${requested.map(lineLabel).join(' or ')}. ` +
-        `Lines at this station: ${resolved.station.lines.map(lineLabel).join(', ')}.`
+      `station '${resolved.station.name}' is not served by ${requested.map(lineLabel).join(" or ")}. ` +
+        `Lines at this station: ${resolved.station.lines.map(lineLabel).join(", ")}.`
     );
   }
 
   if (!served.length) {
-    throw new Error(`station '${resolved.station.name}' has no line information in the reference feed.`);
+    throw new Error(
+      `station '${resolved.station.name}' has no line information in the reference feed.`
+    );
   }
 
   const telemetry = await getTelemetry();
   const allowed = new Set(served);
   const arrivals = telemetry.predictions
-    .filter(prediction => compactName(prediction.stationName) === resolved.station.key)
-    .filter(prediction => allowed.has(prediction.routeId))
-    .filter(prediction => prediction.etaSeconds >= 0)
+    .filter((prediction) => compactName(prediction.stationName) === resolved.station.key)
+    .filter((prediction) => allowed.has(prediction.routeId))
+    .filter((prediction) => prediction.etaSeconds >= 0)
     .sort((a, b) => a.etaSeconds - b.etaSeconds)
     .slice(0, limit)
-    .map(prediction => ({
+    .map((prediction) => ({
       line: prediction.routeId,
       directionId: prediction.directionId,
       destination: prediction.destinationName,
@@ -77,12 +79,12 @@ export async function getNextTrains(query: NextTrainsQuery): Promise<NextTrainsR
       stopId: prediction.stopId,
     }));
 
-  const onlyLineD = served.every(candidate => candidate === 'LineaD');
+  const onlyLineD = served.every((candidate) => candidate === "LineaD");
   const note =
     arrivals.length === 0
       ? onlyLineD
-        ? 'LineaD is not included in the live telemetry feed.'
-        : 'no upcoming arrivals in the current feed.'
+        ? "LineaD is not included in the live telemetry feed."
+        : "no upcoming arrivals in the current feed."
       : undefined;
 
   return {

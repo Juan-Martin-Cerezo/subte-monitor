@@ -1,8 +1,8 @@
-import { getTelemetry } from './client.ts';
-import { feedFreshness } from './feed.ts';
-import { matchLines } from './lines.ts';
+import { getTelemetry } from "./client.ts";
+import { feedFreshness } from "./feed.ts";
+import { matchLines } from "./lines.ts";
 
-const VALID_LINES = 'LineaA, LineaB, LineaC, LineaD, LineaE, LineaH, Premetro';
+const VALID_LINES = "LineaA, LineaB, LineaC, LineaD, LineaE, LineaH, Premetro";
 
 export interface StatusAlert {
   id: string;
@@ -33,7 +33,7 @@ export async function getStatus(line?: string): Promise<StatusResult> {
   const alerts: Record<string, StatusAlert[]> = {};
 
   for (const alert of telemetry.alerts) {
-    if (selected.length && !selected.some(lineId => lineId === alert.routeId)) continue;
+    if (selected.length && !selected.some((lineId) => lineId === alert.routeId)) continue;
     const group = alerts[alert.routeId] ?? [];
     group.push({
       id: alert.id,

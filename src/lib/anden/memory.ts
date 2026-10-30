@@ -1,14 +1,14 @@
-import { formatFactValue, FACT_LABELS } from './fact-labels';
-import { mentionedStations, normalizeName } from './stations';
-import { getStore } from './store';
-import type { Fact, FactKey, FactValue, Turn } from './store/types';
+import { formatFactValue, FACT_LABELS } from "./fact-labels";
+import { mentionedStations, normalizeName } from "./stations";
+import { getStore } from "./store";
+import type { Fact, FactKey, FactValue, Turn } from "./store/types";
 
 export interface MemorySnapshot {
   facts: Fact[];
   turns: Turn[];
 }
 
-export const FACTS_MARKER = 'Datos que el usuario ya contó';
+export const FACTS_MARKER = "Datos que el usuario ya contó";
 
 const TRIP_INTENT =
   /(c[oó]mo (llego|voy|viajo)|c[oó]mo ir|ruta|viaje|tarda|demora|planific|conviene)/i;
@@ -33,14 +33,16 @@ interface OriginClause {
 }
 
 export function factsForPrompt(facts: Fact[]): string {
-  if (!facts.length) return '';
+  if (!facts.length) return "";
 
-  const lines = facts.map((fact) => `- ${FACT_LABELS[fact.key]}: ${formatFactValue(fact.key, fact.value)}`);
+  const lines = facts.map(
+    (fact) => `- ${FACT_LABELS[fact.key]}: ${formatFactValue(fact.key, fact.value)}`
+  );
   const hint =
-    'Si la pregunta no aclara el origen, usá la estación de casa. Si no aclara el destino, usá la del trabajo. ' +
-    'No aclares que usás datos recordados y no repitas el origen si la pregunta no lo pide.';
+    "Si la pregunta no aclara el origen, usá la estación de casa. Si no aclara el destino, usá la del trabajo. " +
+    "No aclares que usás datos recordados y no repitas el origen si la pregunta no lo pide.";
 
-  return `${FACTS_MARKER}:\n${lines.join('\n')}\n${hint}`;
+  return `${FACTS_MARKER}:\n${lines.join("\n")}\n${hint}`;
 }
 
 export function answerMentionsStation(answer: string, station: string): boolean {
@@ -54,8 +56,8 @@ export function memoryOriginClause(question: string, facts: Fact[]): OriginClaus
   const mentioned = mentionedStations(question);
   if (mentioned.length >= 2) return null;
 
-  const home = factValue(facts, 'home_station');
-  const work = factValue(facts, 'work_station');
+  const home = factValue(facts, "home_station");
+  const work = factValue(facts, "work_station");
   const spoken = mentioned.map((name) => normalizeName(name));
 
   if (home && !spoken.includes(normalizeName(String(home)))) {

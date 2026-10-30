@@ -1,17 +1,17 @@
-import Link from 'next/link';
-import { readUserId } from '@/lib/anden/identity';
-import { getStore } from '@/lib/anden/store';
-import type { TraceSummary } from '@/lib/anden/store/types';
+import Link from "next/link";
+import { readUserId } from "@/lib/anden/identity";
+import { getStore } from "@/lib/anden/store";
+import type { TraceSummary } from "@/lib/anden/store/types";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: 'Anden · Trazas',
-  description: 'Últimas consultas registradas por el arnés de Anden.',
+  title: "Anden · Trazas",
+  description: "Últimas consultas registradas por el arnés de Anden.",
 };
 
 function formatTime(value: string): string {
-  return new Date(value).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'medium' });
+  return new Date(value).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "medium" });
 }
 
 function formatCost(value: number): string {
@@ -19,7 +19,7 @@ function formatCost(value: number): string {
 }
 
 function statusLabel(ok: boolean): string {
-  return ok ? 'ok' : 'con error';
+  return ok ? "ok" : "con error";
 }
 
 export default async function TracesPage() {
@@ -60,7 +60,10 @@ export default async function TracesPage() {
       </header>
 
       {unavailable && (
-        <p role="alert" className="rounded-lg bg-error-container/20 px-3 py-3 text-body-sm text-on-error-container">
+        <p
+          role="alert"
+          className="rounded-lg bg-error-container/20 px-3 py-3 text-body-sm text-on-error-container"
+        >
           No pude leer el almacén de trazas.
         </p>
       )}
@@ -86,12 +89,24 @@ export default async function TracesPage() {
             <caption className="sr-only">Últimas trazas de Anden</caption>
             <thead>
               <tr className="border-b border-outline-variant/20 text-label-caps tracking-wider text-outline">
-                <th scope="col" className="px-3 py-2 font-bold">Hora</th>
-                <th scope="col" className="px-3 py-2 font-bold">Pregunta</th>
-                <th scope="col" className="px-3 py-2 text-right font-bold">Pasos</th>
-                <th scope="col" className="px-3 py-2 text-right font-bold">ms</th>
-                <th scope="col" className="px-3 py-2 text-right font-bold">Costo</th>
-                <th scope="col" className="px-3 py-2 font-bold">Estado</th>
+                <th scope="col" className="px-3 py-2 font-bold">
+                  Hora
+                </th>
+                <th scope="col" className="px-3 py-2 font-bold">
+                  Pregunta
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-bold">
+                  Pasos
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-bold">
+                  ms
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-bold">
+                  Costo
+                </th>
+                <th scope="col" className="px-3 py-2 font-bold">
+                  Estado
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -111,13 +126,19 @@ export default async function TracesPage() {
                       {trace.question}
                     </Link>
                   </td>
-                  <td className="px-3 py-2.5 text-right font-mono text-data-md text-on-surface">{trace.steps}</td>
-                  <td className="px-3 py-2.5 text-right font-mono text-data-md text-on-surface">{trace.totalMs}</td>
+                  <td className="px-3 py-2.5 text-right font-mono text-data-md text-on-surface">
+                    {trace.steps}
+                  </td>
+                  <td className="px-3 py-2.5 text-right font-mono text-data-md text-on-surface">
+                    {trace.totalMs}
+                  </td>
                   <td className="px-3 py-2.5 text-right font-mono text-data-md text-on-surface">
                     {formatCost(trace.costUsd)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-body-sm">
-                    <span className={trace.ok ? 'text-primary' : 'text-secondary'}>{statusLabel(trace.ok)}</span>
+                    <span className={trace.ok ? "text-primary" : "text-secondary"}>
+                      {statusLabel(trace.ok)}
+                    </span>
                   </td>
                 </tr>
               ))}

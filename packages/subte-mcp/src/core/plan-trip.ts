@@ -1,5 +1,12 @@
-import { getBootstrap } from './client.ts';
-import { buildGraph, buildStationIndex, findPlan, resolveStation, type TripLeg, type TransferPoint } from './network.ts';
+import { getBootstrap } from "./client.ts";
+import {
+  buildGraph,
+  buildStationIndex,
+  findPlan,
+  resolveStation,
+  type TripLeg,
+  type TransferPoint,
+} from "./network.ts";
 
 export interface PlanTripQuery {
   from: string;
@@ -30,10 +37,16 @@ export async function getPlanTrip(query: PlanTripQuery): Promise<PlanTripResult>
   if (!destination.ok) throw new Error(destination.message);
 
   if (origin.station.key === destination.station.key) {
-    throw new Error(`origin and destination are the same station ('${origin.station.name}'). Choose two different stations.`);
+    throw new Error(
+      `origin and destination are the same station ('${origin.station.name}'). Choose two different stations.`
+    );
   }
 
-  const plan = findPlan(buildGraph(bootstrap, index, stepFree), origin.station.key, destination.station.key);
+  const plan = findPlan(
+    buildGraph(bootstrap, index, stepFree),
+    origin.station.key,
+    destination.station.key
+  );
   if (!plan) {
     throw new Error(
       stepFree
@@ -49,7 +62,7 @@ export async function getPlanTrip(query: PlanTripQuery): Promise<PlanTripResult>
     totalStops: plan.totalStops,
     transferCount: plan.transferCount,
     durationMinutes: plan.durationMinutes,
-    assumption: '2 min per stop, 3 min per transfer',
+    assumption: "2 min per stop, 3 min per transfer",
     legs: plan.legs,
     transferPoints: plan.transferPoints,
   };

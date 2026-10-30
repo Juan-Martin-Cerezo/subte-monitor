@@ -1,35 +1,36 @@
-import { ABSTAIN, validateCitations } from '../citations';
-import { chat, type ChatMessage, type LlmUsage } from '../llm';
+import { ABSTAIN, validateCitations } from "../citations";
+import { chat, type ChatMessage, type LlmUsage } from "../llm";
 import {
   answerMentionsStation,
   factsForPrompt,
   loadMemory,
   memoryOriginClause,
   type MemorySnapshot,
-} from '../memory';
-import type { RetrievedSource } from '../retrieval';
-import { llmTools, toolByName } from '../tools';
+} from "../memory";
+import type { RetrievedSource } from "../retrieval";
+import { llmTools, toolByName } from "../tools";
 
 const MAX_TOOL_CALLS = 4;
 const MAX_TOOL_CHARS = 3500;
 
 export const SYSTEM_PROMPT = [
-  'Sos Anden, el asistente de la red de subte de Buenos Aires.',
-  'Respondé en español, en una o dos oraciones, sin markdown.',
-  'Usá las herramientas para datos en vivo: subway_status para el estado del servicio, next_trains para arribos, ' +
-    'plan_trip para viajes y nearby_stations para cercanía con coordenadas.',
-  'Usá search_knowledge para datos escritos de la red: horarios, tarifas, accesibilidad, estaciones, combinaciones ' +
-    'y cómo funciona la aplicación.',
-  'Cuando respondas con datos de search_knowledge, citá cada afirmación con el id de la fuente que la respalda, ' +
-    'por ejemplo [kb:tarifa-subte-sube]. No cites números como S1, usá el id.',
-  'Los datos de las herramientas en vivo no llevan cita.',
-  'No inventes estaciones, líneas, precios ni horarios.',
-  'Si una herramienta devuelve un error porque la estación o la línea no existen o no se corresponden, no ofrezcas alternativas: ' +
+  "Sos Anden, el asistente de la red de subte de Buenos Aires.",
+  "Respondé en español, en una o dos oraciones, sin markdown.",
+  "Usá las herramientas para datos en vivo: subway_status para el estado del servicio, next_trains para arribos, " +
+    "plan_trip para viajes y nearby_stations para cercanía con coordenadas.",
+  "Usá search_knowledge para datos escritos de la red: horarios, tarifas, accesibilidad, estaciones, combinaciones " +
+    "y cómo funciona la aplicación.",
+  "Cuando respondas con datos de search_knowledge, citá cada afirmación con el id de la fuente que la respalda, " +
+    "por ejemplo [kb:tarifa-subte-sube]. No cites números como S1, usá el id.",
+  "Los datos de las herramientas en vivo no llevan cita.",
+  "No inventes estaciones, líneas, precios ni horarios.",
+  "Si una herramienta devuelve un error porque la estación o la línea no existen o no se corresponden, no ofrezcas alternativas: " +
     `respondé exactamente: ${ABSTAIN}`,
   `Si las herramientas y las fuentes no alcanzan, respondé exactamente: ${ABSTAIN}`,
-].join(' ');
+].join(" ");
 
-const PARTIAL_ANSWER = 'No llegué a una respuesta completa dentro del presupuesto de esta consulta.';
+const PARTIAL_ANSWER =
+  "No llegué a una respuesta completa dentro del presupuesto de esta consulta.";
 
 export interface AgentStep {
   tool: string;
@@ -54,7 +55,7 @@ export interface AgentInput {
   userId: string;
 }
 
-export type AgentStepKind = 'plan' | 'tool' | 'retrieve' | 'answer';
+export type AgentStepKind = "plan" | "tool" | "retrieve" | "answer";
 
 export interface AgentStepEvent {
   kind: AgentStepKind;
@@ -99,7 +100,9 @@ function addUsage(total: LlmUsage, next: LlmUsage): LlmUsage {
 function parseArgs(raw: string): Record<string, unknown> {
   try {
     const value: unknown = JSON.parse(raw);
-    return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
   } catch {
     return {};
   }
@@ -107,18 +110,22 @@ function parseArgs(raw: string): Record<string, unknown> {
 
 function isAbstention(answer: string): boolean {
   const trimmed = answer.trim();
-  return trimmed === ABSTAIN || trimmed === 'No tengo información sobre eso';
+  return trimmed === ABSTAIN || trimmed === "No tengo información sobre eso";
 }
 
 function collectSources(payload: unknown, into: Map<string, RetrievedSource>): void {
-  if (!payload || typeof payload !== 'object') return;
+  if (!payload || typeof payload !== "object") return;
   const sources = (payload as { sources?: unknown }).sources;
   if (!Array.isArray(sources)) return;
 
   for (const source of sources) {
-    if (!source || typeof source !== 'object') continue;
+    if (!source || typeof source !== "object") continue;
     const candidate = source as RetrievedSource;
-    if (typeof candidate.id === 'string' && typeof candidate.text === 'string' && !into.has(candidate.id)) {
+    if (
+      typeof candidate.id === "string" &&
+      typeof candidate.text === "string" &&
+      !into.has(candidate.id)
+    ) {
       into.set(candidate.id, candidate);
     }
   }
@@ -126,8 +133,8 @@ function collectSources(payload: unknown, into: Map<string, RetrievedSource>): v
 
 function history(memory: MemorySnapshot): ChatMessage[] {
   return memory.turns.flatMap((turn) => [
-    { role: 'user' as const, content: turn.question },
-    { role: 'assistant' as const, content: turn.answer },
+    { role: "user" as const, content: turn.question },
+    { role: "assistant" as const, content: turn.answer },
   ]);
 }
 
@@ -135,9 +142,9 @@ function repairMessages(messages: ChatMessage[]): ChatMessage[] {
   return [
     ...messages,
     {
-      role: 'user',
+      role: "user",
       content:
-        'Tu respuesta no tiene citas válidas. Volvé a responder citando con el id de la fuente cada afirmación. ' +
+        "Tu respuesta no tiene citas válidas. Volvé a responder citando con el id de la fuente cada afirmación. " +
         `Si no podés respaldar la respuesta, respondé exactamente: ${ABSTAIN}`,
     },
   ];
@@ -147,9 +154,9 @@ function finalMessages(messages: ChatMessage[]): ChatMessage[] {
   return [
     ...messages,
     {
-      role: 'user',
+      role: "user",
       content:
-        'Respondé ahora la pregunta con lo que devolvieron las herramientas. No llames más herramientas. ' +
+        "Respondé ahora la pregunta con lo que devolvieron las herramientas. No llames más herramientas. " +
         `Si no alcanza, respondé exactamente: ${ABSTAIN}`,
     },
   ];
@@ -159,7 +166,10 @@ function usageEvent(usage: LlmUsage): { tokensIn: number; tokensOut: number } {
   return { tokensIn: usage.prompt_tokens ?? 0, tokensOut: usage.completion_tokens ?? 0 };
 }
 
-export async function runAgent({ question, userId }: AgentInput, options: AgentOptions = {}): Promise<AgentResult> {
+export async function runAgent(
+  { question, userId }: AgentInput,
+  options: AgentOptions = {}
+): Promise<AgentResult> {
   const memory =
     options.memory ??
     (await loadMemory(userId, 4).catch<MemorySnapshot>(() => ({ facts: [], turns: [] })));
@@ -168,11 +178,13 @@ export async function runAgent({ question, userId }: AgentInput, options: AgentO
   const evidence: string[] = [];
   let usage: LlmUsage = {};
 
-  const system = [SYSTEM_PROMPT, factsForPrompt(memory.facts), options.notes].filter(Boolean).join(' ');
+  const system = [SYSTEM_PROMPT, factsForPrompt(memory.facts), options.notes]
+    .filter(Boolean)
+    .join(" ");
   const messages: ChatMessage[] = [
-    { role: 'system', content: system },
+    { role: "system", content: system },
     ...history(memory),
-    { role: 'user', content: `Pregunta: ${question}` },
+    { role: "user", content: `Pregunta: ${question}` },
   ];
 
   const tools = options.allowedTools
@@ -181,7 +193,7 @@ export async function runAgent({ question, userId }: AgentInput, options: AgentO
   const maxToolCalls = options.maxToolCalls ?? MAX_TOOL_CALLS;
   const emit = options.onStep ?? (() => {});
 
-  let answer = '';
+  let answer = "";
   let truncated = false;
   let toolCalls = 0;
 
@@ -200,7 +212,7 @@ export async function runAgent({ question, userId }: AgentInput, options: AgentO
     if (!result.toolCalls.length) {
       answer = result.content.trim();
       emit({
-        kind: 'answer',
+        kind: "answer",
         input: question,
         output: answer,
         ok: true,
@@ -211,23 +223,29 @@ export async function runAgent({ question, userId }: AgentInput, options: AgentO
     }
 
     emit({
-      kind: 'plan',
+      kind: "plan",
       input: question,
-      output: result.toolCalls.map((call) => `${call.function.name}(${call.function.arguments})`).join('\n'),
+      output: result.toolCalls
+        .map((call) => `${call.function.name}(${call.function.arguments})`)
+        .join("\n"),
       ok: true,
       ms,
       ...usageEvent(result.usage),
     });
 
-    messages.push({ role: 'assistant', content: result.content || null, tool_calls: result.toolCalls });
+    messages.push({
+      role: "assistant",
+      content: result.content || null,
+      tool_calls: result.toolCalls,
+    });
 
     for (const call of result.toolCalls) {
       if (toolCalls >= maxToolCalls || (options.budget && !options.budget.consumeStep())) {
         truncated = true;
         messages.push({
-          role: 'tool',
+          role: "tool",
           tool_call_id: call.id,
-          content: JSON.stringify({ error: 'step budget reached, not executed' }),
+          content: JSON.stringify({ error: "step budget reached, not executed" }),
         });
         continue;
       }
@@ -243,7 +261,7 @@ export async function runAgent({ question, userId }: AgentInput, options: AgentO
       if (guard && !guard.ok) {
         ok = false;
         malformed = true;
-        payload = { error: guard.error ?? 'invalid tool arguments' };
+        payload = { error: guard.error ?? "invalid tool arguments" };
       } else {
         const tool = toolByName(call.function.name);
         if (!tool) {
@@ -262,10 +280,10 @@ export async function runAgent({ question, userId }: AgentInput, options: AgentO
 
       const stepMs = Date.now() - startedTool;
       steps.push({ tool: call.function.name, args, ok, ms: stepMs });
-      if (call.function.name === 'search_knowledge') collectSources(payload, collected);
+      if (call.function.name === "search_knowledge") collectSources(payload, collected);
 
       emit({
-        kind: call.function.name === 'search_knowledge' ? 'retrieve' : 'tool',
+        kind: call.function.name === "search_knowledge" ? "retrieve" : "tool",
         input: call.function.arguments || JSON.stringify(args),
         output: JSON.stringify(payload),
         ok,
@@ -276,9 +294,10 @@ export async function runAgent({ question, userId }: AgentInput, options: AgentO
       });
 
       const text = JSON.stringify(payload);
-      const sent = text.length > MAX_TOOL_CHARS ? `${text.slice(0, MAX_TOOL_CHARS)}... (truncated)` : text;
+      const sent =
+        text.length > MAX_TOOL_CHARS ? `${text.slice(0, MAX_TOOL_CHARS)}... (truncated)` : text;
       evidence.push(sent);
-      messages.push({ role: 'tool', tool_call_id: call.id, content: sent });
+      messages.push({ role: "tool", tool_call_id: call.id, content: sent });
     }
 
     if (truncated) break;
@@ -295,7 +314,7 @@ export async function runAgent({ question, userId }: AgentInput, options: AgentO
       usage = addUsage(usage, result.usage);
       answer = result.content.trim();
       emit({
-        kind: 'answer',
+        kind: "answer",
         input: question,
         output: answer,
         ok: !isAbstention(answer),
@@ -309,7 +328,7 @@ export async function runAgent({ question, userId }: AgentInput, options: AgentO
   const sourceIds = sources.map((source) => source.id);
   let check = validateCitations(answer, sourceIds);
 
-  const liveToolSucceeded = steps.some((step) => step.ok && step.tool !== 'search_knowledge');
+  const liveToolSucceeded = steps.some((step) => step.ok && step.tool !== "search_knowledge");
   const needsCitations = sources.length > 0 && !liveToolSucceeded;
 
   if (!truncated && !isAbstention(answer) && needsCitations && check.citations.length === 0) {
@@ -323,7 +342,7 @@ export async function runAgent({ question, userId }: AgentInput, options: AgentO
       answer = result.content.trim();
       check = validateCitations(answer, sourceIds);
       emit({
-        kind: 'answer',
+        kind: "answer",
         input: question,
         output: answer,
         ok: !isAbstention(answer),
@@ -340,7 +359,16 @@ export async function runAgent({ question, userId }: AgentInput, options: AgentO
 
   const abstained = isAbstention(answer);
   if (abstained) {
-    return { answer: ABSTAIN, steps, sources, abstained: true, citationsValid: true, usage, evidence, truncated };
+    return {
+      answer: ABSTAIN,
+      steps,
+      sources,
+      abstained: true,
+      citationsValid: true,
+      usage,
+      evidence,
+      truncated,
+    };
   }
 
   const clause = memoryOriginClause(question, memory.facts);

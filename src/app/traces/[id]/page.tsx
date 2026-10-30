@@ -1,18 +1,18 @@
-import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { HARNESS_CONFIG } from '@/lib/anden/harness/config';
-import { readUserId } from '@/lib/anden/identity';
-import { getStore } from '@/lib/anden/store';
-import type { Trace } from '@/lib/anden/store/types';
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { HARNESS_CONFIG } from "@/lib/anden/harness/config";
+import { readUserId } from "@/lib/anden/identity";
+import { getStore } from "@/lib/anden/store";
+import type { Trace } from "@/lib/anden/store/types";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 const KIND_LABELS: Record<string, string> = {
-  plan: 'plan',
-  tool: 'herramienta',
-  retrieve: 'búsqueda',
-  memory: 'memoria',
-  answer: 'respuesta',
+  plan: "plan",
+  tool: "herramienta",
+  retrieve: "búsqueda",
+  memory: "memoria",
+  answer: "respuesta",
 };
 
 function clip(value: string): string {
@@ -22,7 +22,7 @@ function clip(value: string): string {
 }
 
 function formatTime(value: string): string {
-  return new Date(value).toLocaleString('es-AR', { dateStyle: 'medium', timeStyle: 'medium' });
+  return new Date(value).toLocaleString("es-AR", { dateStyle: "medium", timeStyle: "medium" });
 }
 
 export default async function TraceDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -55,12 +55,16 @@ export default async function TraceDetailPage({ params }: { params: Promise<{ id
       </nav>
 
       <header className="mb-6">
-        <p className="text-label-caps tracking-widest text-outline">TRAZA {trace.traceId.slice(0, 8)}</p>
-        <h1 className="mt-1 text-headline-sm font-bold break-words text-on-background">{trace.question}</h1>
+        <p className="text-label-caps tracking-widest text-outline">
+          TRAZA {trace.traceId.slice(0, 8)}
+        </p>
+        <h1 className="mt-1 text-headline-sm font-bold break-words text-on-background">
+          {trace.question}
+        </h1>
         <p className="mt-2 font-mono text-[11px] text-on-surface-variant">
           {formatTime(trace.createdAt)} · {trace.totalMs} ms · {trace.tokens} tokens · $
-          {trace.costUsd.toFixed(6)} · {trace.ok ? 'ok' : 'con error'}
-          {trace.truncated ? ' · truncada' : ''}
+          {trace.costUsd.toFixed(6)} · {trace.ok ? "ok" : "con error"}
+          {trace.truncated ? " · truncada" : ""}
         </p>
       </header>
 
@@ -95,8 +99,10 @@ export default async function TraceDetailPage({ params }: { params: Promise<{ id
                 <span className="text-title-sm font-bold text-on-background">
                   {KIND_LABELS[step.kind] ?? step.kind}
                 </span>
-                <span className={step.ok ? 'text-body-sm text-primary' : 'text-body-sm text-secondary'}>
-                  {step.ok ? 'ok' : 'falló'}
+                <span
+                  className={step.ok ? "text-body-sm text-primary" : "text-body-sm text-secondary"}
+                >
+                  {step.ok ? "ok" : "falló"}
                 </span>
                 <span className="ml-auto font-mono text-[11px] text-on-surface-variant">
                   {step.ms} ms · {step.tokensIn} in · {step.tokensOut} out

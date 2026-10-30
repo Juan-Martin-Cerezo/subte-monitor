@@ -1,7 +1,7 @@
-import type { LlmUsage } from '../llm';
-import { costOf, HARNESS_CONFIG, tokensOf } from './config';
+import type { LlmUsage } from "../llm";
+import { costOf, HARNESS_CONFIG, tokensOf } from "./config";
 
-type BudgetStop = 'tokens' | 'cost' | 'time';
+type BudgetStop = "tokens" | "cost" | "time";
 
 interface Limits {
   maxToolSteps: number;
@@ -44,9 +44,9 @@ export class Budget {
   }
 
   stopReason(): BudgetStop | null {
-    if (this.tokenCount >= this.limits.maxTokens) return 'tokens';
-    if (this.usdCount >= this.limits.maxUsd) return 'cost';
-    if (this.elapsed() >= this.limits.maxMs) return 'time';
+    if (this.tokenCount >= this.limits.maxTokens) return "tokens";
+    if (this.usdCount >= this.limits.maxUsd) return "cost";
+    if (this.elapsed() >= this.limits.maxMs) return "time";
     return null;
   }
 

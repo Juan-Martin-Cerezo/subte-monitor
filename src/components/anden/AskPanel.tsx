@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useRef, useState } from 'react';
-import Link from 'next/link';
+import { useRef, useState } from "react";
+import Link from "next/link";
 
 const EXAMPLES = [
-  '¿Está andando la línea B ahora?',
-  '¿Hasta qué hora funciona el subte?',
-  '¿Cuánto sale el boleto de subte?',
+  "¿Está andando la línea B ahora?",
+  "¿Hasta qué hora funciona el subte?",
+  "¿Cuánto sale el boleto de subte?",
 ];
 
 const MAX_QUESTION = 500;
@@ -87,14 +87,23 @@ function TurnView({ turn }: { turn: Turn }) {
       <h2 className="text-body-md font-semibold break-words text-on-background">{turn.question}</h2>
 
       {turn.pending && (
-        <p className="mt-2 flex items-center gap-2 text-body-sm text-on-surface-variant" role="status">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-primary-container" aria-hidden="true" />
+        <p
+          className="mt-2 flex items-center gap-2 text-body-sm text-on-surface-variant"
+          role="status"
+        >
+          <span
+            className="h-2 w-2 animate-pulse rounded-full bg-primary-container"
+            aria-hidden="true"
+          />
           Consultando el estado del servicio.
         </p>
       )}
 
       {turn.error && (
-        <p role="alert" className="mt-2 rounded-lg bg-error-container/20 px-3 py-2 text-body-sm text-on-error-container">
+        <p
+          role="alert"
+          className="mt-2 rounded-lg bg-error-container/20 px-3 py-2 text-body-sm text-on-error-container"
+        >
           {turn.error}
         </p>
       )}
@@ -106,14 +115,18 @@ function TurnView({ turn }: { turn: Turn }) {
           </p>
 
           {response.truncated && (
-            <p className="mt-1 text-body-sm text-tertiary">La respuesta se cortó por el presupuesto de la consulta.</p>
+            <p className="mt-1 text-body-sm text-tertiary">
+              La respuesta se cortó por el presupuesto de la consulta.
+            </p>
           )}
 
           <details className="group mt-2">
             <summary className="focus-ring inline-flex min-h-[32px] cursor-pointer list-none items-center gap-1.5 rounded-sm font-mono text-[11px] text-on-surface-variant hover:text-on-background [&::-webkit-details-marker]:hidden">
-              <span className="transition-transform group-open:rotate-90" aria-hidden="true">›</span>
+              <span className="transition-transform group-open:rotate-90" aria-hidden="true">
+                ›
+              </span>
               <span>
-                {plural(steps, 'paso', 'pasos')} · {plural(sources, 'fuente', 'fuentes')} ·{' '}
+                {plural(steps, "paso", "pasos")} · {plural(sources, "fuente", "fuentes")} ·{" "}
                 {seconds(response.total_ms)} s · {money(response.cost_usd)}
               </span>
             </summary>
@@ -121,14 +134,18 @@ function TurnView({ turn }: { turn: Turn }) {
             <div className="mt-2 rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-3">
               <p className="text-label-caps tracking-wider text-outline">Herramientas</p>
               {steps === 0 ? (
-                <p className="mt-1 text-body-sm text-on-surface-variant">Ninguna. Anden respondió sin consultar datos.</p>
+                <p className="mt-1 text-body-sm text-on-surface-variant">
+                  Ninguna. Anden respondió sin consultar datos.
+                </p>
               ) : (
                 <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
                   {toolsUsed(response.steps).map((tool) => (
                     <li key={tool.name} className="font-mono text-[11px] text-on-surface">
                       {tool.name}
                       <span className="text-on-surface-variant"> ×{tool.count}</span>
-                      {tool.failed > 0 && <span className="text-secondary"> ({tool.failed} falló)</span>}
+                      {tool.failed > 0 && (
+                        <span className="text-secondary"> ({tool.failed} falló)</span>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -144,14 +161,17 @@ function TurnView({ turn }: { turn: Turn }) {
                   {response.citations.map((id) => (
                     <li key={id} className="text-body-sm break-words text-on-surface">
                       <span className="font-mono text-[11px] text-primary">{id}</span>
-                      <span className="text-on-surface-variant"> · {sourceTitle(response, id)}</span>
+                      <span className="text-on-surface-variant">
+                        {" "}
+                        · {sourceTitle(response, id)}
+                      </span>
                     </li>
                   ))}
                 </ul>
               )}
 
               <p className="mt-3 border-t border-outline-variant/10 pt-2 font-mono text-[11px] text-on-surface-variant">
-                {response.tokens} tokens ·{' '}
+                {response.tokens} tokens ·{" "}
                 <Link
                   href={`/traces/${response.trace_id}`}
                   className="focus-ring rounded-sm text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
@@ -168,7 +188,7 @@ function TurnView({ turn }: { turn: Turn }) {
 }
 
 export default function AskPanel() {
-  const [question, setQuestion] = useState('');
+  const [question, setQuestion] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -180,23 +200,23 @@ export default function AskPanel() {
 
     const id = crypto.randomUUID();
     setTurns((current) => [...current, { id, question: text, pending: true }]);
-    setQuestion('');
+    setQuestion("");
 
     try {
-      const res = await fetch('/api/anden/ask', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
+      const res = await fetch("/api/anden/ask", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ question: text }),
       });
       const data = (await res.json()) as AskResponse;
-      if (!res.ok) throw new Error(data.error ?? 'No pude consultar a Anden.');
+      if (!res.ok) throw new Error(data.error ?? "No pude consultar a Anden.");
       setTurns((current) =>
-        current.map((turn) => (turn.id === id ? { ...turn, pending: false, response: data } : turn)),
+        current.map((turn) => (turn.id === id ? { ...turn, pending: false, response: data } : turn))
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'No pude consultar a Anden.';
+      const message = error instanceof Error ? error.message : "No pude consultar a Anden.";
       setTurns((current) =>
-        current.map((turn) => (turn.id === id ? { ...turn, pending: false, error: message } : turn)),
+        current.map((turn) => (turn.id === id ? { ...turn, pending: false, error: message } : turn))
       );
     } finally {
       inputRef.current?.focus();
@@ -273,7 +293,7 @@ export default function AskPanel() {
             value={question}
             onChange={(event) => setQuestion(event.target.value.slice(0, MAX_QUESTION))}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
+              if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 void ask(question);
               }
@@ -287,7 +307,7 @@ export default function AskPanel() {
             disabled={!question.trim() || pending}
             className="focus-ring min-h-[44px] shrink-0 rounded-md bg-primary-container px-4 text-body-sm font-bold text-on-primary-container disabled:opacity-40"
           >
-            {pending ? 'Consultando' : 'Preguntar'}
+            {pending ? "Consultando" : "Preguntar"}
           </button>
         </div>
         <p className="mt-1 text-[11px] text-outline">

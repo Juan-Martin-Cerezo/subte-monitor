@@ -17,15 +17,15 @@ npm run evals:validate
 
 ## Flags
 
-| Flag | Meaning |
-| --- | --- |
-| `--subset N` | Run N cases, one per category in rotation. Use it for a cheap check. |
-| `--category X` | Only `tool_selection`, `trip_planning`, `retrieval_citation`, `abstain` or `memory`. |
-| `--seed-facts` | Load each memory case's `user_facts` into a temporary sqlite database. Without it, memory cases are skipped. |
-| `--max-cost USD` | Stop once the accumulated cost passes the limit. The run exits 1 when it stops early. |
-| `--out path` | Write the JSON result somewhere other than `evals/results/latest.json`. |
-| `--write-readme` | Replace the table between `<!-- evals:start -->` and `<!-- evals:end -->` in the root `README.md`. |
-| `--gate` | Exit 1 when `hallucination_rate > 0.10` or `tool_accuracy < 0.85`. CI uses it. |
+| Flag             | Meaning                                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------ |
+| `--subset N`     | Run N cases, one per category in rotation. Use it for a cheap check.                                         |
+| `--category X`   | Only `tool_selection`, `trip_planning`, `retrieval_citation`, `abstain` or `memory`.                         |
+| `--seed-facts`   | Load each memory case's `user_facts` into a temporary sqlite database. Without it, memory cases are skipped. |
+| `--max-cost USD` | Stop once the accumulated cost passes the limit. The run exits 1 when it stops early.                        |
+| `--out path`     | Write the JSON result somewhere other than `evals/results/latest.json`.                                      |
+| `--write-readme` | Replace the table between `<!-- evals:start -->` and `<!-- evals:end -->` in the root `README.md`.           |
+| `--gate`         | Exit 1 when `hallucination_rate > 0.10` or `tool_accuracy < 0.85`. CI uses it.                               |
 
 `--subset` takes one case per category per round, so a small run still touches every category. Memory cases are left out of the pool unless `--seed-facts` is passed.
 
@@ -33,27 +33,27 @@ npm run evals:validate
 
 `cases.jsonl` has 50 lines. Each line is `{id, category, question, user_facts?, expect, notes}`.
 
-| Category | Cases | What it checks |
-| --- | ---: | --- |
-| `tool_selection` | 15 | The expected tool is called first. 11 positive cases and 4 negatives where `search_knowledge` or no tool is right. |
-| `trip_planning` | 10 | `plan_trip` with the expected origin and destination. Two cases ask for a step-free route. The returned legs must start at the origin and never use the destination as a boarding station. |
-| `retrieval_citation` | 10 | The answer cites an expected corpus id, every citation resolves to a retrieved source, and the answer does not abstain. |
-| `abstain` | 10 | Impossible or out-of-scope questions return exactly `No tengo información sobre eso.` |
-| `memory` | 5 | `user_facts` are seeded, the question omits the origin, and the agent must use the remembered `home_station`. |
+| Category             | Cases | What it checks                                                                                                                                                                             |
+| -------------------- | ----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `tool_selection`     |    15 | The expected tool is called first. 11 positive cases and 4 negatives where `search_knowledge` or no tool is right.                                                                         |
+| `trip_planning`      |    10 | `plan_trip` with the expected origin and destination. Two cases ask for a step-free route. The returned legs must start at the origin and never use the destination as a boarding station. |
+| `retrieval_citation` |    10 | The answer cites an expected corpus id, every citation resolves to a retrieved source, and the answer does not abstain.                                                                    |
+| `abstain`            |    10 | Impossible or out-of-scope questions return exactly `No tengo información sobre eso.`                                                                                                      |
+| `memory`             |     5 | `user_facts` are seeded, the question omits the origin, and the agent must use the remembered `home_station`.                                                                              |
 
 `npm run evals:validate` checks the schema without a key or network. It verifies the category counts, unique ids, known tool and fact names, real station names in arguments, and that every expected citation exists in the corpus.
 
 ## Metrics
 
-| Metric | How it is computed |
-| --- | --- |
-| `tool_accuracy` | Share of cases with a tool expectation where the expected tool was called. When the case sets `first: true`, it has to be the first call. |
-| `arg_accuracy` | Share of cases with `args_contains` where the tool call carries every expected value. Station names and line names are compared without accents or case. |
-| `citation_validity` | Share of cases with `expect.cites` where the answer does not abstain, every bracketed id is in the retrieved set, and at least one expected id appears. |
-| `abstain_correctness` | Share of all cases where the answer abstained exactly when the case expected it, and did not abstain otherwise. |
-| `hallucination_rate` | Share of cases with at least one unsupported station, line or number in the answer. |
-| `p50_ms`, `p95_ms` | Wall clock per case, including tool calls to the live API. |
-| `tokens`, `cost_usd` | Sum of the model usage reported by the provider. |
+| Metric                | How it is computed                                                                                                                                       |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tool_accuracy`       | Share of cases with a tool expectation where the expected tool was called. When the case sets `first: true`, it has to be the first call.                |
+| `arg_accuracy`        | Share of cases with `args_contains` where the tool call carries every expected value. Station names and line names are compared without accents or case. |
+| `citation_validity`   | Share of cases with `expect.cites` where the answer does not abstain, every bracketed id is in the retrieved set, and at least one expected id appears.  |
+| `abstain_correctness` | Share of all cases where the answer abstained exactly when the case expected it, and did not abstain otherwise.                                          |
+| `hallucination_rate`  | Share of cases with at least one unsupported station, line or number in the answer.                                                                      |
+| `p50_ms`, `p95_ms`    | Wall clock per case, including tool calls to the live API.                                                                                               |
+| `tokens`, `cost_usd`  | Sum of the model usage reported by the provider.                                                                                                         |
 
 The full result, with every answer, tool call and check, goes to `evals/results/latest.json`. The root `README.md` gets the summary table with `--write-readme`.
 

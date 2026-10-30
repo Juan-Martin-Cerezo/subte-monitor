@@ -1,14 +1,14 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 export const TOOL_NAMES = [
-  'subway_status',
-  'next_trains',
-  'plan_trip',
-  'nearby_stations',
-  'search_knowledge',
+  "subway_status",
+  "next_trains",
+  "plan_trip",
+  "nearby_stations",
+  "search_knowledge",
 ] as const;
 
-export const STEP_KINDS = ['plan', 'tool', 'retrieve', 'memory', 'answer'] as const;
+export const STEP_KINDS = ["plan", "tool", "retrieve", "memory", "answer"] as const;
 
 export const planSchema = z.object({
   question: z.string().trim().min(1).max(500),
@@ -60,8 +60,8 @@ export function validateToolArgs(name: string, args: Record<string, unknown>): T
   if (parsed.success) return { ok: true };
 
   const error = parsed.error.issues
-    .map((issue) => `${issue.path.join('.') || 'args'}: ${issue.message}`)
-    .join('; ');
+    .map((issue) => `${issue.path.join(".") || "args"}: ${issue.message}`)
+    .join("; ");
   return { ok: false, error };
 }
 

@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server';
-import { extractFacts } from '@/lib/anden/extraction';
-import { extractCitations } from '@/lib/anden/citations';
-import { runHarness } from '@/lib/anden/harness';
-import { getUserId } from '@/lib/anden/identity';
-import { LlmConfigError } from '@/lib/anden/llm';
-import { getStore } from '@/lib/anden/store';
+import { NextResponse } from "next/server";
+import { extractFacts } from "@/lib/anden/extraction";
+import { extractCitations } from "@/lib/anden/citations";
+import { runHarness } from "@/lib/anden/harness";
+import { getUserId } from "@/lib/anden/identity";
+import { LlmConfigError } from "@/lib/anden/llm";
+import { getStore } from "@/lib/anden/store";
 
 const MAX_QUESTION = 500;
 
@@ -28,15 +28,16 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return badRequest('No pude leer el JSON de la solicitud.');
+    return badRequest("No pude leer el JSON de la solicitud.");
   }
 
-  const question = typeof (body as { question?: unknown })?.question === 'string'
-    ? (body as { question: string }).question.trim()
-    : '';
+  const question =
+    typeof (body as { question?: unknown })?.question === "string"
+      ? (body as { question: string }).question.trim()
+      : "";
 
-  if (!question) return badRequest('Falta la pregunta.');
-  if (question.length > MAX_QUESTION) return badRequest('La pregunta es demasiado larga.');
+  if (!question) return badRequest("Falta la pregunta.");
+  if (question.length > MAX_QUESTION) return badRequest("La pregunta es demasiado larga.");
 
   const userId = await getUserId();
 
@@ -62,8 +63,11 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (error instanceof LlmConfigError) {
-      return NextResponse.json({ error: 'El modelo no está configurado.' }, { status: 503 });
+      return NextResponse.json({ error: "El modelo no está configurado." }, { status: 503 });
     }
-    return NextResponse.json({ error: 'No pude consultar el modelo en este momento.' }, { status: 502 });
+    return NextResponse.json(
+      { error: "No pude consultar el modelo en este momento." },
+      { status: 502 }
+    );
   }
 }

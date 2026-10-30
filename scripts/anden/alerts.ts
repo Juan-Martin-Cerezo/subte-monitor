@@ -1,6 +1,6 @@
-import { ALERTS_PATH, readJsonl, writeJsonl, type CorpusEntry } from './corpus';
+import { ALERTS_PATH, readJsonl, writeJsonl, type CorpusEntry } from "./corpus";
 
-const DEFAULT_BASE = 'https://subte-monitor.vercel.app';
+const DEFAULT_BASE = "https://subte-monitor.vercel.app";
 const TIMEOUT_MS = 10_000;
 
 interface FeedAlert {
@@ -17,20 +17,20 @@ interface TelemetryResponse {
 }
 
 function clean(value: string | undefined): string {
-  return (value ?? '').trim();
+  return (value ?? "").trim();
 }
 
 function alertText(alert: FeedAlert): string {
   const lines = [clean(alert.descriptionText)];
   if (clean(alert.cause)) lines.push(`Causa: ${clean(alert.cause)}`);
   if (clean(alert.effect)) lines.push(`Efecto: ${clean(alert.effect)}`);
-  return lines.filter(Boolean).join('\n');
+  return lines.filter(Boolean).join("\n");
 }
 
 export async function fetchAlerts(): Promise<FeedAlert[]> {
-  const base = (process.env.SUBTE_API_BASE ?? DEFAULT_BASE).replace(/\/+$/, '');
+  const base = (process.env.SUBTE_API_BASE ?? DEFAULT_BASE).replace(/\/+$/, "");
   const response = await fetch(`${base}/api/telemetry`, {
-    headers: { accept: 'application/json' },
+    headers: { accept: "application/json" },
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
 
@@ -49,8 +49,8 @@ function toEntry(alert: FeedAlert, now: string): CorpusEntry | null {
     id: `alert:${feedId}`,
     title,
     text: alertText(alert),
-    source: 'feed:alert',
-    kind: 'alert',
+    source: "feed:alert",
+    kind: "alert",
     first_seen: now,
     last_seen: now,
   };

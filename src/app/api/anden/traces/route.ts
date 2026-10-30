@@ -1,14 +1,14 @@
-import { NextResponse } from 'next/server';
-import { readUserId } from '@/lib/anden/identity';
-import { getStore } from '@/lib/anden/store';
+import { NextResponse } from "next/server";
+import { readUserId } from "@/lib/anden/identity";
+import { getStore } from "@/lib/anden/store";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
 function limitFrom(request: Request): number {
-  const raw = new URL(request.url).searchParams.get('limit');
+  const raw = new URL(request.url).searchParams.get("limit");
   const parsed = Number(raw);
   if (!raw || !Number.isFinite(parsed)) return DEFAULT_LIMIT;
   return Math.min(MAX_LIMIT, Math.max(1, Math.trunc(parsed)));

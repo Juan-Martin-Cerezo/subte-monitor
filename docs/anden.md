@@ -43,13 +43,13 @@ The CLI in `scripts/anden/` calls the harness directly, without HTTP. The MCP pa
 
 ## What each stage taught
 
-| Stage | What landed | What it taught |
-| --- | --- | --- |
-| 1 | `subte-mcp` over stdio | The live API carries a useful server. Linea D is simulated and the feed can be slow. |
-| 2 | BM25 retrieval with citations | Lexical search covers Spanish transit vocabulary. Citations catch claims the sources do not support. |
-| 3 | Typed facts and turns | A remembered origin removes real repetition. Strict extraction beats guessing. |
-| 4 | 50 hand-written cases and a runner | Tool selection is measurable. The hallucination proxy has blind spots. |
-| 5 | Harness, traces and chat | A cost and time bound is what makes the agent usable. A trace makes a failure explainable. |
+| Stage | What landed                        | What it taught                                                                                       |
+| ----- | ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 1     | `subte-mcp` over stdio             | The live API carries a useful server. Linea D is simulated and the feed can be slow.                 |
+| 2     | BM25 retrieval with citations      | Lexical search covers Spanish transit vocabulary. Citations catch claims the sources do not support. |
+| 3     | Typed facts and turns              | A remembered origin removes real repetition. Strict extraction beats guessing.                       |
+| 4     | 50 hand-written cases and a runner | Tool selection is measurable. The hallucination proxy has blind spots.                               |
+| 5     | Harness, traces and chat           | A cost and time bound is what makes the agent usable. A trace makes a failure explainable.           |
 
 ## Stage 1: subte-mcp
 
@@ -57,21 +57,21 @@ The CLI in `scripts/anden/` calls the harness directly, without HTTP. The MCP pa
 
 It reads two public endpoints on the deployed app:
 
-| Endpoint | Used for | Caching |
-| --- | --- | --- |
+| Endpoint         | Used for                         | Caching               |
+| ---------------- | -------------------------------- | --------------------- |
 | `/api/bootstrap` | Stations and GTFS stop sequences | 10 minutes, in memory |
-| `/api/telemetry` | Trains, alerts, predictions | Never cached |
+| `/api/telemetry` | Trains, alerts, predictions      | Never cached          |
 
 The base URL comes from `SUBTE_API_BASE` and defaults to the live deployment. Requests time out after 12 seconds and retry once on a network failure. A 4xx response is not retried. The timeout matches the app's own upstream budget: `/api/telemetry` waits up to 8 seconds for GCBA before it falls back to its cache, so a shorter client timeout would abort every slow refresh.
 
 ### Tools
 
-| Tool | Arguments | Returns |
-| --- | --- | --- |
-| `subway_status` | `line?` | Alerts grouped by line, `stale`, feed age |
-| `next_trains` | `station`, `line?`, `limit=3` | Arrivals at one station sorted by ETA |
-| `plan_trip` | `from`, `to`, `step_free=false` | Legs, transfers, stop count, minutes |
-| `nearby_stations` | `lat`, `lng`, `radius_m=800` | Stations with distance in meters |
+| Tool              | Arguments                       | Returns                                   |
+| ----------------- | ------------------------------- | ----------------------------------------- |
+| `subway_status`   | `line?`                         | Alerts grouped by line, `stale`, feed age |
+| `next_trains`     | `station`, `line?`, `limit=3`   | Arrivals at one station sorted by ETA     |
+| `plan_trip`       | `from`, `to`, `step_free=false` | Legs, transfers, stop count, minutes      |
+| `nearby_stations` | `lat`, `lng`, `radius_m=800`    | Stations with distance in meters          |
 
 Station names match without case or accents, so `Agüero`, `aguero`, and `AGUERO` reach the same station. A name that matches several stations returns the candidates instead of a guess.
 
@@ -111,12 +111,12 @@ smoke test passed against https://subte-monitor.vercel.app
 
 Warm medians from a local run, Node 22.23, against the live API:
 
-| Tool | Median call | Response |
-| --- | --- | --- |
-| `subway_status` | 415 ms | 0.9 KB |
-| `next_trains` | 413 ms | 0.4 KB |
-| `plan_trip` | 6 ms | 0.4 KB |
-| `nearby_stations` | 2 ms | 1.3 KB |
+| Tool              | Median call | Response |
+| ----------------- | ----------- | -------- |
+| `subway_status`   | 415 ms      | 0.9 KB   |
+| `next_trains`     | 413 ms      | 0.4 KB   |
+| `plan_trip`       | 6 ms        | 0.4 KB   |
+| `nearby_stations` | 2 ms        | 1.3 KB   |
 
 ### Limits
 
@@ -133,11 +133,11 @@ Warm medians from a local run, Node 22.23, against the live API:
 
 The corpus is three JSONL files under `data/corpus/`, one object per line with `{id, title, text, source, kind}`.
 
-| File | Entries | Contents |
-| --- | --- | --- |
-| `knowledge.jsonl` | 133 | Lines and stations, first and last train hours, fares and SUBE discounts, accessibility per station, transfer rules, how the app treats Linea D |
-| `alerts.jsonl` | 3 | GCBA alerts from the live feed, with `first_seen` and `last_seen` |
-| `docs.jsonl` | 73 | This repository's Markdown chunked on headings, 303 to 900 characters, prefixed with the heading path |
+| File              | Entries | Contents                                                                                                                                        |
+| ----------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `knowledge.jsonl` | 133     | Lines and stations, first and last train hours, fares and SUBE discounts, accessibility per station, transfer rules, how the app treats Linea D |
+| `alerts.jsonl`    | 3       | GCBA alerts from the live feed, with `first_seen` and `last_seen`                                                                               |
+| `docs.jsonl`      | 73      | This repository's Markdown chunked on headings, 303 to 900 characters, prefixed with the heading path                                           |
 
 `data/corpus/labels.jsonl` holds 26 hand-written `{query, expected_ids}` pairs used by the retrieval eval. They were written against the corpus, not generated from retriever output.
 
@@ -224,13 +224,13 @@ anden_facts(user_id, key, value, updated_at, expires_at)  primary key (user_id, 
 anden_turns(id, user_id, question, answer, created_at)
 ```
 
-| Fact | Value | TTL |
-| --- | --- | --- |
-| `home_station`, `work_station` | Canonical station name | 180 days |
-| `step_free` | Boolean | 180 days |
-| `usual_line` | `LineaA` to `LineaH`, `Premetro` | 180 days |
-| `usual_departure_time` | `HH:MM` | 30 days |
-| `max_transfer_minutes` | Integer, 0 to 120 | 30 days |
+| Fact                           | Value                            | TTL      |
+| ------------------------------ | -------------------------------- | -------- |
+| `home_station`, `work_station` | Canonical station name           | 180 days |
+| `step_free`                    | Boolean                          | 180 days |
+| `usual_line`                   | `LineaA` to `LineaH`, `Premetro` | 180 days |
+| `usual_departure_time`         | `HH:MM`                          | 30 days  |
+| `max_transfer_minutes`         | Integer, 0 to 120                | 30 days  |
 
 `listFacts` deletes expired rows before it selects, so an expired fact is invisible immediately and removed lazily. Station names are checked against `src/lib/anden/station-names.ts`, generated from `gtfs.zip` with `npm run anden:stations`. That is the same station set `/api/bootstrap` serves. A misspelled or invented station is dropped.
 
@@ -322,8 +322,18 @@ Memory after the two questions:
 ```json
 {
   "facts": [
-    { "key": "home_station", "value": "Pueyrredon", "updated_at": "2026-10-30T01:20:45.749Z", "expires_at": "2027-04-28T01:20:45.749Z" },
-    { "key": "work_station", "value": "Plaza de Mayo", "updated_at": "2026-10-30T01:20:45.749Z", "expires_at": "2027-04-28T01:20:45.749Z" }
+    {
+      "key": "home_station",
+      "value": "Pueyrredon",
+      "updated_at": "2026-10-30T01:20:45.749Z",
+      "expires_at": "2027-04-28T01:20:45.749Z"
+    },
+    {
+      "key": "work_station",
+      "value": "Plaza de Mayo",
+      "updated_at": "2026-10-30T01:20:45.749Z",
+      "expires_at": "2027-04-28T01:20:45.749Z"
+    }
   ],
   "turns": 2
 }
@@ -340,11 +350,11 @@ After the second delete, `GET /api/anden/memory` returns `{"facts":[],"turns":0}
 
 Observed timings from the dev log on this machine:
 
-| Request | Time |
-| --- | --- |
+| Request                           | Time         |
+| --------------------------------- | ------------ |
 | `POST /api/anden/ask` with memory | 2.5 s, 2.4 s |
-| `GET /api/anden/memory` | 16 to 64 ms |
-| `DELETE /api/anden/memory` | 23 to 43 ms |
+| `GET /api/anden/memory`           | 16 to 64 ms  |
+| `DELETE /api/anden/memory`        | 23 to 43 ms  |
 
 ### Limits
 
@@ -362,14 +372,14 @@ This stage answers one question with numbers: how often is Anden wrong. The answ
 
 The tool logic moved out of the MCP transport into `packages/subte-mcp/src/core/`:
 
-| File | Contents |
-| --- | --- |
-| `client.ts` | HTTP client, bootstrap cache, timeouts and API errors |
-| `feed.ts` | Feed freshness from the telemetry payload |
-| `lines.ts`, `names.ts` | Line matching and station name normalisation |
-| `network.ts` | Station index, name resolution, Dijkstra planner, nearby search |
-| `status.ts`, `next-trains.ts`, `plan-trip.ts`, `nearby.ts` | One exported function per tool |
-| `types.ts`, `index.ts` | Payload types and the public surface |
+| File                                                       | Contents                                                        |
+| ---------------------------------------------------------- | --------------------------------------------------------------- |
+| `client.ts`                                                | HTTP client, bootstrap cache, timeouts and API errors           |
+| `feed.ts`                                                  | Feed freshness from the telemetry payload                       |
+| `lines.ts`, `names.ts`                                     | Line matching and station name normalisation                    |
+| `network.ts`                                               | Station index, name resolution, Dijkstra planner, nearby search |
+| `status.ts`, `next-trains.ts`, `plan-trip.ts`, `nearby.ts` | One exported function per tool                                  |
+| `types.ts`, `index.ts`                                     | Payload types and the public surface                            |
 
 The core imports no MCP SDK and no Next module. The four MCP tools now only declare the schema and delegate to it. The app reaches the same files through the `@subte/core` path in `tsconfig.json`, so there is one implementation of each tool.
 
@@ -392,13 +402,13 @@ Core files import each other with `.ts` extensions. Turbopack resolves them dire
 
 `evals/cases.jsonl` has 50 hand written cases. Every station name and corpus id was checked against the real files.
 
-| Category | Cases | Expectation |
-| --- | ---: | --- |
-| `tool_selection` | 15 | 11 positive cases where the tool must be called first, plus 4 negatives where `search_knowledge` or no tool is right |
-| `trip_planning` | 10 | `plan_trip` with `from` and `to`, and the returned legs must not use the destination as origin. 2 cases are step-free |
-| `retrieval_citation` | 10 | The answer cites an expected corpus id and does not abstain |
-| `abstain` | 10 | Impossible or out-of-scope questions, including a line and station pair that does not exist |
-| `memory` | 5 | Seeded `user_facts`, a question without an origin, and `expect.uses_fact: home_station` |
+| Category             | Cases | Expectation                                                                                                           |
+| -------------------- | ----: | --------------------------------------------------------------------------------------------------------------------- |
+| `tool_selection`     |    15 | 11 positive cases where the tool must be called first, plus 4 negatives where `search_knowledge` or no tool is right  |
+| `trip_planning`      |    10 | `plan_trip` with `from` and `to`, and the returned legs must not use the destination as origin. 2 cases are step-free |
+| `retrieval_citation` |    10 | The answer cites an expected corpus id and does not abstain                                                           |
+| `abstain`            |    10 | Impossible or out-of-scope questions, including a line and station pair that does not exist                           |
+| `memory`             |     5 | Seeded `user_facts`, a question without an origin, and `expect.uses_fact: home_station`                               |
 
 `npm run evals:validate` checks the schema without a key or network. It checks counts, unique ids, tool and fact names, station arguments and that every expected citation exists in the corpus.
 
@@ -406,15 +416,15 @@ Core files import each other with `.ts` extensions. Turbopack resolves them dire
 
 `evals/run.ts` is plain TypeScript run with `tsx`. There is no test framework.
 
-| Flag | Effect |
-| --- | --- |
-| `--subset N` | N cases, one per category in rotation |
-| `--category X` | One category |
-| `--seed-facts` | Seed memory facts in a temporary sqlite database |
-| `--max-cost USD` | Stop and exit 1 before the run passes the limit |
-| `--out path` | JSON output path |
-| `--write-readme` | Replace the table between the evals markers in `README.md` |
-| `--gate` | Exit 1 when `hallucination_rate > 0.10` or `tool_accuracy < 0.85` |
+| Flag             | Effect                                                            |
+| ---------------- | ----------------------------------------------------------------- |
+| `--subset N`     | N cases, one per category in rotation                             |
+| `--category X`   | One category                                                      |
+| `--seed-facts`   | Seed memory facts in a temporary sqlite database                  |
+| `--max-cost USD` | Stop and exit 1 before the run passes the limit                   |
+| `--out path`     | JSON output path                                                  |
+| `--write-readme` | Replace the table between the evals markers in `README.md`        |
+| `--gate`         | Exit 1 when `hallucination_rate > 0.10` or `tool_accuracy < 0.85` |
 
 Scores are `tool_accuracy`, `arg_accuracy`, `citation_validity`, `abstain_correctness`, `hallucination_rate`, `p50_ms`, `p95_ms`, `tokens` and `cost_usd`. The detailed output goes to `evals/results/latest.json`. The cost uses `evals/config.json`, currently 0.27 USD per 1M input tokens and 1.10 USD per 1M output tokens. That is an assumption for the configured model and has to change with the provider.
 
@@ -462,14 +472,14 @@ cost_usd: 0.042479 of 0.2 USD
 
 Per category:
 
-| Set | Cases | tool acc | arg acc | citation validity | abstain | hallucination | p50 ms | p95 ms | cost USD |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| all | 50 | 100% | 100% | 100% | 100% | 0% | 2685 | 4359 | 0.0425 |
-| tool_selection | 15 | 100% | 100% | n/a | 100% | 0% | 2916 | 5015 | 0.0123 |
-| trip_planning | 10 | 100% | 100% | n/a | 100% | 0% | 2662 | 3233 | 0.0087 |
-| retrieval_citation | 10 | n/a | n/a | 100% | 100% | 0% | 2657 | 3180 | 0.0100 |
-| abstain | 10 | n/a | n/a | n/a | 100% | 0% | 2043 | 11562 | 0.0071 |
-| memory | 5 | 100% | n/a | n/a | 100% | 0% | 2559 | 2703 | 0.0045 |
+| Set                | Cases | tool acc | arg acc | citation validity | abstain | hallucination | p50 ms | p95 ms | cost USD |
+| ------------------ | ----: | -------: | ------: | ----------------: | ------: | ------------: | -----: | -----: | -------: |
+| all                |    50 |     100% |    100% |              100% |    100% |            0% |   2685 |   4359 |   0.0425 |
+| tool_selection     |    15 |     100% |    100% |               n/a |    100% |            0% |   2916 |   5015 |   0.0123 |
+| trip_planning      |    10 |     100% |    100% |               n/a |    100% |            0% |   2662 |   3233 |   0.0087 |
+| retrieval_citation |    10 |      n/a |     n/a |              100% |    100% |            0% |   2657 |   3180 |   0.0100 |
+| abstain            |    10 |      n/a |     n/a |               n/a |    100% |            0% |   2043 |  11562 |   0.0071 |
+| memory             |     5 |     100% |     n/a |               n/a |    100% |            0% |   2559 |   2703 |   0.0045 |
 
 Retrieval eval:
 
@@ -504,22 +514,22 @@ The agent is the same one from stage 4. This stage wraps it in a harness that pl
 
 `src/lib/anden/harness/` holds the loop around `runAgent`.
 
-| File | Contents |
-| --- | --- |
-| `config.ts` | Budget numbers, model parameters and token prices |
-| `schema.ts` | Zod schemas for the plan, the five tool argument sets and every stored step |
-| `plan.ts` | Deterministic plan. `nearby_stations` is offered only when the question carries coordinates |
-| `budget.ts` | Steps, tokens, cost and wall clock |
-| `index.ts` | `runHarness({question, userId})` |
+| File        | Contents                                                                                    |
+| ----------- | ------------------------------------------------------------------------------------------- |
+| `config.ts` | Budget numbers, model parameters and token prices                                           |
+| `schema.ts` | Zod schemas for the plan, the five tool argument sets and every stored step                 |
+| `plan.ts`   | Deterministic plan. `nearby_stations` is offered only when the question carries coordinates |
+| `budget.ts` | Steps, tokens, cost and wall clock                                                          |
+| `index.ts`  | `runHarness({question, userId})`                                                            |
 
 A question runs as `plan -> memory -> (tool | retrieve | answer)`. The plan, the memory read, every model decision, every tool call and the final answer are recorded as steps. A step is validated with zod before it is stored.
 
-| Limit | Value | On hit |
-| --- | --- | --- |
+| Limit          | Value                                           | On hit                                           |
+| -------------- | ----------------------------------------------- | ------------------------------------------------ |
 | Executed steps | 6. Five tool or retrieval calls plus the answer | Stop calling tools and answer with what is there |
-| Tokens | 12,000 per question | Return the partial answer with `truncated: true` |
-| Cost | USD 0.02 per question | Same |
-| Wall clock | 25 s | Same |
+| Tokens         | 12,000 per question                             | Return the partial answer with `truncated: true` |
+| Cost           | USD 0.02 per question                           | Same                                             |
+| Wall clock     | 25 s                                            | Same                                             |
 
 The budget is checked before each model call and each tool call, not inside a call, so one slow request can push the total past 25 s. The harness does not throw on a budget hit: it returns the best answer it has and marks the trace `truncated`.
 
@@ -687,5 +697,3 @@ Postgres is optional. Set `DATABASE_URL` to use the Neon adapters for memory and
 - The Postgres adapters for memory and traces are implemented but were not run against a live Neon database here, because this environment has no `DATABASE_URL`. The sqlite path is the tested one.
 - Identity is a cookie. There is no login and no way to recover the stored facts after clearing it.
 - The harness budget bounds cost and time. It does not make the model correct, and the evals are the place where correctness is measured.
-
-

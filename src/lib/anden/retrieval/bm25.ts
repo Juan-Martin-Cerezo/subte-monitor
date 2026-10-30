@@ -1,6 +1,6 @@
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
-import { tokenize } from './tokenize';
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import { tokenize } from "./tokenize";
 
 export interface RetrievedSource {
   id: string;
@@ -31,8 +31,10 @@ interface CorpusIndex {
   averageLength: number;
 }
 
-const CORPUS_DIR = path.join(process.cwd(), 'data', 'corpus'); // traced via next.config outputFileTracingIncludes
-const FILES = ['knowledge.jsonl', 'alerts.jsonl', 'docs.jsonl'].map((name) => path.join(CORPUS_DIR, name));
+const CORPUS_DIR = path.join(process.cwd(), "data", "corpus"); // traced via next.config outputFileTracingIncludes
+const FILES = ["knowledge.jsonl", "alerts.jsonl", "docs.jsonl"].map((name) =>
+  path.join(CORPUS_DIR, name)
+);
 const K1 = 1.5;
 const B = 0.75;
 
@@ -46,27 +48,29 @@ function fileKey(files: string[]): Promise<string> {
         const stat = await fs.stat(file);
         return `${stat.mtimeMs}:${stat.size}`;
       } catch {
-        return 'missing';
+        return "missing";
       }
-    }),
-  ).then((parts) => parts.join('|'));
+    })
+  ).then((parts) => parts.join("|"));
 }
 
 async function readEntries(file: string): Promise<CorpusEntry[]> {
   let raw: string;
   try {
-    raw = await fs.readFile(file, 'utf8');
+    raw = await fs.readFile(file, "utf8");
   } catch {
     return [];
   }
 
   return raw
-    .split('\n')
+    .split("\n")
     .filter((line) => line.trim())
     .flatMap((line) => {
       try {
         const entry = JSON.parse(line) as Partial<CorpusEntry>;
-        return typeof entry.id === 'string' && typeof entry.text === 'string' ? [entry as CorpusEntry] : [];
+        return typeof entry.id === "string" && typeof entry.text === "string"
+          ? [entry as CorpusEntry]
+          : [];
       } catch {
         return [];
       }
@@ -84,7 +88,7 @@ async function buildIndex(key: string): Promise<CorpusIndex> {
       if (seen.has(entry.id)) continue;
       seen.add(entry.id);
 
-      const titleTokens = tokenize(entry.title ?? '');
+      const titleTokens = tokenize(entry.title ?? "");
       const textTokens = tokenize(entry.text);
       // title terms count twice in both frequency and length
       const tokens = [...titleTokens, ...titleTokens, ...textTokens];
@@ -124,9 +128,9 @@ async function getIndex(): Promise<CorpusIndex> {
 function phraseScore(queryTokens: string[], doc: IndexedDoc): number {
   let score = 0;
   if (queryTokens.length > 1) {
-    const title = doc.titleTokens.join(' ');
-    const text = doc.tokens.join(' ');
-    const phrase = queryTokens.join(' ');
+    const title = doc.titleTokens.join(" ");
+    const text = doc.tokens.join(" ");
+    const phrase = queryTokens.join(" ");
     if (title.includes(phrase)) score += 4;
     if (text.includes(phrase)) score += 2;
 

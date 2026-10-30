@@ -1,31 +1,35 @@
-import { PrismaClient } from '@prisma/client';
-import { PrismaNeonHTTP } from '@prisma/adapter-neon';
-import 'dotenv/config';
-import { execSync } from 'child_process';
-import * as fs from 'fs';
-import * as path from 'path';
+import { PrismaClient } from "@prisma/client";
+import { PrismaNeonHTTP } from "@prisma/adapter-neon";
+import "dotenv/config";
+import { execSync } from "child_process";
+import * as fs from "fs";
+import * as path from "path";
 
-const adapter = new PrismaNeonHTTP(process.env.DATABASE_URL!, {});
-const prisma = new PrismaClient({ adapter });
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error("DATABASE_URL is not set");
+
+const prisma = databaseUrl.includes("neon.tech")
+  ? new PrismaClient({ adapter: new PrismaNeonHTTP(databaseUrl, {}) })
+  : new PrismaClient();
 
 function parseCSV(content: string): Record<string, string>[] {
-  if (content.startsWith('\uFEFF')) {
+  if (content.startsWith("\uFEFF")) {
     content = content.slice(1);
   }
-  const lines = content.split(/\r?\n/).filter(line => line.trim() !== '');
+  const lines = content.split(/\r?\n/).filter((line) => line.trim() !== "");
   if (lines.length === 0) return [];
-  
+
   const parseLine = (line: string) => {
     const result: string[] = [];
-    let current = '';
+    let current = "";
     let inQuotes = false;
     for (let i = 0; i < line.length; i++) {
       const char = line[i];
       if (char === '"') {
         inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
+      } else if (char === "," && !inQuotes) {
         result.push(current.trim());
-        current = '';
+        current = "";
       } else {
         current += char;
       }
@@ -35,42 +39,56 @@ function parseCSV(content: string): Record<string, string>[] {
   };
 
   const headers = parseLine(lines[0]);
-  return lines.slice(1).map(line => {
+  return lines.slice(1).map((line) => {
     const values = parseLine(line);
     const row: Record<string, string> = {};
     headers.forEach((header, index) => {
-      row[header] = values[index] || '';
+      row[header] = values[index] || "";
     });
     return row;
   });
 }
 
 async function main() {
-  console.log('Starting Subte GTFS seeding...');
+  console.log("Starting Subte GTFS seeding...");
 
-  // Ensure gtfs.zip is available, otherwise download it
-  const zipPath = path.join(process.cwd(), 'gtfs.zip');
+  // gtfs.zip is committed; download it only when missing.
+  const zipPath = path.join(process.cwd(), "gtfs.zip");
   if (!fs.existsSync(zipPath)) {
-    console.log('Downloading GTFS zip...');
-    const url = 'https://apitransporte.buenosaires.gob.ar/subtes/feed-gtfs?client_id=3e5e59431f5b4007a5df945007ad47e1&client_secret=c64a5F5972dA4A9C9Da51020c67d1112';
-    execSync(`curl -s -o "${zipPath}" "${url}"`);
-    console.log('GTFS zip downloaded.');
+    const clientId = process.env.SUBTE_CLIENT_ID;
+    const clientSecret = process.env.SUBTE_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      throw new Error("gtfs.zip is missing and SUBTE_CLIENT_ID / SUBTE_CLIENT_SECRET are not set.");
+    }
+    console.log("Downloading GTFS zip...");
+    const url = `https://apitransporte.buenosaires.gob.ar/subtes/feed-gtfs?client_id=${clientId}&client_secret=${clientSecret}`;
+    execSync(`curl -sf -o "${zipPath}" "${url}"`);
+    console.log("GTFS zip downloaded.");
   }
 
   // Extract relevant files into memory using unzip -p
-  console.log('Extracting GTFS files...');
-  const tripsCSV = execSync(`unzip -p "${zipPath}" trips.txt`, { encoding: 'utf8', maxBuffer: 1024 * 1024 * 10 });
-  const stopTimesCSV = execSync(`unzip -p "${zipPath}" stop_times.txt`, { encoding: 'utf8', maxBuffer: 1024 * 1024 * 10 });
-  const stopsCSV = execSync(`unzip -p "${zipPath}" stops.txt`, { encoding: 'utf8', maxBuffer: 1024 * 1024 * 10 });
+  console.log("Extracting GTFS files...");
+  const tripsCSV = execSync(`unzip -p "${zipPath}" trips.txt`, {
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024 * 10,
+  });
+  const stopTimesCSV = execSync(`unzip -p "${zipPath}" stop_times.txt`, {
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024 * 10,
+  });
+  const stopsCSV = execSync(`unzip -p "${zipPath}" stops.txt`, {
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024 * 10,
+  });
 
-  console.log('Parsing CSV files...');
+  console.log("Parsing CSV files...");
   const trips = parseCSV(tripsCSV);
   const stopTimes = parseCSV(stopTimesCSV);
   const stops = parseCSV(stopsCSV);
 
   // Group trips by route_id and direction_id
   const routeDirectionTrips: Record<string, string[]> = {};
-  trips.forEach(t => {
+  trips.forEach((t) => {
     const key = `${t.route_id}_${t.direction_id}`;
     if (!routeDirectionTrips[key]) {
       routeDirectionTrips[key] = [];
@@ -80,7 +98,7 @@ async function main() {
 
   // Group stop times by trip_id
   const tripStopTimes: Record<string, typeof stopTimes> = {};
-  stopTimes.forEach(st => {
+  stopTimes.forEach((st) => {
     if (!tripStopTimes[st.trip_id]) {
       tripStopTimes[st.trip_id] = [];
     }
@@ -88,13 +106,26 @@ async function main() {
   });
 
   // For each route and direction, select the representative trip (the one with the most stops)
-  console.log('Identifying canonical route sequences...');
-  const canonicalSequences: { routeId: string; directionId: number; stops: { stopId: string; sequence: number }[] }[] = [];
+  console.log("Identifying canonical route sequences...");
+  const canonicalSequences: {
+    routeId: string;
+    directionId: number;
+    stops: { stopId: string; sequence: number }[];
+  }[] = [];
 
-  const subteRoutes = ['LineaA', 'LineaB', 'LineaC', 'LineaD', 'LineaE', 'LineaH', 'PM-Civico', 'PM-Savio'];
+  const subteRoutes = [
+    "LineaA",
+    "LineaB",
+    "LineaC",
+    "LineaD",
+    "LineaE",
+    "LineaH",
+    "PM-Civico",
+    "PM-Savio",
+  ];
 
-  subteRoutes.forEach(routeId => {
-    [0, 1].forEach(directionId => {
+  subteRoutes.forEach((routeId) => {
+    [0, 1].forEach((directionId) => {
       const key = `${routeId}_${directionId}`;
       const tripIds = routeDirectionTrips[key];
       if (!tripIds || tripIds.length === 0) {
@@ -105,7 +136,7 @@ async function main() {
       // Find the trip with the most stop times
       let bestTripId = tripIds[0];
       let maxStops = 0;
-      tripIds.forEach(tId => {
+      tripIds.forEach((tId) => {
         const count = tripStopTimes[tId]?.length || 0;
         if (count > maxStops) {
           maxStops = count;
@@ -119,35 +150,35 @@ async function main() {
 
       const seqStops = stList.map((st, index) => ({
         stopId: st.stop_id,
-        sequence: index + 1 // Re-index sequentially from 1
+        sequence: index + 1, // Re-index sequentially from 1
       }));
 
       if (seqStops.length > 0) {
         canonicalSequences.push({
           routeId,
           directionId,
-          stops: seqStops
+          stops: seqStops,
         });
       }
     });
   });
 
   // Create stops map for easy lookup
-  const stopsMap: Record<string, typeof stops[0]> = {};
-  stops.forEach(s => {
+  const stopsMap: Record<string, (typeof stops)[0]> = {};
+  stops.forEach((s) => {
     stopsMap[s.stop_id] = s;
   });
 
   // Collect all unique stops referenced in the canonical sequences
   const referencedStopIds = new Set<string>();
-  canonicalSequences.forEach(cs => {
-    cs.stops.forEach(s => referencedStopIds.add(s.stopId));
+  canonicalSequences.forEach((cs) => {
+    cs.stops.forEach((s) => referencedStopIds.add(s.stopId));
   });
 
   console.log(`Found ${referencedStopIds.size} unique stations to seed.`);
 
   // Insert Stations
-  console.log('Seeding Stations...');
+  console.log("Seeding Stations...");
   for (const stopId of referencedStopIds) {
     const s = stopsMap[stopId];
     if (!s) {
@@ -155,7 +186,7 @@ async function main() {
       continue;
     }
 
-    const name = s.stop_name || 'Estación Desconocida';
+    const name = s.stop_name || "Estación Desconocida";
     const lat = parseFloat(s.stop_lat) || 0;
     const lon = parseFloat(s.stop_lon) || 0;
 
@@ -176,7 +207,7 @@ async function main() {
   }
 
   // Insert Route Sequences
-  console.log('Seeding Route Sequences...');
+  console.log("Seeding Route Sequences...");
   // Delete existing sequences individually (HTTP mode)
   const existingSeqs = await prisma.routeSequence.findMany({ select: { id: true } });
   for (const s of existingSeqs) {
@@ -196,12 +227,12 @@ async function main() {
     }
   }
 
-  console.log('GTFS Seeding completed successfully!');
+  console.log("GTFS Seeding completed successfully!");
 }
 
 main()
   .catch((e) => {
-    console.error('Error during seeding:', e);
+    console.error("Error during seeding:", e);
     process.exit(1);
   })
   .finally(async () => {

@@ -1,8 +1,8 @@
-import { PostgresStore } from './postgres';
-import { SqliteStore } from './sqlite';
-import type { AndenStore } from './types';
+import { PostgresStore } from "./postgres";
+import { SqliteStore } from "./sqlite";
+import type { AndenStore } from "./types";
 
-export type { AndenStore, Fact, FactKey, FactValue, Turn } from './types';
+export type { AndenStore, Fact, FactKey, FactValue, Turn } from "./types";
 
 const globalForStore = globalThis as unknown as { andenStore?: AndenStore };
 

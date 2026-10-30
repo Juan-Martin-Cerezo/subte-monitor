@@ -1,5 +1,14 @@
-import { neon } from '@neondatabase/serverless';
-import type { AndenStore, Fact, FactKey, FactValue, Trace, TraceStep, TraceSummary, Turn } from './types';
+import { neon } from "@neondatabase/serverless";
+import type {
+  AndenStore,
+  Fact,
+  FactKey,
+  FactValue,
+  Trace,
+  TraceStep,
+  TraceSummary,
+  Turn,
+} from "./types";
 
 interface FactRow {
   user_id: string;
@@ -82,14 +91,16 @@ export class PostgresStore implements AndenStore {
         await this.sql`CREATE TABLE IF NOT EXISTS anden_turns (
           id BIGSERIAL PRIMARY KEY, user_id TEXT NOT NULL, question TEXT NOT NULL,
           answer TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL)`;
-        await this.sql`CREATE INDEX IF NOT EXISTS anden_turns_user ON anden_turns (user_id, created_at DESC)`;
+        await this
+          .sql`CREATE INDEX IF NOT EXISTS anden_turns_user ON anden_turns (user_id, created_at DESC)`;
         await this.sql`CREATE TABLE IF NOT EXISTS anden_traces (
           trace_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, question TEXT NOT NULL,
           steps JSONB NOT NULL, total_ms INT NOT NULL, tokens INT NOT NULL,
           cost_usd DOUBLE PRECISION NOT NULL, ok BOOLEAN NOT NULL, truncated BOOLEAN NOT NULL,
           model TEXT NOT NULL, prompt_hash TEXT NOT NULL, params TEXT NOT NULL,
           created_at TIMESTAMPTZ NOT NULL)`;
-        await this.sql`CREATE INDEX IF NOT EXISTS anden_traces_user ON anden_traces (user_id, created_at DESC)`;
+        await this
+          .sql`CREATE INDEX IF NOT EXISTS anden_traces_user ON anden_traces (user_id, created_at DESC)`;
       })();
     }
     return this.ready;
@@ -178,13 +189,14 @@ export class PostgresStore implements AndenStore {
   }
 
   async recentTraces(userId: string, limit: number): Promise<TraceSummary[]> {
-    const rows = (await this.sql`SELECT trace_id, question, steps, total_ms, tokens, cost_usd, ok, created_at
+    const rows = (await this
+      .sql`SELECT trace_id, question, steps, total_ms, tokens, cost_usd, ok, created_at
       FROM anden_traces WHERE user_id = ${userId}
       ORDER BY created_at DESC LIMIT ${Math.max(1, limit)}`) as unknown as TraceRow[];
     return rows.map((row) => ({
       traceId: row.trace_id,
       question: row.question,
-      steps: parseSteps(row.steps).filter((step) => step.kind !== 'plan').length,
+      steps: parseSteps(row.steps).filter((step) => step.kind !== "plan").length,
       totalMs: Number(row.total_ms),
       tokens: Number(row.tokens),
       costUsd: Number(row.cost_usd),

@@ -5,31 +5,34 @@
  * Run: npx tsx scripts/build-connections.ts
  */
 
-import { writeFileSync } from 'fs';
-import { join } from 'path';
-import { execSync } from 'child_process';
+import { writeFileSync } from "fs";
+import { join } from "path";
+import { execSync } from "child_process";
 
 // Disable strict SSL for GCBA CDN (legacy TLS config)
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-const BUS_STOPS_URL = 'https://cdn.buenosaires.gob.ar/datosabiertos/datasets/transporte-y-obras-publicas/colectivos-paradas/paradas-de-colectivo.geojson';
-const TRAIN_STATIONS_URL = 'https://cdn.buenosaires.gob.ar/datosabiertos/datasets/transporte-y-obras-publicas/estaciones-ferrocarril/estaciones-de-ferrocarril.geojson';
-const SUBTE_STATIONS_URL = 'https://cdn.buenosaires.gob.ar/datosabiertos/datasets/sbase/subte-estaciones/estaciones_de_subte.geojson';
+const BUS_STOPS_URL =
+  "https://cdn.buenosaires.gob.ar/datosabiertos/datasets/transporte-y-obras-publicas/colectivos-paradas/paradas-de-colectivo.geojson";
+const TRAIN_STATIONS_URL =
+  "https://cdn.buenosaires.gob.ar/datosabiertos/datasets/transporte-y-obras-publicas/estaciones-ferrocarril/estaciones-de-ferrocarril.geojson";
+const SUBTE_STATIONS_URL =
+  "https://cdn.buenosaires.gob.ar/datosabiertos/datasets/sbase/subte-estaciones/estaciones_de_subte.geojson";
 
 const BUS_RADIUS_METERS = 250;
 const TRAIN_RADIUS_METERS = 500;
 
 interface GeoPoint {
-  type: 'Point';
+  type: "Point";
   coordinates: [number, number]; // [lng, lat]
 }
 
 interface BusStopFeature {
-  type: 'Feature';
+  type: "Feature";
   properties: {
     fid: number;
     CALLE: string;
-    'ALT PLANO': string;
+    "ALT PLANO": string;
     DIRECCION: string;
     L1: string | null;
     L2: string | null;
@@ -42,7 +45,7 @@ interface BusStopFeature {
 }
 
 interface TrainStationFeature {
-  type: 'Feature';
+  type: "Feature";
   properties: {
     linea: string;
     nombre: string;
@@ -51,7 +54,7 @@ interface TrainStationFeature {
 }
 
 interface SubteStationFeature {
-  type: 'Feature';
+  type: "Feature";
   properties: {
     id: number;
     estacion: string;
@@ -61,7 +64,7 @@ interface SubteStationFeature {
 }
 
 interface GeoJSON {
-  type: 'FeatureCollection';
+  type: "FeatureCollection";
   features: Array<BusStopFeature | TrainStationFeature | SubteStationFeature>;
 }
 
@@ -105,24 +108,24 @@ async function fetchGeoJSON(url: string): Promise<GeoJSON> {
 function getBusLines(feature: BusStopFeature): string[] {
   const lines: string[] = [];
   const props = feature.properties;
-  for (const key of ['L1', 'L2', 'L3', 'L4', 'L5', 'L6'] as const) {
+  for (const key of ["L1", "L2", "L3", "L4", "L5", "L6"] as const) {
     if (props[key]) lines.push(props[key]!);
   }
   return lines;
 }
 
 async function main() {
-  console.log('Fetching subte stations...');
+  console.log("Fetching subte stations...");
   const subteData = await fetchGeoJSON(SUBTE_STATIONS_URL);
   const subteStations = subteData.features as SubteStationFeature[];
 
   console.log(`Found ${subteStations.length} subte stations`);
-  console.log('Fetching bus stops...');
+  console.log("Fetching bus stops...");
   const busData = await fetchGeoJSON(BUS_STOPS_URL);
   const busStops = busData.features as BusStopFeature[];
   console.log(`Found ${busStops.length} bus stops`);
 
-  console.log('Fetching train stations...');
+  console.log("Fetching train stations...");
   const trainData = await fetchGeoJSON(TRAIN_STATIONS_URL);
   const trainStations = trainData.features as TrainStationFeature[];
   console.log(`Found ${trainStations.length} train stations`);
@@ -133,9 +136,9 @@ async function main() {
     const [lng, lat] = station.geometry.coordinates;
     const stationId = station.properties.estacion
       .toLowerCase()
-      .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
-      .replace(/[^a-z0-9]/g, '');
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]/g, "");
 
     // Find nearby bus stops
     const busLineCounts = new Map<string, { count: number; nearestDist: number }>();
@@ -218,12 +221,12 @@ export interface StationConnections {
 export const STATION_CONNECTIONS: Record<string, StationConnections> = ${JSON.stringify(connections, null, 2)};
 `;
 
-  const outputPath = join(process.cwd(), 'src/lib/connections.ts');
+  const outputPath = join(process.cwd(), "src/lib/connections.ts");
   writeFileSync(outputPath, output);
   console.log(`Written to ${outputPath}`);
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error(err);
   process.exit(1);
 });

@@ -3,7 +3,7 @@
  * Source: https://buenosaires.publicbikesystem.net/customer/gbfs/v3.0/gbfs.json
  */
 
-const GBFS_URL = 'https://buenosaires.publicbikesystem.net/customer/gbfs/v3.0/gbfs.json';
+const GBFS_URL = "https://buenosaires.publicbikesystem.net/customer/gbfs/v3.0/gbfs.json";
 const CACHE_TTL_MS = 60_000;
 
 interface GbfsFeed {
@@ -85,27 +85,27 @@ export async function getEcobiciStations(): Promise<EcobiciStation[]> {
     if (!discoveryRes.ok) throw new Error(`GBFS discovery failed: ${discoveryRes.status}`);
     const discovery: GbfsFeed[] = ((await discoveryRes.json()) as GbfsDiscovery).data.feeds;
 
-    const infoFeed = discovery.find(f => f.name === 'station_information');
-    const statusFeed = discovery.find(f => f.name === 'station_status');
+    const infoFeed = discovery.find((f) => f.name === "station_information");
+    const statusFeed = discovery.find((f) => f.name === "station_status");
 
-    if (!infoFeed || !statusFeed) throw new Error('Missing GBFS feeds');
+    if (!infoFeed || !statusFeed) throw new Error("Missing GBFS feeds");
 
     const [infoRes, statusRes] = await Promise.all([
       fetchWithTimeout(infoFeed.url),
       fetchWithTimeout(statusFeed.url),
     ]);
 
-    if (!infoRes.ok || !statusRes.ok) throw new Error('GBFS fetch failed');
+    if (!infoRes.ok || !statusRes.ok) throw new Error("GBFS fetch failed");
 
     const info = (await infoRes.json()) as StationInformation;
     const status = (await statusRes.json()) as StationStatus;
 
-    const statusMap = new Map(status.data.stations.map(s => [s.station_id, s]));
+    const statusMap = new Map(status.data.stations.map((s) => [s.station_id, s]));
 
     const stations: EcobiciStation[] = info.data.stations
-      .map(station => {
+      .map((station) => {
         const st = statusMap.get(station.station_id);
-        const nameObj = station.name.find(n => n.language === 'es') ?? station.name[0];
+        const nameObj = station.name.find((n) => n.language === "es") ?? station.name[0];
         return {
           id: station.station_id,
           name: nameObj?.text ?? station.station_id,
@@ -117,12 +117,12 @@ export async function getEcobiciStations(): Promise<EcobiciStation[]> {
           active: (st?.is_renting ?? false) && (st?.is_installed ?? false),
         };
       })
-      .filter(s => s.active);
+      .filter((s) => s.active);
 
     cache = { stations, timestamp: Date.now() };
     return stations;
   } catch (err) {
-    console.error('[ecobici] fetch error:', err);
+    console.error("[ecobici] fetch error:", err);
     return cache?.stations ?? [];
   }
 }

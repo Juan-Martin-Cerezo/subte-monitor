@@ -1,5 +1,5 @@
-import { LABELS_PATH, readJsonl } from './corpus';
-import { search } from '../../src/lib/anden/retrieval/bm25';
+import { LABELS_PATH, readJsonl } from "./corpus";
+import { search } from "../../src/lib/anden/retrieval/bm25";
 
 interface Label {
   query: string;
@@ -32,16 +32,16 @@ async function main(): Promise<void> {
     recallSum += recall;
     reciprocalRankSum += reciprocalRank;
 
-    const mark = recall === 1 ? 'ok' : recall > 0 ? 'partial' : 'miss';
-    console.log(`[${mark}] recall=${recall.toFixed(2)} rank=${rank || '-'} ${label.query}`);
-    if (recall < 1) console.log(`        expected: ${label.expected_ids.join(', ')}`);
-    if (recall < 1) console.log(`        got: ${ids.join(', ')}`);
+    const mark = recall === 1 ? "ok" : recall > 0 ? "partial" : "miss";
+    console.log(`[${mark}] recall=${recall.toFixed(2)} rank=${rank || "-"} ${label.query}`);
+    if (recall < 1) console.log(`        expected: ${label.expected_ids.join(", ")}`);
+    if (recall < 1) console.log(`        got: ${ids.join(", ")}`);
   }
 
   const recall = recallSum / labels.length;
   const mrr = reciprocalRankSum / labels.length;
 
-  console.log('');
+  console.log("");
   console.log(`queries: ${labels.length}`);
   console.log(`recall@${K}: ${recall.toFixed(3)} (threshold ${MIN_RECALL.toFixed(2)})`);
   console.log(`MRR: ${mrr.toFixed(3)}`);

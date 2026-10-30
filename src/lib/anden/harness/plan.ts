@@ -1,5 +1,5 @@
-import { HARNESS_CONFIG } from './config';
-import { planSchema, TOOL_NAMES, type Plan } from './schema';
+import { HARNESS_CONFIG } from "./config";
+import { planSchema, TOOL_NAMES, type Plan } from "./schema";
 
 const COORDINATES = /-?\d{1,3}[.,]\d{2,}/;
 const COORDINATE_WORDS = /(latitud|longitud|coordenad|grados|ubicad|cerca|distancia)/i;
@@ -10,7 +10,7 @@ export function buildPlan(question: string): Plan {
 
   return planSchema.parse({
     question,
-    tools: TOOL_NAMES.filter((name) => name !== 'nearby_stations' || offerNearby),
+    tools: TOOL_NAMES.filter((name) => name !== "nearby_stations" || offerNearby),
     maxSteps: HARNESS_CONFIG.maxSteps,
     useMemory: true,
   });

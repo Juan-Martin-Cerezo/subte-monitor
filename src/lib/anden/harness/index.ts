@@ -1,19 +1,19 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from "node:crypto";
 import {
   runAgent,
   SYSTEM_PROMPT,
   type AgentResult,
   type AgentStepEvent,
   type ToolGuard,
-} from '../agent/run';
-import { LlmConfigError, currentModel } from '../llm';
-import { FACTS_MARKER, factsForPrompt, loadMemory, type MemorySnapshot } from '../memory';
-import { getStore } from '../store';
-import type { Trace, TraceStep } from '../store/types';
-import { Budget } from './budget';
-import { HARNESS_CONFIG, MODEL_PARAMS } from './config';
-import { buildPlan } from './plan';
-import { traceStepSchema, validateToolArgs, type Plan } from './schema';
+} from "../agent/run";
+import { LlmConfigError, currentModel } from "../llm";
+import { FACTS_MARKER, factsForPrompt, loadMemory, type MemorySnapshot } from "../memory";
+import { getStore } from "../store";
+import type { Trace, TraceStep } from "../store/types";
+import { Budget } from "./budget";
+import { HARNESS_CONFIG, MODEL_PARAMS } from "./config";
+import { buildPlan } from "./plan";
+import { traceStepSchema, validateToolArgs, type Plan } from "./schema";
 
 export interface HarnessInput {
   question: string;
@@ -30,7 +30,8 @@ export interface HarnessResult extends AgentResult {
 }
 
 const EMPTY_MEMORY: MemorySnapshot = { facts: [], turns: [] };
-const MEMORY_BLOCK = /\n\s*-\s*(Casa|Trabajo|Línea habitual|Hora de salida|Sin escaleras|Combinación máxima):/;
+const MEMORY_BLOCK =
+  /\n\s*-\s*(Casa|Trabajo|Línea habitual|Hora de salida|Sin escaleras|Combinación máxima):/;
 const TRANSPORT_ERROR = /(timed out|fetch failed|network|ECONN|ETIMEDOUT|EAI_AGAIN|socket)/i;
 
 function clip(value: string, max = HARNESS_CONFIG.maxStepChars): string {
@@ -38,19 +39,20 @@ function clip(value: string, max = HARNESS_CONFIG.maxStepChars): string {
 }
 
 function stable(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
-  if (value && typeof value === 'object') {
+  if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
+  if (value && typeof value === "object") {
     const entries = Object.keys(value as Record<string, unknown>)
       .sort()
       .map((key) => `${JSON.stringify(key)}:${stable((value as Record<string, unknown>)[key])}`);
-    return `{${entries.join(',')}}`;
+    return `{${entries.join(",")}}`;
   }
   return JSON.stringify(value);
 }
 
 function leaksFacts(args: Record<string, unknown>): boolean {
   return Object.values(args).some(
-    (value) => typeof value === 'string' && (value.includes(FACTS_MARKER) || MEMORY_BLOCK.test(value)),
+    (value) =>
+      typeof value === "string" && (value.includes(FACTS_MARKER) || MEMORY_BLOCK.test(value))
   );
 }
 
@@ -65,7 +67,7 @@ function makeGuard(plan: Plan): (name: string, args: Record<string, unknown>) =>
     if (!validation.ok) return validation;
 
     if (leaksFacts(args)) {
-      return { ok: false, error: 'tool arguments must not contain remembered facts' };
+      return { ok: false, error: "tool arguments must not contain remembered facts" };
     }
 
     const key = `${name}:${stable(args)}`;
@@ -103,12 +105,20 @@ export async function runHarness({ question, userId }: HarnessInput): Promise<Ha
   let result: AgentResult | null = null;
   let thrown: unknown = null;
 
-  const record = (raw: Omit<TraceStep, 'step'>): void => {
+  const record = (raw: Omit<TraceStep, "step">): void => {
     const step = traceStepSchema.parse({ ...raw, step: steps.length + 1 });
     steps.push({ ...step, input: clip(step.input), output: clip(step.output) });
   };
 
-  record({ kind: 'plan', input: question, output: JSON.stringify(plan), ok: true, ms: 0, tokensIn: 0, tokensOut: 0 });
+  record({
+    kind: "plan",
+    input: question,
+    output: JSON.stringify(plan),
+    ok: true,
+    ms: 0,
+    tokensIn: 0,
+    tokensOut: 0,
+  });
 
   const memoryStarted = Date.now();
   let memory = EMPTY_MEMORY;
@@ -119,7 +129,7 @@ export async function runHarness({ question, userId }: HarnessInput): Promise<Ha
     memoryOk = false;
   }
   record({
-    kind: 'memory',
+    kind: "memory",
     input: userId,
     output: JSON.stringify({ facts: memory.facts.length, turns: memory.turns.length }),
     ok: memoryOk,
@@ -157,7 +167,7 @@ export async function runHarness({ question, userId }: HarnessInput): Promise<Ha
           maxToolCalls: HARNESS_CONFIG.maxToolSteps,
           beforeTool: guard,
           onStep,
-        },
+        }
       );
 
       const deadEnd =
@@ -169,12 +179,12 @@ export async function runHarness({ question, userId }: HarnessInput): Promise<Ha
       if (!retried && (retryForTransport || retryForArgs)) {
         retried = true;
         notes = retryForTransport
-          ? `La red falló al consultar una herramienta: ${transport.join(' | ')}. Reintentá la consulta.`
-          : `La herramienta rechazó estos argumentos: ${malformed.join(' | ')}. Volvé a llamarla con argumentos válidos.`;
+          ? `La red falló al consultar una herramienta: ${transport.join(" | ")}. Reintentá la consulta.`
+          : `La herramienta rechazó estos argumentos: ${malformed.join(" | ")}. Volvé a llamarla con argumentos válidos.`;
         record({
-          kind: 'plan',
+          kind: "plan",
           input: question,
-          output: `reintento ${retryForTransport ? 'por error de red' : 'por argumentos inválidos'}: ${notes}`,
+          output: `reintento ${retryForTransport ? "por error de red" : "por argumentos inválidos"}: ${notes}`,
           ok: false,
           ms: 0,
           tokensIn: 0,
@@ -197,7 +207,7 @@ export async function runHarness({ question, userId }: HarnessInput): Promise<Ha
       retried = true;
       notes = `La llamada anterior falló: ${message(error)}. Reintentá la pregunta desde el principio.`;
       record({
-        kind: 'plan',
+        kind: "plan",
         input: question,
         output: `reintento por error de red: ${message(error)}`,
         ok: false,
@@ -208,11 +218,11 @@ export async function runHarness({ question, userId }: HarnessInput): Promise<Ha
     }
   }
 
-  if (!result && thrown === null) thrown = new Error('the agent produced no answer');
+  if (!result && thrown === null) thrown = new Error("the agent produced no answer");
 
   if (!result) {
     record({
-      kind: 'answer',
+      kind: "answer",
       input: question,
       output: message(thrown),
       ok: false,
@@ -224,7 +234,7 @@ export async function runHarness({ question, userId }: HarnessInput): Promise<Ha
 
   const spent = budget.spent();
   const totalMs = Date.now() - started;
-  const model = await currentModel().catch(() => 'unknown');
+  const model = await currentModel().catch(() => "unknown");
   const truncated = Boolean(result?.truncated);
 
   const trace: Trace = {
@@ -238,9 +248,9 @@ export async function runHarness({ question, userId }: HarnessInput): Promise<Ha
     ok: Boolean(result) && !truncated,
     truncated,
     model,
-    promptHash: createHash('sha256')
-      .update([SYSTEM_PROMPT, factsForPrompt(memory.facts), notes].filter(Boolean).join(' '))
-      .digest('hex'),
+    promptHash: createHash("sha256")
+      .update([SYSTEM_PROMPT, factsForPrompt(memory.facts), notes].filter(Boolean).join(" "))
+      .digest("hex"),
     params: JSON.stringify({
       temperature: MODEL_PARAMS.temperature,
       max_tokens: MODEL_PARAMS.toolTokens,
@@ -262,7 +272,7 @@ export async function runHarness({ question, userId }: HarnessInput): Promise<Ha
   return {
     ...result,
     traceId,
-    traceSteps: steps.filter((step) => step.kind !== 'plan').length,
+    traceSteps: steps.filter((step) => step.kind !== "plan").length,
     totalMs,
     tokens: spent.tokens,
     costUsd: spent.costUsd,

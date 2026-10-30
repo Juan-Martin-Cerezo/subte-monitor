@@ -1,10 +1,10 @@
 export type FactKey =
-  | 'home_station'
-  | 'work_station'
-  | 'usual_line'
-  | 'usual_departure_time'
-  | 'step_free'
-  | 'max_transfer_minutes';
+  | "home_station"
+  | "work_station"
+  | "usual_line"
+  | "usual_departure_time"
+  | "step_free"
+  | "max_transfer_minutes";
 
 export type FactValue = string | number | boolean;
 
@@ -23,7 +23,7 @@ export interface Turn {
   createdAt: string;
 }
 
-export type TraceKind = 'plan' | 'tool' | 'retrieve' | 'memory' | 'answer';
+export type TraceKind = "plan" | "tool" | "retrieve" | "memory" | "answer";
 
 export interface TraceStep {
   step: number;

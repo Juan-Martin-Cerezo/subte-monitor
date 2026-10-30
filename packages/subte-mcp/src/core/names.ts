@@ -1,14 +1,14 @@
 export function normalizeName(input: string): string {
   return input
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
 
 export function compactName(input: string): string {
-  return normalizeName(input).replace(/ /g, '');
+  return normalizeName(input).replace(/ /g, "");
 }
 
 export function editDistance(a: string, b: string): number {

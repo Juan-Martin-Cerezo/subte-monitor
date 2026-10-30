@@ -1,0 +1,10 @@
+.next
+node_modules
+package-lock.json
+gtfs.zip
+src/lib/shapes.ts
+src/lib/connections.ts
+src/lib/metadata.ts
+src/lib/metadata_extended.ts
+src/lib/safety_zones.ts
+docs/screenshots

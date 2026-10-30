@@ -1,7 +1,7 @@
-import transfersData from '../data/transfers.json' with { type: 'json' };
-import accessibilityData from '../data/accessibility.json' with { type: 'json' };
-import type { Bootstrap } from './types.ts';
-import { compactName, editDistance, normalizeName } from './names.ts';
+import transfersData from "../data/transfers.json" with { type: "json" };
+import accessibilityData from "../data/accessibility.json" with { type: "json" };
+import type { Bootstrap } from "./types.ts";
+import { compactName, editDistance, normalizeName } from "./names.ts";
 
 const TRANSFERS = transfersData as Record<string, string[]>;
 const ACCESSIBILITY = accessibilityData as Record<string, { elevators: number; stairs: number }>;
@@ -19,9 +19,7 @@ export interface StationIndex {
   byKey: Map<string, PhysicalStation>;
 }
 
-export type ResolveResult =
-  | { ok: true; station: PhysicalStation }
-  | { ok: false; message: string };
+export type ResolveResult = { ok: true; station: PhysicalStation } | { ok: false; message: string };
 
 export function buildStationIndex(bootstrap: Bootstrap): StationIndex {
   const routesByStop = new Map<string, Set<string>>();
@@ -58,48 +56,53 @@ export function buildStationIndex(bootstrap: Bootstrap): StationIndex {
 }
 
 function candidatesMessage(input: string, stations: PhysicalStation[]): string {
-  const names = stations.slice(0, 8).map(station => station.name);
-  const extra = stations.length > 8 ? `, and ${stations.length - 8} more` : '';
-  return `station '${input}' is ambiguous. Candidates: ${names.join(', ')}${extra}.`;
+  const names = stations.slice(0, 8).map((station) => station.name);
+  const extra = stations.length > 8 ? `, and ${stations.length - 8} more` : "";
+  return `station '${input}' is ambiguous. Candidates: ${names.join(", ")}${extra}.`;
 }
 
 export function resolveStation(input: string, index: StationIndex): ResolveResult {
-  const cleaned = normalizeName(input).replace(/^(estacion|station)\s+/, '');
-  const key = cleaned.replace(/ /g, '');
+  const cleaned = normalizeName(input).replace(/^(estacion|station)\s+/, "");
+  const key = cleaned.replace(/ /g, "");
 
-  if (!key) return { ok: false, message: 'station name is empty' };
+  if (!key) return { ok: false, message: "station name is empty" };
   if (key.length < 2) {
-    return { ok: false, message: `station '${input}' is too short. Provide at least two characters.` };
+    return {
+      ok: false,
+      message: `station '${input}' is too short. Provide at least two characters.`,
+    };
   }
 
   const exact = index.byKey.get(key);
   if (exact) return { ok: true, station: exact };
 
-  const prefixed = index.stations.filter(station => station.key.startsWith(key));
+  const prefixed = index.stations.filter((station) => station.key.startsWith(key));
   if (prefixed.length === 1) return { ok: true, station: prefixed[0] as PhysicalStation };
   if (prefixed.length > 1) return { ok: false, message: candidatesMessage(input, prefixed) };
 
   const scored = index.stations
-    .map(station => ({ station, distance: editDistance(key, station.key) }))
+    .map((station) => ({ station, distance: editDistance(key, station.key) }))
     .sort((a, b) => a.distance - b.distance || a.station.name.localeCompare(b.station.name));
 
   const bestDistance = scored[0]?.distance ?? Number.POSITIVE_INFINITY;
   if (bestDistance <= 2) {
-    const best = scored.filter(item => item.distance === bestDistance).map(item => item.station);
+    const best = scored
+      .filter((item) => item.distance === bestDistance)
+      .map((item) => item.station);
     if (best.length === 1) return { ok: true, station: best[0] as PhysicalStation };
     return { ok: false, message: candidatesMessage(input, best) };
   }
 
-  const closest = scored.slice(0, 3).map(item => item.station.name);
+  const closest = scored.slice(0, 3).map((item) => item.station.name);
   return {
     ok: false,
-    message: `station '${input}' not found. Closest: ${closest.join(', ')}.`,
+    message: `station '${input}' not found. Closest: ${closest.join(", ")}.`,
   };
 }
 
 export interface PlanEdge {
   to: string;
-  type: 'ride' | 'transfer';
+  type: "ride" | "transfer";
   fromName: string;
   toName: string;
   fromLine: string;
@@ -147,7 +150,11 @@ function hasElevator(stationKey: string): boolean {
   return (ACCESSIBILITY[stationKey]?.elevators ?? 0) > 0;
 }
 
-export function buildGraph(bootstrap: Bootstrap, index: StationIndex, stepFree: boolean): PlanGraph {
+export function buildGraph(
+  bootstrap: Bootstrap,
+  index: StationIndex,
+  stepFree: boolean
+): PlanGraph {
   const adjacency = new Map<string, PlanEdge[]>();
   const routesByKey = new Map<string, string[]>();
   const namesByKey = new Map<string, string>();
@@ -160,7 +167,7 @@ export function buildGraph(bootstrap: Bootstrap, index: StationIndex, stepFree: 
   const addEdge = (from: string, edge: PlanEdge) => {
     const edges = adjacency.get(from) ?? [];
     const duplicate = edges.some(
-      existing =>
+      (existing) =>
         existing.to === edge.to &&
         existing.type === edge.type &&
         existing.fromLine === edge.fromLine &&
@@ -171,8 +178,11 @@ export function buildGraph(bootstrap: Bootstrap, index: StationIndex, stepFree: 
   };
 
   const rideKeys = new Set<string>();
-  const stationByStopId = new Map(bootstrap.stations.map(station => [station.stopId, station]));
-  const byRouteDirection = new Map<string, { routeId: string; stopId: string; stopSequence: number }[]>();
+  const stationByStopId = new Map(bootstrap.stations.map((station) => [station.stopId, station]));
+  const byRouteDirection = new Map<
+    string,
+    { routeId: string; stopId: string; stopSequence: number }[]
+  >();
   for (const sequence of bootstrap.sequences) {
     const key = `${sequence.routeId}|${sequence.directionId}`;
     const list = byRouteDirection.get(key) ?? [];
@@ -203,7 +213,7 @@ export function buildGraph(bootstrap: Bootstrap, index: StationIndex, stepFree: 
 
       addEdge(fromState, {
         to: toState,
-        type: 'ride',
+        type: "ride",
         fromName: namesByKey.get(fromKey) ?? from.stopName,
         toName: namesByKey.get(toKey) ?? to.stopName,
         fromLine: fromStop.routeId,
@@ -214,7 +224,7 @@ export function buildGraph(bootstrap: Bootstrap, index: StationIndex, stepFree: 
       });
       addEdge(toState, {
         to: fromState,
-        type: 'ride',
+        type: "ride",
         fromName: namesByKey.get(toKey) ?? to.stopName,
         toName: namesByKey.get(fromKey) ?? from.stopName,
         fromLine: toStop.routeId,
@@ -237,7 +247,7 @@ export function buildGraph(bootstrap: Bootstrap, index: StationIndex, stepFree: 
         const fromName = namesByKey.get(stationKey) ?? stationKey;
         addEdge(state(stationKey, fromLine), {
           to: state(stationKey, toLine),
-          type: 'transfer',
+          type: "transfer",
           fromName,
           toName: fromName,
           fromLine,
@@ -270,7 +280,7 @@ export function buildGraph(bootstrap: Bootstrap, index: StationIndex, stepFree: 
           if (fromLine === toLine) continue;
           addEdge(state(fromKey, fromLine), {
             to: state(toKey, toLine),
-            type: 'transfer',
+            type: "transfer",
             fromName,
             toName,
             fromLine,
@@ -318,7 +328,7 @@ export function findPlan(graph: PlanGraph, fromKey: string, toKey: string): Trip
     pending.delete(current);
     settled.add(current);
 
-    if (current.split('|')[0] === toKey) {
+    if (current.split("|")[0] === toKey) {
       targetNode = current;
       break;
     }
@@ -351,7 +361,7 @@ export function findPlan(graph: PlanGraph, fromKey: string, toKey: string): Trip
   let currentLeg: TripLeg | null = null;
 
   for (const edge of edges) {
-    if (edge.type === 'transfer') {
+    if (edge.type === "transfer") {
       if (currentLeg) {
         legs.push(currentLeg);
         currentLeg = null;

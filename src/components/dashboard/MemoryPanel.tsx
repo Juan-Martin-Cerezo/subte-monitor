@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import { FACT_LABELS, formatFactValue } from '@/lib/anden/fact-labels';
-import type { FactKey, FactValue } from '@/lib/anden/store/types';
-import { Icon } from './Icon';
+import { useEffect, useRef, useState } from "react";
+import { FACT_LABELS, formatFactValue } from "@/lib/anden/fact-labels";
+import type { FactKey, FactValue } from "@/lib/anden/store/types";
+import { Icon } from "./Icon";
 
 interface MemoryFact {
   key: FactKey;
@@ -17,17 +17,17 @@ interface MemoryPanelProps {
 }
 
 function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString('es-AR', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
+  return new Date(value).toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
   });
 }
 
 export function MemoryPanel({ onClose }: MemoryPanelProps) {
   const [facts, setFacts] = useState<MemoryFact[]>([]);
   const [turns, setTurns] = useState(0);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [reload, setReload] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -36,19 +36,19 @@ export function MemoryPanel({ onClose }: MemoryPanelProps) {
 
   useEffect(() => {
     let active = true;
-    fetch('/api/anden/memory', { cache: 'no-store' })
+    fetch("/api/anden/memory", { cache: "no-store" })
       .then((res) => {
-        if (!res.ok) throw new Error('memory unavailable');
+        if (!res.ok) throw new Error("memory unavailable");
         return res.json() as Promise<{ facts: MemoryFact[]; turns: number }>;
       })
       .then((data) => {
         if (!active) return;
         setFacts(data.facts);
         setTurns(data.turns);
-        setStatus('ready');
+        setStatus("ready");
       })
       .catch(() => {
-        if (active) setStatus('error');
+        if (active) setStatus("error");
       });
 
     return () => {
@@ -62,14 +62,14 @@ export function MemoryPanel({ onClose }: MemoryPanelProps) {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         onClose();
         return;
       }
-      if (event.key !== 'Tab' || !dialogRef.current) return;
+      if (event.key !== "Tab" || !dialogRef.current) return;
 
       const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [href], input, [tabindex]:not([tabindex="-1"])',
+        'button:not([disabled]), [href], input, [tabindex]:not([tabindex="-1"])'
       );
       if (!focusable.length) return;
       const first = focusable[0];
@@ -83,14 +83,14 @@ export function MemoryPanel({ onClose }: MemoryPanelProps) {
       }
     };
 
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
   const removeFact = async (key: FactKey) => {
     setBusy(key);
     try {
-      const res = await fetch(`/api/anden/memory?key=${key}`, { method: 'DELETE' });
+      const res = await fetch(`/api/anden/memory?key=${key}`, { method: "DELETE" });
       if (res.ok) setFacts((current) => current.filter((fact) => fact.key !== key));
     } finally {
       setBusy(null);
@@ -98,9 +98,9 @@ export function MemoryPanel({ onClose }: MemoryPanelProps) {
   };
 
   const removeAll = async () => {
-    setBusy('all');
+    setBusy("all");
     try {
-      const res = await fetch('/api/anden/memory', { method: 'DELETE' });
+      const res = await fetch("/api/anden/memory", { method: "DELETE" });
       if (res.ok) {
         setFacts([]);
         setTurns(0);
@@ -149,20 +149,20 @@ export function MemoryPanel({ onClose }: MemoryPanelProps) {
         </header>
 
         <div className="flex-1 overflow-y-auto px-4 py-3 scrollbar-thin">
-          {status === 'loading' && (
+          {status === "loading" && (
             <div className="space-y-2" aria-busy="true" aria-label="Cargando memoria">
               <div className="skeleton-pulse h-14 rounded-lg" />
               <div className="skeleton-pulse h-14 rounded-lg" />
             </div>
           )}
 
-          {status === 'error' && (
+          {status === "error" && (
             <div className="rounded-lg bg-error-container/20 px-3 py-3 text-body-sm text-on-error-container">
               No pude leer la memoria.
               <button
                 type="button"
                 onClick={() => {
-                  setStatus('loading');
+                  setStatus("loading");
                   setReload((value) => value + 1);
                 }}
                 className="ml-2 font-bold underline underline-offset-2 focus-ring"
@@ -172,19 +172,21 @@ export function MemoryPanel({ onClose }: MemoryPanelProps) {
             </div>
           )}
 
-          {status === 'ready' && facts.length === 0 && (
+          {status === "ready" && facts.length === 0 && (
             <p className="py-6 text-center text-body-sm text-on-surface-variant">
               Anden todavía no guardó nada. Cuando le cuentes de dónde salís o a dónde vas, va a
               recordarlo acá.
             </p>
           )}
 
-          {status === 'ready' && facts.length > 0 && (
+          {status === "ready" && facts.length > 0 && (
             <ul className="divide-y divide-outline-variant/10">
               {facts.map((fact) => (
                 <li key={fact.key} className="flex items-center gap-3 py-2.5">
                   <div className="min-w-0 flex-1">
-                    <p className="text-label-caps text-outline">{FACT_LABELS[fact.key] ?? fact.key}</p>
+                    <p className="text-label-caps text-outline">
+                      {FACT_LABELS[fact.key] ?? fact.key}
+                    </p>
                     <p className="truncate text-body-md font-medium text-on-background">
                       {formatFactValue(fact.key, fact.value)}
                     </p>
@@ -209,7 +211,9 @@ export function MemoryPanel({ onClose }: MemoryPanelProps) {
 
         <footer className="flex flex-wrap items-center gap-2 border-t border-outline-variant/10 px-4 py-3">
           <span className="text-[11px] font-mono text-outline">
-            {turns > 0 ? `${turns} ${turns === 1 ? 'conversación' : 'conversaciones'} guardadas` : 'Sin conversaciones guardadas'}
+            {turns > 0
+              ? `${turns} ${turns === 1 ? "conversación" : "conversaciones"} guardadas`
+              : "Sin conversaciones guardadas"}
           </span>
           <a
             href="/anden"
@@ -230,7 +234,7 @@ export function MemoryPanel({ onClose }: MemoryPanelProps) {
                 <button
                   type="button"
                   onClick={() => void removeAll()}
-                  disabled={busy === 'all'}
+                  disabled={busy === "all"}
                   className="focus-ring rounded-md bg-error px-3 py-1.5 text-body-sm font-bold text-on-error disabled:opacity-40"
                 >
                   Sí, borrar todo

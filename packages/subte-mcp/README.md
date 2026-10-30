@@ -61,12 +61,12 @@ For a local checkout, use `"command": "node"` and the absolute path to `packages
 
 ## Tools
 
-| Tool | Arguments | Returns |
-| --- | --- | --- |
-| `subway_status` | `line?` | Official alerts grouped by line, `stale` flag, feed age in seconds. |
-| `next_trains` | `station`, `line?`, `limit=3` | Upcoming arrivals at one station, sorted by ETA. |
-| `plan_trip` | `from`, `to`, `step_free=false` | Legs with board/alight stations, total stops, transfers, estimated minutes. |
-| `nearby_stations` | `lat`, `lng`, `radius_m=800` | Stations inside the radius, sorted by distance in meters. |
+| Tool              | Arguments                       | Returns                                                                     |
+| ----------------- | ------------------------------- | --------------------------------------------------------------------------- |
+| `subway_status`   | `line?`                         | Official alerts grouped by line, `stale` flag, feed age in seconds.         |
+| `next_trains`     | `station`, `line?`, `limit=3`   | Upcoming arrivals at one station, sorted by ETA.                            |
+| `plan_trip`       | `from`, `to`, `step_free=false` | Legs with board/alight stations, total stops, transfers, estimated minutes. |
+| `nearby_stations` | `lat`, `lng`, `radius_m=800`    | Stations inside the radius, sorted by distance in meters.                   |
 
 Descriptions in `tools/list` state when to use each tool and when not to. Errors come back as `isError: true` with a message that names the closest stations, the valid lines, or the candidates when a station name is ambiguous.
 
@@ -118,7 +118,7 @@ Call with no arguments for the whole network, or `{"line": "LineaB"}` to filter.
 ### `next_trains`
 
 ```json
-{"station": "Uruguay", "limit": 3}
+{ "station": "Uruguay", "limit": 3 }
 ```
 
 ```json
@@ -154,7 +154,7 @@ Call with no arguments for the whole network, or `{"line": "LineaB"}` to filter.
 ### `plan_trip`
 
 ```json
-{"from": "Agüero", "to": "Plaza de Mayo"}
+{ "from": "Agüero", "to": "Plaza de Mayo" }
 ```
 
 ```json
@@ -198,7 +198,7 @@ The planner runs Dijkstra over the GTFS stop sequences. Ride edges cost 2 minute
 ### `nearby_stations`
 
 ```json
-{"lat": -34.6037, "lng": -58.3816, "radius_m": 800}
+{ "lat": -34.6037, "lng": -58.3816, "radius_m": 800 }
 ```
 
 The response is trimmed here to its first three stations.
@@ -239,12 +239,12 @@ The response is trimmed here to its first three stations.
 
 Three warm calls per tool from a local run on 2026-10-30, Node 22.23, against the live API. Warm means the reference feed was already in memory.
 
-| Tool | Median call | Response |
-| --- | --- | --- |
-| `subway_status` | 415 ms | 0.9 KB |
-| `next_trains` | 413 ms | 0.4 KB |
-| `plan_trip` | 6 ms | 0.4 KB |
-| `nearby_stations` | 2 ms | 1.3 KB |
+| Tool              | Median call | Response |
+| ----------------- | ----------- | -------- |
+| `subway_status`   | 415 ms      | 0.9 KB   |
+| `next_trains`     | 413 ms      | 0.4 KB   |
+| `plan_trip`       | 6 ms        | 0.4 KB   |
+| `nearby_stations` | 2 ms        | 1.3 KB   |
 
 The two tools that only need reference data are effectively local after the first call. The network time is the upstream telemetry request.
 

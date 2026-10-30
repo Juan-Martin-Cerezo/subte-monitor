@@ -1,10 +1,10 @@
-import type { ToolDefinition as LlmTool } from '../llm';
+import type { ToolDefinition as LlmTool } from "../llm";
 
 export interface AgentTool {
   name: string;
   description: string;
   parameters: {
-    type: 'object';
+    type: "object";
     properties: Record<string, unknown>;
     required?: string[];
     additionalProperties: boolean;
@@ -14,7 +14,7 @@ export interface AgentTool {
 
 export function toLlmTool(tool: AgentTool): LlmTool {
   return {
-    type: 'function',
+    type: "function",
     function: {
       name: tool.name,
       description: tool.description,

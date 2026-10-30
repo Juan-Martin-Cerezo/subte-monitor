@@ -1,9 +1,18 @@
-import { mkdirSync } from 'node:fs';
-import path from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
-import type { AndenStore, Fact, FactKey, FactValue, Trace, TraceStep, TraceSummary, Turn } from './types';
+import { mkdirSync } from "node:fs";
+import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import type {
+  AndenStore,
+  Fact,
+  FactKey,
+  FactValue,
+  Trace,
+  TraceStep,
+  TraceSummary,
+  Turn,
+} from "./types";
 
-const DEFAULT_DB_PATH = path.join(process.cwd(), '.anden', 'anden.db');
+const DEFAULT_DB_PATH = path.join(process.cwd(), ".anden", "anden.db");
 const TURN_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_TURNS = 8;
 const MAX_TURN_TEXT = 500;
@@ -83,7 +92,7 @@ export class SqliteStore implements AndenStore {
 
     mkdirSync(path.dirname(this.file), { recursive: true });
     const db = new DatabaseSync(this.file);
-    db.exec('PRAGMA journal_mode = WAL;');
+    db.exec("PRAGMA journal_mode = WAL;");
     db.exec(`
       CREATE TABLE IF NOT EXISTS anden_facts (
         user_id TEXT NOT NULL,
@@ -122,7 +131,7 @@ export class SqliteStore implements AndenStore {
   }
 
   private conn(): DatabaseSync {
-    if (!this.db) throw new Error('sqlite store not initialized');
+    if (!this.db) throw new Error("sqlite store not initialized");
     return this.db;
   }
 
@@ -134,19 +143,19 @@ export class SqliteStore implements AndenStore {
          ON CONFLICT (user_id, key) DO UPDATE SET
            value = excluded.value,
            updated_at = excluded.updated_at,
-           expires_at = excluded.expires_at`,
+           expires_at = excluded.expires_at`
       )
       .run(fact.userId, fact.key, JSON.stringify(fact.value), fact.updatedAt, fact.expiresAt);
   }
 
   async listFacts(userId: string): Promise<Fact[]> {
     const db = this.conn();
-    db.prepare('DELETE FROM anden_facts WHERE expires_at <= ?').run(new Date().toISOString());
+    db.prepare("DELETE FROM anden_facts WHERE expires_at <= ?").run(new Date().toISOString());
 
     const rows = db
       .prepare(
         `SELECT user_id, key, value, updated_at, expires_at
-         FROM anden_facts WHERE user_id = ? ORDER BY key`,
+         FROM anden_facts WHERE user_id = ? ORDER BY key`
       )
       .all(userId) as unknown as FactRow[];
 
@@ -161,7 +170,7 @@ export class SqliteStore implements AndenStore {
 
   async deleteFact(userId: string, key: string): Promise<boolean> {
     const result = this.conn()
-      .prepare('DELETE FROM anden_facts WHERE user_id = ? AND key = ?')
+      .prepare("DELETE FROM anden_facts WHERE user_id = ? AND key = ?")
       .run(userId, key);
     return Number(result.changes) > 0;
   }
@@ -169,40 +178,42 @@ export class SqliteStore implements AndenStore {
   async deleteAll(userId: string): Promise<number> {
     const db = this.conn();
     const facts = Number(
-      db.prepare('SELECT COUNT(*) AS n FROM anden_facts WHERE user_id = ?').get(userId)?.n ?? 0,
+      db.prepare("SELECT COUNT(*) AS n FROM anden_facts WHERE user_id = ?").get(userId)?.n ?? 0
     );
     const turns = Number(
-      db.prepare('SELECT COUNT(*) AS n FROM anden_turns WHERE user_id = ?').get(userId)?.n ?? 0,
+      db.prepare("SELECT COUNT(*) AS n FROM anden_turns WHERE user_id = ?").get(userId)?.n ?? 0
     );
-    db.prepare('DELETE FROM anden_facts WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM anden_turns WHERE user_id = ?').run(userId);
+    db.prepare("DELETE FROM anden_facts WHERE user_id = ?").run(userId);
+    db.prepare("DELETE FROM anden_turns WHERE user_id = ?").run(userId);
     return facts + turns;
   }
 
   async putTurn(turn: Turn): Promise<void> {
     const db = this.conn();
-    db.prepare('INSERT INTO anden_turns (user_id, question, answer, created_at) VALUES (?, ?, ?, ?)').run(
+    db.prepare(
+      "INSERT INTO anden_turns (user_id, question, answer, created_at) VALUES (?, ?, ?, ?)"
+    ).run(
       turn.userId,
       turn.question.slice(0, MAX_TURN_TEXT),
       turn.answer.slice(0, MAX_TURN_TEXT),
-      turn.createdAt,
+      turn.createdAt
     );
-    db.prepare('DELETE FROM anden_turns WHERE user_id = ? AND created_at <= ?').run(
+    db.prepare("DELETE FROM anden_turns WHERE user_id = ? AND created_at <= ?").run(
       turn.userId,
-      new Date(Date.now() - TURN_TTL_MS).toISOString(),
+      new Date(Date.now() - TURN_TTL_MS).toISOString()
     );
     db.prepare(
       `DELETE FROM anden_turns WHERE user_id = ? AND id NOT IN (
          SELECT id FROM anden_turns WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?
-       )`,
+       )`
     ).run(turn.userId, turn.userId, MAX_TURNS);
   }
 
   async recentTurns(userId: string, n: number): Promise<Turn[]> {
     const db = this.conn();
-    db.prepare('DELETE FROM anden_turns WHERE user_id = ? AND created_at <= ?').run(
+    db.prepare("DELETE FROM anden_turns WHERE user_id = ? AND created_at <= ?").run(
       userId,
-      new Date(Date.now() - TURN_TTL_MS).toISOString(),
+      new Date(Date.now() - TURN_TTL_MS).toISOString()
     );
 
     const rows = db
@@ -210,7 +221,7 @@ export class SqliteStore implements AndenStore {
         `SELECT user_id, question, answer, created_at FROM (
            SELECT id, user_id, question, answer, created_at FROM anden_turns
            WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?
-         ) ORDER BY created_at ASC, id ASC`,
+         ) ORDER BY created_at ASC, id ASC`
       )
       .all(userId, Math.max(0, n)) as unknown as TurnRow[];
 
@@ -237,7 +248,7 @@ export class SqliteStore implements AndenStore {
            truncated = excluded.truncated,
            model = excluded.model,
            prompt_hash = excluded.prompt_hash,
-           params = excluded.params`,
+           params = excluded.params`
       )
       .run(
         trace.traceId,
@@ -252,13 +263,13 @@ export class SqliteStore implements AndenStore {
         trace.model,
         trace.promptHash,
         trace.params,
-        trace.createdAt,
+        trace.createdAt
       );
   }
 
   async getTrace(traceId: string): Promise<Trace | null> {
     const row = this.conn()
-      .prepare('SELECT * FROM anden_traces WHERE trace_id = ?')
+      .prepare("SELECT * FROM anden_traces WHERE trace_id = ?")
       .get(traceId) as unknown as TraceRow | undefined;
     return row ? toTrace(row) : null;
   }
@@ -267,14 +278,14 @@ export class SqliteStore implements AndenStore {
     const rows = this.conn()
       .prepare(
         `SELECT trace_id, question, steps, total_ms, tokens, cost_usd, ok, created_at
-         FROM anden_traces WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`,
+         FROM anden_traces WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`
       )
       .all(userId, Math.max(1, limit)) as unknown as TraceRow[];
 
     return rows.map((row) => ({
       traceId: row.trace_id,
       question: row.question,
-      steps: parseSteps(row.steps).filter((step) => step.kind !== 'plan').length,
+      steps: parseSteps(row.steps).filter((step) => step.kind !== "plan").length,
       totalMs: row.total_ms,
       tokens: row.tokens,
       costUsd: row.cost_usd,

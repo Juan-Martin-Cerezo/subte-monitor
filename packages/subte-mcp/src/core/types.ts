@@ -23,7 +23,7 @@ export interface Train {
   id: string;
   routeId: string;
   directionId: number;
-  status: 'STOPPED' | 'IN_TRANSIT';
+  status: "STOPPED" | "IN_TRANSIT";
   progress: number;
   latitude: number;
   longitude: number;

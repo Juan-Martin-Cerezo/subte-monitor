@@ -1,4 +1,4 @@
-import { mergeAlerts } from './alerts';
+import { mergeAlerts } from "./alerts";
 import {
   ALERTS_PATH,
   DOCS_PATH,
@@ -7,7 +7,7 @@ import {
   readJsonl,
   writeJsonl,
   type CorpusEntry,
-} from './corpus';
+} from "./corpus";
 
 async function main(): Promise<void> {
   const docs = await buildDocChunks();
@@ -16,9 +16,11 @@ async function main(): Promise<void> {
 
   try {
     const result = await mergeAlerts();
-    console.log(`alerts: ${result.total} entries (${result.added} new, ${result.updated} seen again)`);
+    console.log(
+      `alerts: ${result.total} entries (${result.added} new, ${result.updated} seen again)`
+    );
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'unknown error';
+    const message = error instanceof Error ? error.message : "unknown error";
     console.warn(`alerts: feed unavailable, kept existing file (${message})`);
   }
 

@@ -1,12 +1,12 @@
-import { STATION_NAMES } from './station-names';
+import { STATION_NAMES } from "./station-names";
 
 // Same normalization used by the MCP package and the retrieval tokenizer.
 export function normalizeName(value: string): string {
   return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
 

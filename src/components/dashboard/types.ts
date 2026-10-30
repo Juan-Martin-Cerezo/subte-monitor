@@ -1,7 +1,7 @@
-export type TabId = 'map' | 'planner' | 'stations' | 'status' | 'arrivals';
+export type TabId = "map" | "planner" | "stations" | "status" | "arrivals";
 
-import type { TrainTelemetry, AlertData, Prediction } from '@/lib/telemetry';
-import type { LineId } from './lines';
+import type { TrainTelemetry, AlertData, Prediction } from "@/lib/telemetry";
+import type { LineId } from "./lines";
 
 export interface Station {
   stopId: string;

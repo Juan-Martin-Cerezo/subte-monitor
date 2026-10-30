@@ -1,14 +1,14 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { promises as fs } from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { runAgent, type AgentResult } from '../src/lib/anden/agent/run';
-import { loadEnv } from '../scripts/anden/env';
-import { buildFact, validateFact } from '../src/lib/anden/facts';
-import { LlmConfigError, type LlmUsage } from '../src/lib/anden/llm';
-import { getStore } from '../src/lib/anden/store';
-import type { FactKey } from '../src/lib/anden/store/types';
-import { mentionedStations, normalizeName } from '../src/lib/anden/stations';
+import { mkdtempSync, rmSync } from "node:fs";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { runAgent, type AgentResult } from "../src/lib/anden/agent/run";
+import { loadEnv } from "../scripts/anden/env";
+import { buildFact, validateFact } from "../src/lib/anden/facts";
+import { LlmConfigError, type LlmUsage } from "../src/lib/anden/llm";
+import { getStore } from "../src/lib/anden/store";
+import type { FactKey } from "../src/lib/anden/store/types";
+import { mentionedStations, normalizeName } from "../src/lib/anden/stations";
 import {
   CATEGORIES,
   README_PATH,
@@ -23,14 +23,14 @@ import {
   type Category,
   type EvalCase,
   type EvalConfig,
-} from './lib';
+} from "./lib";
 import {
   planFromEvidence,
   sameStation,
   unsupportedClaims,
   unresolvedCitations,
   valueMatches,
-} from './score';
+} from "./score";
 
 interface Options {
   subset: number | null;
@@ -110,50 +110,53 @@ function parseOptions(argv: string[]): Options {
   };
 
   for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index] ?? '';
-    const equals = arg.indexOf('=');
+    const arg = argv[index] ?? "";
+    const equals = arg.indexOf("=");
     const flag = equals > 0 ? arg.slice(0, equals) : arg;
     const inline = equals > 0 ? arg.slice(equals + 1) : undefined;
     const value = (): string => {
       if (inline !== undefined) return inline;
       const next = argv[index + 1];
-      if (!next || next.startsWith('--')) throw new Error(`${flag} needs a value`);
+      if (!next || next.startsWith("--")) throw new Error(`${flag} needs a value`);
       index += 1;
       return next;
     };
 
     switch (flag) {
-      case '--subset': {
+      case "--subset": {
         const parsed = Number(value());
-        if (!Number.isInteger(parsed) || parsed < 1) throw new Error('--subset must be a positive integer');
+        if (!Number.isInteger(parsed) || parsed < 1)
+          throw new Error("--subset must be a positive integer");
         options.subset = parsed;
         break;
       }
-      case '--category': {
+      case "--category": {
         const parsed = value() as Category;
-        if (!CATEGORIES.includes(parsed)) throw new Error(`--category must be one of ${CATEGORIES.join(', ')}`);
+        if (!CATEGORIES.includes(parsed))
+          throw new Error(`--category must be one of ${CATEGORIES.join(", ")}`);
         options.category = parsed;
         break;
       }
-      case '--seed-facts':
+      case "--seed-facts":
         options.seedFacts = true;
         break;
-      case '--max-cost': {
+      case "--max-cost": {
         const parsed = Number(value());
-        if (!Number.isFinite(parsed) || parsed < 0) throw new Error('--max-cost must be a non-negative number');
+        if (!Number.isFinite(parsed) || parsed < 0)
+          throw new Error("--max-cost must be a non-negative number");
         options.maxCost = parsed;
         break;
       }
-      case '--out':
+      case "--out":
         options.out = path.resolve(ROOT, value());
         break;
-      case '--write-readme':
+      case "--write-readme":
         options.writeReadme = true;
         break;
-      case '--gate':
+      case "--gate":
         options.gate = true;
         break;
-      case '--help':
+      case "--help":
         console.log(HELP);
         process.exit(0);
         break;
@@ -191,12 +194,17 @@ function stratified(cases: EvalCase[], limit: number): EvalCase[] {
 }
 
 function selectCases(cases: EvalCase[], options: Options): EvalCase[] {
-  let pool = options.category ? cases.filter((testCase) => testCase.category === options.category) : [...cases];
-  if (!options.seedFacts) pool = pool.filter((testCase) => testCase.category !== 'memory');
+  let pool = options.category
+    ? cases.filter((testCase) => testCase.category === options.category)
+    : [...cases];
+  if (!options.seedFacts) pool = pool.filter((testCase) => testCase.category !== "memory");
   return options.subset ? stratified(pool, options.subset) : pool;
 }
 
-function evaluate(testCase: EvalCase, result: AgentResult): { checks: Checks; unsupported: string[] } {
+function evaluate(
+  testCase: EvalCase,
+  result: AgentResult
+): { checks: Checks; unsupported: string[] } {
   const expect = testCase.expect;
   const checks: Checks = { abstain: false, hallucination: false };
 
@@ -209,8 +217,11 @@ function evaluate(testCase: EvalCase, result: AgentResult): { checks: Checks; un
 
   if (expect.args_contains) {
     const step = result.steps.find((candidate) => candidate.tool === expect.tool);
-    checks.args = Boolean(step) &&
-      Object.entries(expect.args_contains).every(([key, value]) => valueMatches(key, value, step?.args[key]));
+    checks.args =
+      Boolean(step) &&
+      Object.entries(expect.args_contains).every(([key, value]) =>
+        valueMatches(key, value, step?.args[key])
+      );
   }
 
   if (expect.cites) {
@@ -223,12 +234,13 @@ function evaluate(testCase: EvalCase, result: AgentResult): { checks: Checks; un
 
   checks.abstain = expect.abstained === true ? result.abstained : !result.abstained;
 
-  if (expect.tool === 'plan_trip' && expect.args_contains?.from && expect.args_contains?.to) {
+  if (expect.tool === "plan_trip" && expect.args_contains?.from && expect.args_contains?.to) {
     const plan = planFromEvidence(result.evidence);
     const from = expect.args_contains.from;
     const to = expect.args_contains.to;
     const first = plan?.legs[0];
-    checks.legs = Boolean(plan && first) &&
+    checks.legs =
+      Boolean(plan && first) &&
       sameStation(first?.board, from) &&
       (plan?.legs ?? []).every((leg) => !sameStation(leg.board, to));
   }
@@ -237,12 +249,15 @@ function evaluate(testCase: EvalCase, result: AgentResult): { checks: Checks; un
     const value = testCase.user_facts?.[expect.uses_fact];
     const inArgs = result.steps.some((step) =>
       Object.values(step.args).some((actual) =>
-        typeof value === 'string' ? sameStation(actual, value) : actual === value,
-      ),
+        typeof value === "string" ? sameStation(actual, value) : actual === value
+      )
     );
-    const inAnswer = typeof value === 'string'
-      ? mentionedStations(result.answer).some((name) => normalizeName(name) === normalizeName(value))
-      : result.answer.includes(String(value));
+    const inAnswer =
+      typeof value === "string"
+        ? mentionedStations(result.answer).some(
+            (name) => normalizeName(name) === normalizeName(value)
+          )
+        : result.answer.includes(String(value));
     checks.uses_fact = value !== undefined && (inArgs || inAnswer);
   }
 
@@ -263,12 +278,16 @@ function ratio(values: boolean[]): number | null {
 
 function failedCheck(name: string, value: boolean | undefined): boolean {
   if (value === undefined) return false;
-  return name === 'hallucination' ? value === true : value === false;
+  return name === "hallucination" ? value === true : value === false;
 }
 
 function summarize(rows: CaseRow[]): Metrics {
-  const tool = rows.filter((row) => row.checks.tool !== undefined).map((row) => row.checks.tool === true);
-  const args = rows.filter((row) => row.checks.args !== undefined).map((row) => row.checks.args === true);
+  const tool = rows
+    .filter((row) => row.checks.tool !== undefined)
+    .map((row) => row.checks.tool === true);
+  const args = rows
+    .filter((row) => row.checks.args !== undefined)
+    .map((row) => row.checks.args === true);
   const citations = rows
     .filter((row) => row.checks.citations !== undefined)
     .map((row) => row.checks.citations === true);
@@ -279,12 +298,19 @@ function summarize(rows: CaseRow[]): Metrics {
     tool_accuracy: ratio(tool),
     arg_accuracy: ratio(args),
     citation_validity: ratio(citations),
-    abstain_correctness: rows.length ? round(rows.filter((row) => row.checks.abstain).length / rows.length) : 0,
-    hallucination_rate: rows.length ? round(rows.filter((row) => row.checks.hallucination).length / rows.length) : 0,
+    abstain_correctness: rows.length
+      ? round(rows.filter((row) => row.checks.abstain).length / rows.length)
+      : 0,
+    hallucination_rate: rows.length
+      ? round(rows.filter((row) => row.checks.hallucination).length / rows.length)
+      : 0,
     p50_ms: percentile(latencies, 50),
     p95_ms: percentile(latencies, 95),
     tokens: rows.reduce((sum, row) => sum + (row.usage.total_tokens ?? 0), 0),
-    cost_usd: round(rows.reduce((sum, row) => sum + row.cost_usd, 0), 6),
+    cost_usd: round(
+      rows.reduce((sum, row) => sum + row.cost_usd, 0),
+      6
+    ),
     failed: rows
       .filter((row) => Object.entries(row.checks).some(([name, value]) => failedCheck(name, value)))
       .map((row) => row.id),
@@ -292,7 +318,7 @@ function summarize(rows: CaseRow[]): Metrics {
 }
 
 function percent(value: number | null): string {
-  return value === null ? 'n/a' : `${Math.round(value * 100)}%`;
+  return value === null ? "n/a" : `${Math.round(value * 100)}%`;
 }
 
 function metricsTable(rows: CaseRow[], metrics: Metrics, label: string): string {
@@ -301,69 +327,84 @@ function metricsTable(rows: CaseRow[], metrics: Metrics, label: string): string 
       `${percent(metrics.citation_validity)} | ${percent(metrics.abstain_correctness)} | ` +
       `${percent(metrics.hallucination_rate)} | ${metrics.p50_ms} | ${metrics.p95_ms} | ${metrics.tokens} | ` +
       `${metrics.cost_usd.toFixed(4)} |`,
-  ].join('');
+  ].join("");
 }
 
-function readmeSection(rows: CaseRow[], metrics: Metrics, byCategory: Record<string, Metrics>, date: string): string {
+function readmeSection(
+  rows: CaseRow[],
+  metrics: Metrics,
+  byCategory: Record<string, Metrics>,
+  date: string
+): string {
   const lines = [
-    '<!-- evals:start -->',
-    '### Anden evals',
-    '',
+    "<!-- evals:start -->",
+    "### Anden evals",
+    "",
     `Generated by \`npm run evals\` on ${date}. ${rows.length} cases against the live model. ` +
-      'Each row is a hand-written case; the detail per case is in `evals/results/latest.json`.',
-    '',
-    '| Set | Cases | tool acc | arg acc | citation validity | abstain | hallucination | p50 ms | p95 ms | tokens | cost USD |',
-    '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
-    metricsTable(rows, metrics, 'all'),
+      "Each row is a hand-written case; the detail per case is in `evals/results/latest.json`.",
+    "",
+    "| Set | Cases | tool acc | arg acc | citation validity | abstain | hallucination | p50 ms | p95 ms | tokens | cost USD |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    metricsTable(rows, metrics, "all"),
     ...CATEGORIES.flatMap((category) => {
       const categoryRows = rows.filter((row) => row.category === category);
       const categoryMetrics = byCategory[category];
-      return categoryMetrics && categoryRows.length ? [metricsTable(categoryRows, categoryMetrics, category)] : [];
+      return categoryMetrics && categoryRows.length
+        ? [metricsTable(categoryRows, categoryMetrics, category)]
+        : [];
     }),
-    '',
+    "",
   ];
 
   if (metrics.failed.length) {
-    lines.push(`Failed checks: ${metrics.failed.join(', ')}.`, '');
+    lines.push(`Failed checks: ${metrics.failed.join(", ")}.`, "");
   }
 
   lines.push(
-    'Thresholds used by CI: `hallucination_rate <= 0.10` and `tool_accuracy >= 0.85`.',
-    '<!-- evals:end -->',
+    "Thresholds used by CI: `hallucination_rate <= 0.10` and `tool_accuracy >= 0.85`.",
+    "<!-- evals:end -->"
   );
 
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 async function writeReadme(section: string): Promise<void> {
-  let current = '';
+  let current = "";
   try {
-    current = await fs.readFile(README_PATH, 'utf8');
+    current = await fs.readFile(README_PATH, "utf8");
   } catch {
-    current = '# subte-monitor\n';
+    current = "# subte-monitor\n";
   }
 
-  const start = '<!-- evals:start -->';
-  const end = '<!-- evals:end -->';
+  const start = "<!-- evals:start -->";
+  const end = "<!-- evals:end -->";
   const startAt = current.indexOf(start);
   const endAt = current.indexOf(end);
 
-  const next = startAt >= 0 && endAt > startAt
-    ? `${current.slice(0, startAt)}${section}${current.slice(endAt + end.length)}`.replace(/\n{3,}/g, '\n\n')
-    : `${current.replace(/\s+$/, '')}\n\n${section}\n`;
+  const next =
+    startAt >= 0 && endAt > startAt
+      ? `${current.slice(0, startAt)}${section}${current.slice(endAt + end.length)}`.replace(
+          /\n{3,}/g,
+          "\n\n"
+        )
+      : `${current.replace(/\s+$/, "")}\n\n${section}\n`;
 
-  await fs.writeFile(README_PATH, next, 'utf8');
+  await fs.writeFile(README_PATH, next, "utf8");
 }
 
 function printCostTable(rows: CaseRow[]): void {
-  console.log('');
-  console.log('| case | tokens | cost USD | ms |');
-  console.log('| --- | ---: | ---: | ---: |');
+  console.log("");
+  console.log("| case | tokens | cost USD | ms |");
+  console.log("| --- | ---: | ---: | ---: |");
   for (const row of rows) {
-    console.log(`| ${row.id} | ${row.usage.total_tokens ?? 0} | ${row.cost_usd.toFixed(6)} | ${row.ms} |`);
+    console.log(
+      `| ${row.id} | ${row.usage.total_tokens ?? 0} | ${row.cost_usd.toFixed(6)} | ${row.ms} |`
+    );
   }
-  console.log(`| total | ${rows.reduce((sum, row) => sum + (row.usage.total_tokens ?? 0), 0)} | ` +
-    `${rows.reduce((sum, row) => sum + row.cost_usd, 0).toFixed(6)} | |`);
+  console.log(
+    `| total | ${rows.reduce((sum, row) => sum + (row.usage.total_tokens ?? 0), 0)} | ` +
+      `${rows.reduce((sum, row) => sum + row.cost_usd, 0).toFixed(6)} | |`
+  );
 }
 
 async function main(): Promise<void> {
@@ -371,23 +412,23 @@ async function main(): Promise<void> {
   const options = parseOptions(process.argv.slice(2));
   const config: EvalConfig = await loadConfig();
   const maxCost = Number.isFinite(options.maxCost) ? options.maxCost : config.max_cost_usd;
-  if (maxCost <= 0) throw new Error('max cost must be greater than zero');
+  if (maxCost <= 0) throw new Error("max cost must be greater than zero");
 
   const allCases = await loadCases();
   const selected = selectCases(allCases, options);
 
   if (!selected.length) {
     console.error(
-      options.category === 'memory' && !options.seedFacts
-        ? 'memory cases need --seed-facts'
-        : 'no cases selected',
+      options.category === "memory" && !options.seedFacts
+        ? "memory cases need --seed-facts"
+        : "no cases selected"
     );
     process.exitCode = 2;
     return;
   }
 
-  const tempDir = mkdtempSync(path.join(os.tmpdir(), 'anden-evals-'));
-  process.env.ANDEN_SQLITE_PATH = path.join(tempDir, 'anden.db');
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "anden-evals-"));
+  process.env.ANDEN_SQLITE_PATH = path.join(tempDir, "anden.db");
   delete process.env.DATABASE_URL;
 
   const store = getStore();
@@ -423,7 +464,7 @@ async function main(): Promise<void> {
         if (caught instanceof LlmConfigError) throw caught;
         error = caught instanceof Error ? caught.message : String(caught);
         result = {
-          answer: '',
+          answer: "",
           steps: [],
           sources: [],
           abstained: false,
@@ -465,8 +506,8 @@ async function main(): Promise<void> {
         .filter(([name, value]) => failedCheck(name, value))
         .map(([name]) => name);
       console.log(
-        `${testCase.id} ${failed.length ? `FAIL ${failed.join(',')}` : 'ok'} ${ms}ms ` +
-          `$${cost.toFixed(6)}${error ? ` error=${error}` : ''}`,
+        `${testCase.id} ${failed.length ? `FAIL ${failed.join(",")}` : "ok"} ${ms}ms ` +
+          `$${cost.toFixed(6)}${error ? ` error=${error}` : ""}`
       );
     }
   } finally {
@@ -484,12 +525,12 @@ async function main(): Promise<void> {
 
   const date = new Date().toISOString().slice(0, 10);
   const gateApplied = options.gate;
-  const gatePassed = !gateApplied || (
-    metrics.cases > 0 &&
-    metrics.tool_accuracy !== null &&
-    metrics.tool_accuracy >= 0.85 &&
-    metrics.hallucination_rate <= 0.1
-  );
+  const gatePassed =
+    !gateApplied ||
+    (metrics.cases > 0 &&
+      metrics.tool_accuracy !== null &&
+      metrics.tool_accuracy >= 0.85 &&
+      metrics.hallucination_rate <= 0.1);
 
   const payload = {
     generated_at: new Date().toISOString(),
@@ -509,19 +550,26 @@ async function main(): Promise<void> {
       spent_usd: metrics.cost_usd,
     },
     aborted_by_cost: abortedByCost,
-    gate: { applied: gateApplied, passed: gatePassed, hallucination_max: 0.1, tool_accuracy_min: 0.85 },
+    gate: {
+      applied: gateApplied,
+      passed: gatePassed,
+      hallucination_max: 0.1,
+      tool_accuracy_min: 0.85,
+    },
   };
 
   await fs.mkdir(path.dirname(options.out), { recursive: true });
-  await fs.writeFile(options.out, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+  await fs.writeFile(options.out, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 
   if (options.writeReadme) await writeReadme(readmeSection(rows, metrics, byCategory, date));
 
-  console.log('');
+  console.log("");
   console.log(`cases: ${metrics.cases}`);
-  console.log(`tool_accuracy: ${metrics.tool_accuracy === null ? 'n/a' : metrics.tool_accuracy}`);
-  console.log(`arg_accuracy: ${metrics.arg_accuracy === null ? 'n/a' : metrics.arg_accuracy}`);
-  console.log(`citation_validity: ${metrics.citation_validity === null ? 'n/a' : metrics.citation_validity}`);
+  console.log(`tool_accuracy: ${metrics.tool_accuracy === null ? "n/a" : metrics.tool_accuracy}`);
+  console.log(`arg_accuracy: ${metrics.arg_accuracy === null ? "n/a" : metrics.arg_accuracy}`);
+  console.log(
+    `citation_validity: ${metrics.citation_validity === null ? "n/a" : metrics.citation_validity}`
+  );
   console.log(`abstain_correctness: ${metrics.abstain_correctness}`);
   console.log(`hallucination_rate: ${metrics.hallucination_rate}`);
   console.log(`p50_ms: ${metrics.p50_ms} p95_ms: ${metrics.p95_ms}`);
@@ -538,7 +586,7 @@ async function main(): Promise<void> {
   } else if (gateApplied && !gatePassed) {
     console.error(
       `gate failed: hallucination_rate=${metrics.hallucination_rate} (max 0.10), ` +
-        `tool_accuracy=${metrics.tool_accuracy ?? 'n/a'} (min 0.85)`,
+        `tool_accuracy=${metrics.tool_accuracy ?? "n/a"} (min 0.85)`
     );
     process.exitCode = 1;
   }
@@ -546,7 +594,7 @@ async function main(): Promise<void> {
 
 main().catch((error: unknown) => {
   if (error instanceof LlmConfigError) {
-    console.error('no model key configured: set ANDEN_LLM_KEY, or ANDEN_LLM_KEY in .env.local');
+    console.error("no model key configured: set ANDEN_LLM_KEY, or ANDEN_LLM_KEY in .env.local");
     process.exitCode = 2;
     return;
   }

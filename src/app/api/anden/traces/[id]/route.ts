@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
-import { HARNESS_CONFIG } from '@/lib/anden/harness/config';
-import { readUserId } from '@/lib/anden/identity';
-import { getStore } from '@/lib/anden/store';
+import { NextResponse } from "next/server";
+import { HARNESS_CONFIG } from "@/lib/anden/harness/config";
+import { readUserId } from "@/lib/anden/identity";
+import { getStore } from "@/lib/anden/store";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 function clip(value: string): string {
   return value.length > HARNESS_CONFIG.maxDetailChars
@@ -13,7 +13,7 @@ function clip(value: string): string {
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const userId = await readUserId();
-  if (!userId) return NextResponse.json({ error: 'No encontré esa traza.' }, { status: 404 });
+  if (!userId) return NextResponse.json({ error: "No encontré esa traza." }, { status: 404 });
 
   const { id } = await context.params;
   const store = getStore();
@@ -21,7 +21,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const trace = await store.getTrace(id);
 
   if (!trace || trace.userId !== userId) {
-    return NextResponse.json({ error: 'No encontré esa traza.' }, { status: 404 });
+    return NextResponse.json({ error: "No encontré esa traza." }, { status: 404 });
   }
 
   return NextResponse.json({

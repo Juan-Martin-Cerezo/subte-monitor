@@ -1,25 +1,31 @@
-'use client';
+"use client";
 
-import { useState, useMemo } from 'react';
-import type { Station, RouteSequence, ReportItem } from '../types';
-import { LINE_META, MANUAL_CONNECTIONS as MANUAL_TRANSFERS, type LineId, normalizeStationKey } from '../lines';
-import { Icon } from '../Icon';
-import { classNames, formatEta, lineShort } from '../utils';
-import { ACCESSIBILITY_METADATA } from '@/lib/metadata';
-import { ARTWORK_METADATA, PREMETRO_STATION_DETAILS } from '@/lib/metadata_extended';
-import type { Prediction } from '@/lib/telemetry';
-import { STATION_CONNECTIONS } from '@/lib/connections';
+import { useState, useMemo } from "react";
+import type { Station, RouteSequence, ReportItem } from "../types";
+import {
+  LINE_META,
+  MANUAL_CONNECTIONS as MANUAL_TRANSFERS,
+  type LineId,
+  normalizeStationKey,
+} from "../lines";
+import { Icon } from "../Icon";
+import { classNames, formatEta, lineShort } from "../utils";
+import { ACCESSIBILITY_METADATA } from "@/lib/metadata";
+import { ARTWORK_METADATA, PREMETRO_STATION_DETAILS } from "@/lib/metadata_extended";
+import type { Prediction } from "@/lib/telemetry";
+import { STATION_CONNECTIONS } from "@/lib/connections";
 
 interface Props {
   stations: Station[];
   sequences: RouteSequence[];
   predictions: Prediction[];
   userReports: ReportItem[];
+  now: number;
 }
 
-export function StationsScreen({ stations, sequences, predictions, userReports }: Props) {
-  const [search, setSearch] = useState('');
-  const [lineFilter, setLineFilter] = useState<LineId | 'All'>('All');
+export function StationsScreen({ stations, sequences, predictions, userReports, now }: Props) {
+  const [search, setSearch] = useState("");
+  const [lineFilter, setLineFilter] = useState<LineId | "All">("All");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showDetailMobile, setShowDetailMobile] = useState(false);
 
@@ -27,27 +33,33 @@ export function StationsScreen({ stations, sequences, predictions, userReports }
     let result = stations;
     if (search) {
       const q = search.toLowerCase();
-      result = result.filter(s => s.stopName.toLowerCase().includes(q));
+      result = result.filter((s) => s.stopName.toLowerCase().includes(q));
     }
-    if (lineFilter !== 'All') {
-      const validStopIds = new Set(sequences.filter(s => s.routeId === lineFilter).map(s => s.stopId));
-      result = result.filter(s => validStopIds.has(s.stopId));
+    if (lineFilter !== "All") {
+      const validStopIds = new Set(
+        sequences.filter((s) => s.routeId === lineFilter).map((s) => s.stopId)
+      );
+      result = result.filter((s) => validStopIds.has(s.stopId));
     }
     const seen = new Set<string>();
     return result
-      .filter(s => { if (seen.has(s.stopName)) return false; seen.add(s.stopName); return true; })
+      .filter((s) => {
+        if (seen.has(s.stopName)) return false;
+        seen.add(s.stopName);
+        return true;
+      })
       .sort((a, b) => a.stopName.localeCompare(b.stopName));
   }, [stations, sequences, search, lineFilter]);
 
   const selected = useMemo(
-    () => stations.find(s => s.stopId === selectedId) ?? filteredStations[0] ?? null,
+    () => stations.find((s) => s.stopId === selectedId) ?? filteredStations[0] ?? null,
     [selectedId, stations, filteredStations]
   );
 
   // Reports by station name
   const reportsByStation = useMemo(() => {
     const m = new Map<string, ReportItem[]>();
-    userReports.forEach(r => {
+    userReports.forEach((r) => {
       if (!m.has(r.station)) m.set(r.station, []);
       m.get(r.station)!.push(r);
     });
@@ -59,8 +71,8 @@ export function StationsScreen({ stations, sequences, predictions, userReports }
       {/* List */}
       <aside
         className={classNames(
-          'w-full md:w-[320px] lg:w-[420px] shrink-0 flex flex-col border-r border-outline-variant/10 bg-surface-container-lowest/40',
-          selected && showDetailMobile ? 'hidden md:flex' : 'flex'
+          "w-full md:w-[320px] lg:w-[420px] shrink-0 flex flex-col border-r border-outline-variant/10 bg-surface-container-lowest/40",
+          selected && showDetailMobile ? "hidden md:flex" : "flex"
         )}
       >
         <div className="p-2.5 md:p-4 border-b border-outline-variant/10 space-y-2 md:space-y-3">
@@ -75,7 +87,7 @@ export function StationsScreen({ stations, sequences, predictions, userReports }
             </span>
             <input
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar estación…"
               className="w-full bg-surface-container-low border border-outline-variant/15 rounded-md pl-9 pr-3 py-2 text-body-sm text-on-background placeholder:text-outline focus-ring focus:border-primary-container"
               type="search"
@@ -84,27 +96,32 @@ export function StationsScreen({ stations, sequences, predictions, userReports }
 
           <div className="flex gap-1.5 overflow-x-auto scrollbar-none -mx-1 px-1">
             <button
-              onClick={() => setLineFilter('All')}
+              onClick={() => setLineFilter("All")}
               className={classNames(
-                'shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all active:scale-90 border',
-                lineFilter === 'All'
-                  ? 'bg-primary-container text-on-primary-container border-primary-container'
-                  : 'bg-surface-container/80 text-on-surface-variant border-outline-variant/20'
+                "shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all active:scale-90 border",
+                lineFilter === "All"
+                  ? "bg-primary-container text-on-primary-container border-primary-container"
+                  : "bg-surface-container/80 text-on-surface-variant border-outline-variant/20"
               )}
             >
               Todas
             </button>
-            {Object.values(LINE_META).map(l => (
+            {Object.values(LINE_META).map((l) => (
               <button
                 key={l.id}
                 onClick={() => setLineFilter(l.id)}
                 className={classNames(
-                  'shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all active:scale-90 border',
-                  lineFilter === l.id ? 'text-white border-transparent' : 'bg-surface-container/80 text-on-surface-variant border-outline-variant/20'
+                  "shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-[11px] font-semibold transition-all active:scale-90 border",
+                  lineFilter === l.id
+                    ? "text-white border-transparent"
+                    : "bg-surface-container/80 text-on-surface-variant border-outline-variant/20"
                 )}
                 style={lineFilter === l.id ? { background: l.color } : {}}
               >
-                <span className="flex items-center justify-center rounded-full text-[9px] font-black text-white shrink-0" style={{ background: l.color, width: 18, height: 18 }}>
+                <span
+                  className="flex items-center justify-center rounded-full text-[9px] font-black text-white shrink-0"
+                  style={{ background: l.color, width: 18, height: 18 }}
+                >
                   {lineShort(l.id)}
                 </span>
                 {l.short}
@@ -115,25 +132,36 @@ export function StationsScreen({ stations, sequences, predictions, userReports }
 
         <ul className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-thin">
           {filteredStations.length === 0 && (
-            <li className="p-6 text-center text-on-surface-variant text-body-sm">Sin resultados.</li>
+            <li className="p-6 text-center text-on-surface-variant text-body-sm">
+              Sin resultados.
+            </li>
           )}
-          {filteredStations.map(s => {
-            const lines = Array.from(new Set(sequences.filter(seq => seq.stopId === s.stopId).map(seq => seq.routeId))) as LineId[];
+          {filteredStations.map((s) => {
+            const lines = Array.from(
+              new Set(sequences.filter((seq) => seq.stopId === s.stopId).map((seq) => seq.routeId))
+            ) as LineId[];
             const isSel = selected?.stopId === s.stopId;
             return (
               <li key={s.stopId}>
                 <button
-                  onClick={() => { setSelectedId(s.stopId); setShowDetailMobile(true); }}
+                  onClick={() => {
+                    setSelectedId(s.stopId);
+                    setShowDetailMobile(true);
+                  }}
                   className={classNames(
-                    'w-full text-left flex items-center gap-3 px-3 py-3 md:py-2.5 rounded-md transition focus-ring touch-target',
-                    isSel ? 'bg-surface-container-high ring-1 ring-primary-container/30' : 'hover:bg-surface-container'
+                    "w-full text-left flex items-center gap-3 px-3 py-3 md:py-2.5 rounded-md transition focus-ring touch-target",
+                    isSel
+                      ? "bg-surface-container-high ring-1 ring-primary-container/30"
+                      : "hover:bg-surface-container"
                   )}
                 >
                   <span className="flex-1 min-w-0">
-                    <p className={classNames(
-                      'text-body-md font-semibold truncate',
-                      isSel ? 'text-primary' : 'text-on-background'
-                    )}>
+                    <p
+                      className={classNames(
+                        "text-body-md font-semibold truncate",
+                        isSel ? "text-primary" : "text-on-background"
+                      )}
+                    >
                       {s.stopName}
                     </p>
                     <p className="text-[10px] text-outline font-mono uppercase tracking-wide truncate">
@@ -141,13 +169,20 @@ export function StationsScreen({ stations, sequences, predictions, userReports }
                     </p>
                   </span>
                   <div className="flex gap-0.5 items-center">
-                    {lines.slice(0, 3).map(l => (
-                      <span key={`l-${s.stopId}-${l}`} className="line-badge" style={{ background: LINE_META[l].color }}>
+                    {lines.slice(0, 3).map((l) => (
+                      <span
+                        key={`l-${s.stopId}-${l}`}
+                        className="line-badge"
+                        style={{ background: LINE_META[l].color }}
+                      >
                         {lineShort(l)}
                       </span>
                     ))}
                     {reportsByStation.has(s.stopName) && (
-                      <span className="text-[11px] ml-1" title={`${reportsByStation.get(s.stopName)!.length} reporte(s)`}>
+                      <span
+                        className="text-[11px] ml-1"
+                        title={`${reportsByStation.get(s.stopName)!.length} reporte(s)`}
+                      >
                         ⚠
                       </span>
                     )}
@@ -162,8 +197,8 @@ export function StationsScreen({ stations, sequences, predictions, userReports }
       {/* Detail */}
       <section
         className={classNames(
-          'flex-1 min-w-0 overflow-y-auto p-4 md:p-6',
-          selected && showDetailMobile ? 'block' : 'hidden md:block'
+          "flex-1 min-w-0 overflow-y-auto p-4 md:p-6",
+          selected && showDetailMobile ? "block" : "hidden md:block"
         )}
       >
         {selected ? (
@@ -173,6 +208,7 @@ export function StationsScreen({ stations, sequences, predictions, userReports }
             stations={stations}
             predictions={predictions}
             stationReports={reportsByStation.get(selected.stopName) ?? []}
+            now={now}
             onBack={() => setShowDetailMobile(false)}
           />
         ) : (
@@ -184,18 +220,25 @@ export function StationsScreen({ stations, sequences, predictions, userReports }
 }
 
 function StationDetail({
-  station, sequences, stations, predictions, stationReports, onBack,
+  station,
+  sequences,
+  stations,
+  predictions,
+  stationReports,
+  now,
+  onBack,
 }: {
   station: Station;
   sequences: RouteSequence[];
   stations: Station[];
   predictions: Prediction[];
   stationReports: ReportItem[];
+  now: number;
   onBack: () => void;
 }) {
-  const passingLines = Array.from(new Set(
-    sequences.filter(s => s.stopId === station.stopId).map(s => s.routeId)
-  )) as LineId[];
+  const passingLines = Array.from(
+    new Set(sequences.filter((s) => s.stopId === station.stopId).map((s) => s.routeId))
+  ) as LineId[];
 
   const accessKey = normalizeStationKey(station.stopName);
   const access = ACCESSIBILITY_METADATA[accessKey];
@@ -207,13 +250,15 @@ function StationDetail({
     const here = station.stopName;
     const hereLines = new Set(passingLines);
     const seen = new Set<string>();
-    return stations.filter(s => {
+    return stations.filter((s) => {
       if (s.stopId === station.stopId) return false;
       const isSameName = s.stopName === here;
       const isManual = MANUAL_TRANSFERS[here]?.includes(s.stopName);
       if (!isSameName && !isManual) return false;
-      const otherLines = sequences.filter(seq => seq.stopId === s.stopId).map(seq => seq.routeId);
-      const hasDiffLine = otherLines.some(l => !hereLines.has(l as LineId));
+      const otherLines = sequences
+        .filter((seq) => seq.stopId === s.stopId)
+        .map((seq) => seq.routeId);
+      const hasDiffLine = otherLines.some((l) => !hereLines.has(l as LineId));
       if (!hasDiffLine) return false;
       if (seen.has(s.stopName)) return false;
       seen.add(s.stopName);
@@ -222,10 +267,13 @@ function StationDetail({
   }, [station, sequences, stations, passingLines]);
 
   const liveHere = useMemo(
-    () => predictions
-      .filter(p => p.stationName === station.stopName && p.etaSeconds >= 0 && p.etaSeconds < 1800)
-      .sort((a, b) => a.etaSeconds - b.etaSeconds)
-      .slice(0, 6),
+    () =>
+      predictions
+        .filter(
+          (p) => p.stationName === station.stopName && p.etaSeconds >= 0 && p.etaSeconds < 1800
+        )
+        .sort((a, b) => a.etaSeconds - b.etaSeconds)
+        .slice(0, 6),
     [predictions, station.stopName]
   );
 
@@ -241,10 +289,20 @@ function StationDetail({
         </button>
         <div className="flex-1">
           <p className="text-label-caps text-outline tracking-widest">Estación</p>
-          <h1 className="text-headline-lg font-bold text-on-background tracking-tight mt-0.5">{station.stopName}</h1>
+          <h1 className="text-headline-lg font-bold text-on-background tracking-tight mt-0.5">
+            {station.stopName}
+          </h1>
           <div className="flex gap-1.5 mt-2 flex-wrap">
-            {passingLines.map(l => (
-              <span key={`pl-${l}`} className="pill-chip" style={{ background: LINE_META[l].color, color: '#fff', borderColor: LINE_META[l].color }}>
+            {passingLines.map((l) => (
+              <span
+                key={`pl-${l}`}
+                className="pill-chip"
+                style={{
+                  background: LINE_META[l].color,
+                  color: "#fff",
+                  borderColor: LINE_META[l].color,
+                }}
+              >
                 <span className="font-bold">{lineShort(l)}</span>
                 {LINE_META[l].name}
               </span>
@@ -262,18 +320,35 @@ function StationDetail({
             Conexiones Subte
           </h3>
           {connections.length === 0 ? (
-            <p className="text-body-sm text-on-surface-variant">Sin combinaciones con otras líneas.</p>
+            <p className="text-body-sm text-on-surface-variant">
+              Sin combinaciones con otras líneas.
+            </p>
           ) : (
             <ul className="flex flex-col gap-2">
               {connections.map((c, i) => {
-                const cStationIds = new Set(stations.filter(s => s.stopName === c.stopName).map(s => s.stopId));
-                const cLines = Array.from(new Set(sequences.filter(s => cStationIds.has(s.stopId)).map(s => s.routeId).filter(r => !passingLines.includes(r as LineId)))) as LineId[];
+                const cStationIds = new Set(
+                  stations.filter((s) => s.stopName === c.stopName).map((s) => s.stopId)
+                );
+                const cLines = Array.from(
+                  new Set(
+                    sequences
+                      .filter((s) => cStationIds.has(s.stopId))
+                      .map((s) => s.routeId)
+                      .filter((r) => !passingLines.includes(r as LineId))
+                  )
+                ) as LineId[];
                 return (
                   <li key={c.stopId || i} className="inner-card p-2.5 flex items-center gap-2">
-                    <span className="text-body-sm font-semibold text-on-background truncate flex-1">{c.stopName}</span>
+                    <span className="text-body-sm font-semibold text-on-background truncate flex-1">
+                      {c.stopName}
+                    </span>
                     <div className="flex gap-0.5">
-                      {cLines.slice(0, 3).map(l => (
-                        <span key={`cl-${c.stopId}-${l}`} className="line-badge" style={{ background: LINE_META[l].color }}>
+                      {cLines.slice(0, 3).map((l) => (
+                        <span
+                          key={`cl-${c.stopId}-${l}`}
+                          className="line-badge"
+                          style={{ background: LINE_META[l].color }}
+                        >
                           {lineShort(l)}
                         </span>
                       ))}
@@ -297,21 +372,28 @@ function StationDetail({
                 Colectivos y Trenes
               </h3>
               <div className="space-y-2">
-                {conn.trains.map(t => (
-                  <div key={`${t.line}-${t.stationName}`} className="inner-card p-2.5 flex items-center gap-2">
+                {conn.trains.map((t) => (
+                  <div
+                    key={`${t.line}-${t.stationName}`}
+                    className="inner-card p-2.5 flex items-center gap-2"
+                  >
                     <Icon.Train size={14} className="text-outline shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-body-sm font-medium text-on-background">Tren {t.line}</p>
-                      <p className="text-[10px] text-on-surface-variant truncate">{t.stationName} · {t.distance}m</p>
+                      <p className="text-[10px] text-on-surface-variant truncate">
+                        {t.stationName} · {t.distance}m
+                      </p>
                     </div>
                   </div>
                 ))}
-                {conn.buses.slice(0, 6).map(b => (
+                {conn.buses.slice(0, 6).map((b) => (
                   <div key={b.line} className="inner-card p-2.5 flex items-center gap-2">
                     <Icon.Bus size={14} className="text-outline shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-body-sm font-medium text-on-background">Línea {b.line}</p>
-                      <p className="text-[10px] text-on-surface-variant">{b.count} paradas cercanas · {b.nearestDistance}m</p>
+                      <p className="text-[10px] text-on-surface-variant">
+                        {b.count} paradas cercanas · {b.nearestDistance}m
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -329,16 +411,26 @@ function StationDetail({
           {access ? (
             <div className="grid grid-cols-2 gap-2">
               <div className="inner-card px-4 py-5 text-center flex flex-col items-center justify-center min-h-[84px]">
-                <p className="text-data-lg font-bold text-primary leading-none">{access.ascensores}</p>
-                <p className="text-label text-outline mt-2 whitespace-nowrap overflow-hidden text-ellipsis max-w-full">Ascensores</p>
+                <p className="text-data-lg font-bold text-primary leading-none">
+                  {access.ascensores}
+                </p>
+                <p className="text-label text-outline mt-2 whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
+                  Ascensores
+                </p>
               </div>
               <div className="inner-card px-4 py-5 text-center flex flex-col items-center justify-center min-h-[84px]">
-                <p className="text-data-lg font-bold text-primary leading-none">{access.escaleras}</p>
-                <p className="text-label text-outline mt-2 whitespace-nowrap overflow-hidden text-ellipsis max-w-full">Escaleras mec.</p>
+                <p className="text-data-lg font-bold text-primary leading-none">
+                  {access.escaleras}
+                </p>
+                <p className="text-label text-outline mt-2 whitespace-nowrap overflow-hidden text-ellipsis max-w-full">
+                  Escaleras mec.
+                </p>
               </div>
             </div>
           ) : (
-            <p className="text-body-sm text-on-surface-variant">Sin datos de accesibilidad registrados.</p>
+            <p className="text-body-sm text-on-surface-variant">
+              Sin datos de accesibilidad registrados.
+            </p>
           )}
         </div>
 
@@ -355,17 +447,19 @@ function StationDetail({
             }
             return (
               <ul className="flex flex-col gap-2">
-                {reports.map(r => (
+                {reports.map((r) => (
                   <li key={r.id} className="inner-card p-2.5 flex flex-col gap-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-[10px] font-bold uppercase tracking-widest font-mono px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">
                         {r.category}
                       </span>
                       <span className="text-[10px] text-outline">
-                        {Math.floor((Date.now() - new Date(r.createdAt).getTime()) / 60000)} min
+                        {Math.floor((now - new Date(r.createdAt).getTime()) / 60000)} min
                       </span>
                     </div>
-                    {r.comment && <p className="text-body-sm text-on-surface-variant">{r.comment}</p>}
+                    {r.comment && (
+                      <p className="text-body-sm text-on-surface-variant">{r.comment}</p>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -380,16 +474,25 @@ function StationDetail({
             Próximos arribos
           </h3>
           {liveHere.length === 0 ? (
-            <p className="text-body-sm text-on-surface-variant">Sin arribos en los próximos 30 min.</p>
+            <p className="text-body-sm text-on-surface-variant">
+              Sin arribos en los próximos 30 min.
+            </p>
           ) : (
             <ul className="flex flex-col divide-y divide-outline-variant/10">
               {liveHere.map((p, i) => (
                 <li key={`a-${i}`} className="flex items-center gap-2 py-1.5">
-                  <span className="line-badge" style={{ background: LINE_META[p.routeId as LineId]?.color }}>
+                  <span
+                    className="line-badge"
+                    style={{ background: LINE_META[p.routeId as LineId]?.color }}
+                  >
                     {lineShort(p.routeId)}
                   </span>
-                  <span className="text-body-sm text-on-background truncate flex-1">→ {p.destinationName}</span>
-                  <span className="font-mono text-body-sm font-bold text-primary tabular-nums">{formatEta(p.etaSeconds)}</span>
+                  <span className="text-body-sm text-on-background truncate flex-1">
+                    → {p.destinationName}
+                  </span>
+                  <span className="font-mono text-body-sm font-bold text-primary tabular-nums">
+                    {formatEta(p.etaSeconds)}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -437,14 +540,18 @@ function StationDetail({
               {artworks.map((art, i) => (
                 <article key={`art-${i}`} className="inner-card p-3">
                   <div className="flex justify-between items-start gap-2">
-                    <h4 className="text-body-sm font-bold text-on-background leading-snug">{art.nombre || 'Sin título'}</h4>
+                    <h4 className="text-body-sm font-bold text-on-background leading-snug">
+                      {art.nombre || "Sin título"}
+                    </h4>
                     {art.periodo && (
                       <span className="px-1.5 py-0.5 rounded bg-primary-container/15 text-primary text-[9px] font-bold font-mono shrink-0">
                         {art.periodo}
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-primary font-bold font-mono mt-1">{art.artistas}</p>
+                  <p className="text-[11px] text-primary font-bold font-mono mt-1">
+                    {art.artistas}
+                  </p>
                   {art.tecnica && (
                     <p className="text-[11px] text-on-surface-variant mt-1">
                       <span className="text-outline font-bold">Técnica:</span> {art.tecnica}
