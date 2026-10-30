@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# anden local memory
+/.anden/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
