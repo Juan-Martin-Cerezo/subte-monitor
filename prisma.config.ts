@@ -11,7 +11,7 @@ if (
     dbUrl.includes("kermingo"))
 ) {
   console.error(
-    "❌ ERROR: DATABASE_URL points to Kermingo! Execution blocked to prevent accidental overwrite of kermingo database."
+    "ERROR: DATABASE_URL points to Kermingo. Execution blocked to prevent overwriting the kermingo database."
   );
   process.exit(1);
 }

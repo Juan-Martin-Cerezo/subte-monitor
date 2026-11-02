@@ -1,0 +1,26 @@
+{"query":"¿a qué hora sale el último tren de la línea B?","expected_ids":["kb:ultimo-tren-linea-b"]}
+{"query":"¿cuánto sale el subte con SUBE?","expected_ids":["kb:tarifa-subte-sube"]}
+{"query":"¿cuáles son los descuentos por viajero frecuente?","expected_ids":["kb:descuento-viajero-frecuente"]}
+{"query":"¿a qué hora empieza el servicio de subte?","expected_ids":["kb:horario-inicio"]}
+{"query":"¿cuál es la frecuencia de la línea B?","expected_ids":["kb:frecuencia-linea-b"]}
+{"query":"¿la línea D es simulada?","expected_ids":["kb:linea-d-simulada"]}
+{"query":"¿qué estaciones tiene la línea H?","expected_ids":["kb:linea-h-estaciones"]}
+{"query":"¿dónde combina Perú con la línea E?","expected_ids":["kb:combinacion-peru-bolivar-catedral"]}
+{"query":"¿la estación Medrano tiene ascensor?","expected_ids":["kb:accesibilidad-b-medrano"]}
+{"query":"¿hay servicio nocturno en la línea B?","expected_ids":["kb:servicio-nocturno-linea-b"]}
+{"query":"¿cómo trata las combinaciones el planificador?","expected_ids":["kb:combinacion-regla-app"]}
+{"query":"¿cuántos ascensores tiene la estación Perú?","expected_ids":["kb:accesibilidad-a-peru"]}
+{"query":"¿cuánto cuesta el Premetro?","expected_ids":["kb:tarifa-premetro"]}
+{"query":"¿cuál es el último tren de la línea E?","expected_ids":["kb:ultimo-tren-linea-e"]}
+{"query":"¿qué pasa con la estación Medrano?","expected_ids":["alert:Alert_LineaB"]}
+{"query":"¿qué alerta hay sobre la estación Lavalle?","expected_ids":["alert:Alert_LineaC"]}
+{"query":"¿qué estaciones están cerradas en la línea E?","expected_ids":["alert:Alert_LineaE"]}
+{"query":"¿cómo funciona el hashing estable de los trenes?","expected_ids":["doc:architecture-b-hashing-estable-stable-hashing","doc:docs-04-telemetry-engine-details-b-stable-id-hashing"]}
+{"query":"¿qué es holding at the signal?","expected_ids":["doc:architecture-c-holding-at-the-signal-confirmacion-estricta-de-even","doc:docs-04-telemetry-engine-details-c-holding-at-the-signal-anti-tele"]}
+{"query":"¿cómo se logra el mapa oscuro con Leaflet?","expected_ids":["doc:architecture-a-capa-de-mosaicos-y-tema-oscuro"]}
+{"query":"production deployment to Vercel","expected_ids":["doc:docs-06-deployment-and-operations-e-run-the-database-seed-script"]}
+{"query":"¿cómo se agrupan los trenes con DBSCAN?","expected_ids":["doc:docs-04-telemetry-engine-details-a-dbscan-1d-spatial-temporal-clus","doc:architecture-a-algoritmo-de-ranuras-de-via-fijas-fixed-track-slot-2"]}
+{"query":"¿cómo es la interpolación de los trenes sobre las vías?","expected_ids":["doc:architecture-b-interpolacion-geoespacial-y-snapping"]}
+{"query":"MCP server limits","expected_ids":["doc:docs-anden-limits"]}
+{"query":"comandos para correr el proyecto","expected_ids":["doc:readme-como-correr-local","doc:architecture-6-comandos-utiles-de-desarrollo"]}
+{"query":"database models Prisma","expected_ids":["doc:docs-03-database-and-prisma-guide-03-database-models-schema-guide","doc:docs-03-database-and-prisma-a-station-model-station"]}
